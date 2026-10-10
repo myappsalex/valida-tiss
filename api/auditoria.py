@@ -33,22 +33,21 @@ class handler(BaseHTTPRequestHandler):
                     resumo_itens += f"- [{tipo}] Código: {codigo} | Descrição: {descricao} | Qtd: {qtd} | Valor: R$ {valor}\n"
 
             # 3. Engenharia de Prompt
+            # Engenharia de Prompt Otimizada para Economia de Tokens (Zero-shot, JSON output)
             prompt = f"""
-            Você é um médico auditor sênior, especialista em faturamento hospitalar, contas médicas e padrão TISS/TUSS no Brasil.
-            Sua tarefa é analisar a pertinência e compatibilidade entre os procedimentos executados e os materiais, medicamentos e taxas cobrados na conta abaixo.
-            
-            Identifique:
-            1. Possíveis excessos de quantidade.
-            2. Cobranças indevidas ou itens incompatíveis com a especialidade do procedimento principal.
-            3. Taxas ou diárias que não fazem sentido.
+                        Atue como auditor médico rigoroso (padrão TISS/TUSS).
+                        Cruze o procedimento principal com os itens cobrados (materiais/taxas/medicamentos).
+                        Regras:
+                        - Aponte APENAS desvios técnicos, incompatibilidade de especialidade ou excessos abusivos.
+                        - Se não houver desvio claro, retorne "Conta coerente".
+                        - Não use saudações. Seja telegráfico.
 
-            Guia Número: {numero_guia}
-            Itens Cobrados:
-            {resumo_itens}
+                        Guia: {numero_guia}
+                        Itens: {resumo_itens}
 
-            Aja de forma direta e técnica. Gere um relatório curto apontando exclusivamente os alertas de auditoria. Se a conta parecer perfeitamente coerente e enxuta, informe que não há indícios de anomalias. Não cite nomes de pacientes.
-            """
-
+                        Responda ESTRITAMENTE neste formato JSON:
+                        {{"status": "ALERTA" ou "OK", "achados": ["lista curta de desvios, se houver"]}}
+"""
             resposta_ia = ""
 
             # 4. Roteamento de Modelos de IA

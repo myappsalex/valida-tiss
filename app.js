@@ -20,8 +20,65 @@ function reiniciarWizard() {
 }
 
 // --- UPSELL IA ---
-function analisarGuiaIA(idUnico, numeroGuia, provedor) {
-    document.getElementById('modalPremium').style.display = 'flex';
+sync function analisarGuiaIA(idUnico, numeroGuia, provedor) {
+    // 1. Regra de Negócio: Exigir Login e Saldo Ativo
+    if (!usuarioLogado) {
+        document.getElementById('modalAuth').style.display = 'flex';
+        return; // Interrompe a execução até o utilizador fazer login
+    }
+    
+    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) {
+        alert("O seu plano não está ativo ou esgotou o limite de tokens. Contacte o administrador.");
+        return;
+    }
+
+    // 2. Execução da IA (Deduz 1 Token localmente para UX)
+    usuarioLogado.tokensRestantes -= 1;
+
+}
+
+function alternarFormAuth(tipo) {
+    document.getElementById('form-login').style.display = tipo === 'login' ? 'block' : 'none';
+    document.getElementById('form-registro').style.display = tipo === 'registro' ? 'block' : 'none';
+}
+
+function fecharModalAuth() { document.getElementById('modalAuth').style.display = 'none'; }
+
+function efetuarLogin() {
+    // Simulação de validação de API e verificação de tokens financeiros
+    const email = document.getElementById('login-email').value;
+    if (email.includes('@')) {
+        usuarioLogado = { email: email, statusPagamento: 'ATIVO', tokensRestantes: 150 };
+        fecharModalAuth();
+        alert(`Bem-vindo! Saldo atual: ${usuarioLogado.tokensRestantes} análises IA.`);
+    } else {
+        alert("Credenciais inválidas.");
+    }
+}
+
+function solicitarConta() {
+    alert("Pedido enviado para aprovação do Administrador. Aguarde a libertação dos seus tokens.");
+    alternarFormAuth('login');
+}
+
+// Interceção do Botão de IA
+async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
+    // 1. Regra de Negócio: Exigir Login e Saldo Ativo
+    if (!usuarioLogado) {
+        document.getElementById('modalAuth').style.display = 'flex';
+        return; // Interrompe a execução até o utilizador fazer login
+    }
+    
+    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) {
+        alert("O seu plano não está ativo ou esgotou o limite de tokens. Contacte o administrador.");
+        return;
+    }
+
+    // 2. Execução da IA (Deduz 1 Token localmente para UX)
+    usuarioLogado.tokensRestantes -= 1;
+    
+    // ... [Aqui entra o código fetch('/api/auditoria') que já construímos anteriormente] ...
+}
 }
 function fecharModal() { document.getElementById('modalPremium').style.display = 'none'; }
 function redirecionarCheckout() { alert("Redirecionando para página de pagamento..."); }
@@ -217,6 +274,26 @@ async function processarXML() {
                                 const vlUnit = extrairTexto(proc, "valorUnitario");
                                 const valorTotalProc = extrairTexto(proc, "valorTotal");
                                 
+                                // EXTRAÇÃO ROBUSTA DE PROFISSIONAL (Internação e SADT)
+                                let grauPart = extrairTexto(proc, "grauParticipacao");
+                                if (grauPart === "Não informado") grauPart = extrairTexto(proc, "grauPart"); // Variação de versão TISS
+                                
+                                let nomeProf = extrairTexto(proc, "nomeProfissional");
+                                if (nomeProf === "Não informado") nomeProf = extrairTexto(proc, "nomeProf");
+                                
+                                let profHTML = `<span style="color: #999; font-size: 11px;">Não informado</span>`;
+                                if (nomeProf !== "Não informado" || grauPart !== "Não informado") {
+                                    profHTML = `
+                                        <details style="background: #fdfdfd; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
+                                            <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold; font-size: 11px;">Ver Equipe</summary>
+                                            <div style="margin-top: 5px; font-size: 11px; color: #333;">
+                                                <strong>Nome:</strong> ${nomeProf}<br>
+                                                <strong>Grau Part.:</strong> ${grauPart}
+                                            </div>
+                                        </details>
+                                    `;
+                                }
+
                                 let valorProc = 0;
                                 if (valorTotalProc !== "Não informado"){
                                     valorProc = parseFloat(valorTotalProc);
@@ -226,15 +303,15 @@ async function processarXML() {
                                 } 				
                                 valorTotalLote += valorProc;
                                 
-                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${qtd}</td><td>R$ ${vlUnit}</td><td>R$ ${valorTotalProc}</td></tr>`;
+                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${qtd}</td><td>R$ ${vlUnit}</td><td>R$ ${valorTotalProc}</td></tr>`;
+                                
                                 dadosParaExportacao.push({
                                     tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, 
                                     tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos",
+                                    profissional: nomeProf, grauParticipacao: grauPart,
                                     qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalProc.replace('.', ',')
                                 });
                             }
-                            tabelaProcedimentosHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Procedimentos: R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</div></div></details>`;
-                        }
 
                         // Extração Despesas
                         if(despesas.length > 0) {

@@ -108,5 +108,32 @@
     </div>
 
     <script src="app.js"></script>
+	<!-- Modal de Autenticação / Registo SaaS -->
+    <div id="modalAuth" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3 style="color: #0056b3;">Acesso Premium IA</h3>
+            <p style="font-size: 13px; color: #666;">Faça login para consumir os seus tokens de IA ou crie uma conta.</p>
+            
+            <!-- Formulário de Login -->
+            <div id="form-login">
+                <input type="email" id="login-email" placeholder="E-mail de Acesso" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="password" id="login-senha" placeholder="Senha" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <button class="btn-primary" onclick="efetuarLogin()" style="width: 100%; margin-top: 15px;">Entrar no Sistema</button>
+                <p style="font-size: 12px; margin-top: 15px;">Não tem conta? <a href="#" onclick="alternarFormAuth('registro')" style="color: #0056b3;">Registe-se aqui</a></p>
+            </div>
+
+            <!-- Formulário de Registo (Wizard) -->
+            <div id="form-registro" style="display: none;">
+                <input type="text" id="reg-nome" placeholder="Nome da Empresa / Utilizador" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="email" id="reg-email" placeholder="E-mail de Contato (Chave de Acesso)" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="password" id="reg-senha" placeholder="Senha (Mín. 8 caracteres, 1 especial)" pattern="(?=.*[!@#$%^&*]).{8,}" title="A senha deve ter no mínimo 8 caracteres e um caractere especial" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <button class="btn-success" onclick="solicitarConta()" style="width: 100%; margin-top: 15px;">Solicitar Conta e Tokens</button>
+                <p style="font-size: 12px; margin-top: 15px;">Já possui conta? <a href="#" onclick="alternarFormAuth('login')" style="color: #0056b3;">Faça Login</a></p>
+            </div>
+            
+            <button class="close-modal" onclick="fecharModalAuth()">Cancelar</button>
+        </div>
+    </div>
+	
 </body>
 </html>
