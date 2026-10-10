@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modernização e Integração: FacAuditor & WebPlan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 350px; }
+        }
+        .tab-active { border-bottom-width: 4px; border-color: #0369a1; color: #0369a1; font-weight: 600; background-color: #f0f9ff; }
+        .tab-inactive { border-bottom-width: 4px; border-color: transparent; color: #64748b; font-weight: 500; }
+        .step-active { background-color: #e0f2fe; border-left-color: #0284c7; }
+        .step-inactive { background-color: #ffffff; border-left-color: #e2e8f0; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+<!-- Chosen Palette: Slate (Neutrals) + Sky Blue (Primary) + Emerald (Success/Goals) -->
+<!-- Application Structure Plan: The SPA is structured as a linear but highly interactive narrative dashboard. It starts with a Hero section to set the context, followed by the 'Problem Space' (O Desafio). It then transitions to the 'Solution Space', broken down into Architecture (Win32), User Workflow (WebPlan), and Operations/UI. Finally, it concludes with the implementation strategy. This structure was chosen because it mimics a persuasive pitch: establishing the pain, presenting the logical fix, detailing the user benefit, and proving feasibility, making the complex technical upgrade easy to digest for stakeholders. -->
+<!-- Visualization & Content Choices: 
+1. Desafio -> Goal: Compare/Inform -> Bar Chart (Current vs Future impact) -> Interaction: Hover tooltips -> Justification: Visually quantifies the abstract 'gargalos' into a tangible goal. Library: Chart.js.
+2. Solução (Win32) -> Goal: Organize -> Interactive Grid Cards -> Interaction: Click to expand details -> Justification: Breaks down technical rules into digestible, explorable pieces. Method: Vanilla JS + Tailwind.
+3. Jornada do Prestador -> Goal: Process Flow -> Interactive Timeline -> Interaction: Click steps to update a central display -> Justification: A workflow is best understood sequentially. Clicking prevents information overload. Method: Vanilla JS + Tailwind.
+4. Visibilidade & Operação -> Goal: Organize/Compare -> Tabbed Interface -> Interaction: Switch tabs -> Justification: Separates the 'External/Prestador' view from the 'Internal/FacAuditor' view without taking up vertical space. Method: Vanilla JS + Tailwind.
+-->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <nav class="fixed w-full bg-white/90 backdrop-blur-md border-b border-slate-200 z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 font-bold text-xl text-sky-800 tracking-tight">
+                    FacAuditor<span class="text-slate-400 font-light">&</span>WebPlan
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#desafio" class="text-sm font-medium text-slate-600 hover:text-sky-600 transition-colors">Diagnóstico</a>
+                    <a href="#solucao" class="text-sm font-medium text-slate-600 hover:text-sky-600 transition-colors">Nova Inteligência</a>
+                    <a href="#jornada" class="text-sm font-medium text-slate-600 hover:text-sky-600 transition-colors">Workflow</a>
+                    <a href="#operacao" class="text-sm font-medium text-slate-600 hover:text-sky-600 transition-colors">Operação & Visibilidade</a>
+                    <a href="#estrategia" class="text-sm font-medium text-sky-600 hover:text-sky-800 transition-colors">Estratégia</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+        <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight mb-6">
+            Modernização e Integração Estratégica
+        </h1>
+        <p class="mt-4 text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+            Projeto estratégico focado na eliminação de gargalos sistêmicos, garantindo fluidez e integridade absoluta entre a auditoria retrospectiva de contas e o faturamento final.
+        </p>
+        <div class="mt-10 flex justify-center gap-4">
+            <a href="#desafio" class="px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 shadow-sm transition-all">
+                Explorar o Projeto
+            </a>
+        </div>
+    </header>
+
+    <main>
+        <section id="desafio" class="py-20 bg-white border-t border-slate-100">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">1. Diagnóstico da Situação Atual</h2>
+                    <p class="text-lg text-slate-600">
+                        Esta seção detalha os gargalos atuais na transição entre auditoria e faturamento. Compreender estes obstáculos é fundamental para justificar a necessidade de uma reestruturação sistêmica e a adoção de novas regras e processos de validação prévia.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div class="space-y-6">
+                        <div class="bg-red-50 rounded-xl p-6 border border-red-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="text-2xl">⚠️</div>
+                                <h3 class="text-xl font-semibold text-slate-800">Falta de Integridade</h3>
+                            </div>
+                            <p class="text-slate-600">Não há conexão direta entre o que é auditado e o que é efetivamente cobrado. Isso resulta em um alto índice de retrabalho na ponta final do processo.</p>
+                        </div>
+
+                        <div class="bg-amber-50 rounded-xl p-6 border border-amber-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="text-2xl">⏳</div>
+                                <h3 class="text-xl font-semibold text-slate-800">Validação Tardia</h3>
+                            </div>
+                            <p class="text-slate-600">Hoje, críticas essenciais (como senhas não encontradas ou inconsistências de MatMed) só aparecem após o envio do lote no processo de cobrança/faturamento.</p>
+                        </div>
+
+                        <div class="bg-slate-100 rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="text-2xl">🧱</div>
+                                <h3 class="text-xl font-semibold text-slate-800">Rigidez Operacional</h3>
+                            </div>
+                            <p class="text-slate-600">As rotinas do FacAuditor são excessivamente focadas em digitação e agendamento, dificultando consultas administrativas e o acompanhamento de suporte por uma equipe de apoio.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h3 class="text-center font-semibold text-slate-700 mb-2">Impacto Esperado (Glosas & Retrabalho)</h3>
+                        <p class="text-center text-sm text-slate-500 mb-6">Projeção ilustrativa da meta do projeto após implantação.</p>
+                        <div class="chart-container">
+                            <canvas id="impactChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="solucao" class="py-20 bg-slate-50 border-t border-slate-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">2. Nova Inteligência de Configuração</h2>
+                    <p class="text-lg text-slate-600">
+                        Aqui é apresentado um escopo de alterações de sistema e processo. O objetivo é demonstrar como a implementação de uma nova filosofia de análise da auditoria ajudaria na integridade, fluxo de trabalho e direcionamento das contas. (Clique nos cartões para visualizar os detalhes).
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="win32-grid">
+                    
+                    <button class="win32-card text-left bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 group" data-target="info-parametros">
+                        <div class="text-3xl mb-4 group-hover:scale-110 transition-transform origin-left">📊</div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Parâmetros Técnicos</h3>
+                        <p class="text-slate-500 text-sm font-medium">Clique para detalhes</p>
+                        <div id="info-parametros" class="hidden mt-4 pt-4 border-t border-slate-100 text-slate-600">
+                            Estabelecimento de regras estritas de auditoria baseadas em atributos-chave: Tipo de Guia, Tipo de Despesa (mapeadas via Tag XML/Schema) e Tipo de Tabela padrão (TISS).
+                        </div>
+                    </button>
+
+                    <button class="win32-card text-left bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 group" data-target="info-segmentacao">
+                        <div class="text-3xl mb-4 group-hover:scale-110 transition-transform origin-left">👥</div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Segmentação por Prestador</h3>
+                        <p class="text-slate-500 text-sm font-medium">Clique para detalhes</p>
+                        <div id="info-segmentacao" class="hidden mt-4 pt-4 border-t border-slate-100 text-slate-600">
+                            Capacidade avançada de vincular prestadores específicos ou grupos de prestadores a regras de auditoria distintas, personalizando o nível de exigência.
+                        </div>
+                    </button>
+
+                    <button class="win32-card text-left bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 group" data-target="info-unificacao">
+                        <div class="text-3xl mb-4 group-hover:scale-110 transition-transform origin-left">📥</div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Unificação de Entrada</h3>
+                        <p class="text-slate-500 text-sm font-medium">Clique para detalhes</p>
+                        <div id="info-unificacao" class="hidden mt-4 pt-4 border-t border-slate-100 text-slate-600">
+                            Criação de um local único e centralizado para a recepção de arquivos externos, introduzindo e parametrizando a nova opção de fluxo: "Envio para Auditoria".
+                        </div>
+                    </button>
+					
+					<button class="win32-card text-left bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 group" data-target="info-filtragem">
+                        <div class="text-3xl mb-4 group-hover:scale-110 transition-transform origin-left">⚙️</div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Filtragem Dinâmica</h3>
+                        <p class="text-slate-500 text-sm font-medium">Clique para detalhes</p>
+                        <div id="info-filtragem" class="hidden mt-4 pt-4 border-t border-slate-100 text-slate-600">
+                            Criação de rotina dedicada para configurar exatamente quais guias (arquivos XML ou FFP) devem, obrigatoriamente, passar pelo crivo do FacAuditor antes de prosseguirem.
+                        </div>
+                    </button>
+					
+					 <button class="win32-card text-left bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 group" data-target="info-filtragem">
+                        <div class="text-3xl mb-4 group-hover:scale-110 transition-transform origin-left">🧱</div>
+                        <h4 class="text-xl font-bold text-slate-800 mb-2">Fluxo de trabalho</h4>
+                        <p class="text-slate-500 text-sm font-medium">Clique para detalhes</p>
+                        <div id="info-filtragem" class="hidden mt-4 pt-4 border-t border-slate-100 text-slate-600">
+                           Inteligência de controle de fluxo para gerenciamento do ciclo de vida da conta na auditoria. Auditoria por etapas ou em paralelo, controle por equipes, permissões de edição e relacionamento com o prestador (consenso).
+                        </div>
+                    </button>
+					
+                </div>
+
+                <!-- Feature 1: Simulador de Regras (Gemini) -->
+                <div class="mt-12 bg-white p-8 rounded-2xl shadow-sm border border-sky-100 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-sky-50 to-indigo-50 rounded-bl-full -z-10"></div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="text-3xl">🤖</div>
+                        <h3 class="text-2xl font-bold text-slate-800">Expectativa para o futuro: automatização de análise indicativa de contas usando a IA</h3>
+                    </div>
+                    <p class="text-slate-600 mb-6">Um cenário pensado para o futuro, é contar com o apoio da IA. Descreva um procedimento ou cenário de cobrança, e nossa IA analisará as regras para simular o direcionamento da auditoria.</p>
+                    
+                    <div class="flex flex-col md:flex-row gap-4 mb-6">
+                        <input type="text" id="simulador-input" class="flex-1 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" placeholder="Ex: Internação com uso de 15 fios cirúrgicos de alto custo e 3 diárias de UTI...">
+                        <button id="simulador-btn" class="px-6 py-3 bg-sky-600 text-white font-semibold rounded-lg hover:bg-sky-700 transition-colors shadow-sm flex items-center justify-center gap-2 whitespace-nowrap">
+                            Simular Análise ✨
+                        </button>
+                    </div>
+                    <div id="simulador-loading" class="hidden text-sky-600 font-medium animate-pulse mb-4">Analisando regras de negócio e tabela TISS...</div>
+                    <div id="simulador-output" class="hidden p-5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="jornada" class="py-20 bg-sky-900 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-4 text-sky-50">3. A Jornada do Prestador: Workflow WebPlan</h2>
+                    <p class="text-lg text-sky-200">
+                        Explore o novo fluxo de trabalho interativo do prestador. O objetivo primário desta arquitetura é garantir que o lote chegue ao processamento final de forma "limpa", através do conceito de Bloqueio Inteligente e Ciclo de Consenso. Interaja com as etapas abaixo.
+                    </p>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-12 items-start">
+                    <div class="w-full lg:w-1/3 space-y-3" id="workflow-steps">
+                        <button class="w-full text-left p-4 rounded-lg border-l-4 step-active transition-colors flex items-center gap-3" data-step="1">
+                            <span class="bg-sky-600 text-white font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0">1</span>
+                            <span class="font-semibold text-slate-800">Bloqueio Inteligente & Envio</span>
+                        </button>
+                        <button class="w-full text-left p-4 rounded-lg border-l-4 step-inactive hover:bg-slate-50 transition-colors flex items-center gap-3" data-step="2">
+                            <span class="bg-slate-300 text-slate-600 font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0">2</span>
+                            <span class="font-semibold text-slate-800">Auditoria Eletrônica</span>
+                        </button>
+                        <button class="w-full text-left p-4 rounded-lg border-l-4 step-inactive hover:bg-slate-50 transition-colors flex items-center gap-3" data-step="3">
+                            <span class="bg-slate-300 text-slate-600 font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0">3</span>
+                            <span class="font-semibold text-slate-800">Ajuste de Divergências</span>
+                        </button>
+                        <button class="w-full text-left p-4 rounded-lg border-l-4 step-inactive hover:bg-slate-50 transition-colors flex items-center gap-3" data-step="4">
+                            <span class="bg-slate-300 text-slate-600 font-bold h-8 w-8 rounded-full flex items-center justify-center shrink-0">4</span>
+                            <span class="font-semibold text-slate-800">Liberação da Conta Limpa</span>
+                        </button>
+                    </div>
+
+                    <div class="w-full lg:w-2/3 bg-white text-slate-800 p-8 rounded-2xl shadow-xl min-h-[300px] flex flex-col justify-center border border-sky-100 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-sky-50 rounded-bl-full -z-10"></div>
+                        
+                        <div id="workflow-content-1" class="workflow-content block animate-fade-in">
+                            <div class="text-4xl mb-4">🛑</div>
+                            <h3 class="text-2xl font-bold mb-3 text-sky-800">Identificação e Bloqueio</h3>
+                            <p class="text-lg text-slate-600 mb-4">O sistema identifica ativamente os lotes que se encaixam nas regras de auditoria predefinidas.</p>
+                            <ul class="space-y-2 text-slate-600">
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Ocorre o bloqueio do envio padrão.</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> O lote é automaticamente direcionado para a fila de Auditoria Prévia.</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> O prestador envia o arquivo inicial.</li>
+                            </ul>
+                        </div>
+
+                        <div id="workflow-content-2" class="workflow-content hidden animate-fade-in">
+                            <div class="text-4xl mb-4">🤖</div>
+                            <h3 class="text-2xl font-bold mb-3 text-sky-800">Processamento Inicial</h3>
+                            <p class="text-lg text-slate-600 mb-4">O lote passa pela validação sistêmica do WebPlan contra as regras do FacAuditor.</p>
+                            <ul class="space-y-2 text-slate-600">
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Validação de senhas e autorizações.</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Checagem de regras de negócio (TISS).</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Identificação prévia de inconsistências de Materiais e Medicamentos (MatMed).</li>
+                            </ul>
+                        </div>
+
+                        <div id="workflow-content-3" class="workflow-content hidden animate-fade-in">
+                            <div class="text-4xl mb-4">🔄</div>
+                            <h3 class="text-2xl font-bold mb-3 text-sky-800">Ciclo de Consenso</h3>
+                            <p class="text-lg text-slate-600 mb-4">Fase interativa onde as pendências identificadas são tratadas antes de virarem glosas definitivas.</p>
+                            <ul class="space-y-2 text-slate-600">
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Prestador visualiza divergências em tempo real.</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Ajustes e justificativas são inseridos diretamente na plataforma.</li>
+                                <li class="flex items-start gap-2"><span class="text-sky-500 font-bold">✓</span> Auditoria interna avalia os ajustes.</li>
+                            </ul>
+                        </div>
+
+                        <div id="workflow-content-4" class="workflow-content hidden animate-fade-in">
+                            <div class="text-4xl mb-4">✅</div>
+                            <h3 class="text-2xl font-bold mb-3 text-emerald-600">Protocolo e Transparência</h3>
+                            <p class="text-lg text-slate-600 mb-4">Somente após a validação e adequação de todas as regras, o lote segue seu fluxo.</p>
+                            <ul class="space-y-2 text-slate-600">
+                                <li class="flex items-start gap-2"><span class="text-emerald-500 font-bold">✓</span> Lote liberado para gerar protocolo definitivo ("Conta Limpa").</li>
+                                <li class="flex items-start gap-2"><span class="text-emerald-500 font-bold">✓</span> Download do XML "limpo" disponibilizado para atualização do ERP do prestador.</li>
+                                <li class="flex items-start gap-2"><span class="text-emerald-500 font-bold">✓</span> Geração automática do relatório de "Análise de Contas" (motivos de glosa TISS).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="operacao" class="py-20 bg-white border-t border-slate-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">4. Visão 360º: Visibilidade & Operação Interna</h2>
+                    <p class="text-lg text-slate-600">
+                        Veja como a interface e a operação interna serão otimizadas. Esta seção consolida as melhorias de Experiência do Usuário (WebPlan) para o prestador externo e a evolução das rotinas técnicas (FacAuditor) para o time interno. Alterne entre as visões para explorar.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 rounded-2xl p-2 sm:p-4 mb-8 flex justify-center border border-slate-200">
+                    <div class="flex space-x-2 sm:space-x-8 w-full max-w-md">
+                        <button class="flex-1 py-3 px-4 text-center cursor-pointer transition-all rounded-t-lg tab-btn tab-active" data-view="prestador">
+                            Visão do Prestador (WebPlan)
+                        </button>
+                        <button class="flex-1 py-3 px-4 text-center cursor-pointer transition-all rounded-t-lg tab-btn tab-inactive hover:bg-slate-100" data-view="interna">
+                            Visão Interna (FacAuditor)
+                        </button>
+                    </div>
+                </div>
+
+                <div id="view-prestador" class="view-panel block">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                            <div class="text-4xl mb-4">📈</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Relatórios Gerenciais</h4>
+                            <p class="text-sm text-slate-600">Emissão facilitada de Capeante e Extrato da Conta Auditada, com opções completas de exportação para formato XLSX.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center border-t-4 border-t-sky-500">
+                            <div class="text-4xl mb-4">🔔</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Comunicação Real-Time</h4>
+                            <p class="text-sm text-slate-600">Novo sistema de notificações: ícone de "sininho" na plataforma e disparo de e-mails detalhados a cada movimentação de status do lote.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                            <div class="text-4xl mb-4">🔍</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Busca Avançada</h4>
+                            <p class="text-sm text-slate-600">Implementação de novos filtros estratégicos dentro da rotina de auditoria: busca rápida por Guia Operadora, Senha e Guia Prestador.</p>
+                        </div>
+                    </div>
+
+                    <!-- Feature 2: Tradutor de Glosas (Gemini) -->
+                    <div class="mt-8 bg-gradient-to-r from-sky-50 to-white p-6 rounded-xl border border-sky-100 shadow-sm">
+                        <div class="flex items-center gap-3 mb-3">
+                            <h4 class="text-lg font-bold text-sky-800 flex items-center gap-2">Tradutor de Glosas TISS</h4>
+                        </div>
+                        <p class="text-sm text-slate-600 mb-4">Muitas glosas são técnicas demais para o prestador. Teste nossa IA que traduz jargões de auditoria em orientações claras para ajuste imediato.</p>
+                        <div class="flex flex-col md:flex-row gap-3">
+                            <input type="text" id="tradutor-input" class="flex-1 p-2.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none text-slate-800" placeholder="Ex: Glosa 1003 - Material ou medicamento incompatível com o procedimento...">
+                            <button id="tradutor-btn" class="px-5 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition-colors flex items-center justify-center whitespace-nowrap">
+                                Traduzir para o Prestador ✨
+                            </button>
+                        </div>
+                        <div id="tradutor-loading" class="hidden text-sky-600 text-sm font-medium animate-pulse mt-3">Simplificando termo...</div>
+                        <div id="tradutor-output" class="hidden mt-3 p-4 bg-white border border-slate-200 rounded-lg text-sm text-slate-700"></div>
+                    </div>
+                </div>
+
+                <div id="view-interna" class="view-panel hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center border-t-4 border-t-emerald-500">
+                            <div class="text-4xl mb-4">🤝</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Auditoria Compartilhada</h4>
+                            <p class="text-sm text-slate-600">Controle de Fluxo: Médicos (honorários) e Enfermeiros (demais despesas) atuando no mesmo lote de forma sequencial ou paralela.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                            <div class="text-4xl mb-4">📂</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Acesso Administrativo</h4>
+                            <p class="text-sm text-slate-600">Novos filtros para lotes concluídos e XMLs gerados. Suporte ao prestador garantido sem interferir ou atrasar a fila técnica de auditoria.</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                            <div class="text-4xl mb-4">📲</div>
+                            <h4 class="text-lg font-bold text-slate-800 mb-2">Engajamento de Rede</h4>
+                            <p class="text-sm text-slate-600">Configuração de disparos de notificações automáticas ao prestador a cada etapa vencida, criando uma experiência similar à regulação.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="estrategia" class="py-20 bg-slate-900 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center max-w-3xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-4">5. Próximos Passos e Estratégia</h2>
+                    <p class="text-lg text-slate-400">
+                        Nossa estratégia de implementação baseia-se em reaproveitamento tecnológico para garantir agilidade. O objetivo final é tangível: maximizar o retorno financeiro via eficiência operacional.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                    <div class="p-8 rounded-2xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
+                        <div class="text-5xl mb-4">🏗️</div>
+                        <h3 class="text-xl font-bold mb-2 text-sky-400">Arquitetura Base</h3>
+                        <p class="text-slate-300 text-sm">Utilização da estrutura consolidada do Projeto DEVCONTAS como alicerce tecnológico para o novo desenvolvimento.</p>
+                    </div>
+                    
+                    <div class="p-8 rounded-2xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
+                        <div class="text-5xl mb-4">♻️</div>
+                        <h3 class="text-xl font-bold mb-2 text-sky-400">Sinergia Tecnológica</h3>
+                        <p class="text-slate-300 text-sm">Aproveitamento dos módulos de controle de fluxo e edição de conta do DEVCONTAS para acelerar radicalmente as entregas.</p>
+                    </div>
+
+                    <div class="p-8 rounded-2xl bg-gradient-to-br from-emerald-900/50 to-slate-800/50 border border-emerald-700/50 backdrop-blur-sm shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+                        <div class="text-5xl mb-4">🏆</div>
+                        <h3 class="text-xl font-bold mb-2 text-emerald-400">A Grande Meta</h3>
+                        <p class="text-slate-300 text-sm">Redução drástica de glosas recursivas e elevação significativa da integridade financeira entre os setores.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-950 py-8 text-center border-t border-slate-800">
+        <p class="text-slate-500 text-sm">
+            Proposta de Apresentação Interna — FacAuditor & WebPlan.<br>
+            Painel Estratégico Interativo.
+        </p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Chart.js Implementation ---
+            const ctx = document.getElementById('impactChart').getContext('2d');
+            
+            // Dummy data to illustrate the 'Meta' (Goal) of reducing glosas and increasing integrity
+            const impactData = {
+                labels: ['Cenário Atual', 'Meta Pós-Implantação'],
+                datasets: [
+                    {
+                        label: 'Volume de Retrabalho / Glosas',
+                        data: [85, 15], 
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)', // Red
+                        borderColor: 'rgb(220, 38, 38)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Integridade de Cobrança (%)',
+                        data: [40, 95],
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)', // Emerald
+                        borderColor: 'rgb(5, 150, 105)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
+            };
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: impactData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Inter', size: 12 },
+                                color: '#475569'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Inter', size: 14 },
+                            bodyFont: { family: 'Inter', size: 13 },
+                            padding: 12,
+                            cornerRadius: 8
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) { return value + '%'; },
+                                font: { family: 'Inter' },
+                                color: '#64748b'
+                            },
+                            grid: { borderDash: [4, 4], color: '#e2e8f0' }
+                        },
+                        x: {
+                            ticks: { font: { family: 'Inter', weight: '500' }, color: '#334155' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // --- Win32 Interactive Cards ---
+            const win32Cards = document.querySelectorAll('.win32-card');
+            win32Cards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const infoDiv = document.getElementById(targetId);
+                    
+                    if (infoDiv.classList.contains('hidden')) {
+                        // Close others first (accordion style) - Optional, removed for independent toggling
+                        // document.querySelectorAll('[id^="info-"]').forEach(el => el.classList.add('hidden'));
+                        infoDiv.classList.remove('hidden');
+                        infoDiv.classList.add('animate-fade-in');
+                        this.querySelector('p').innerText = "Ocultar detalhes";
+                        this.classList.add('ring-2', 'ring-sky-500', 'border-sky-300');
+                    } else {
+                        infoDiv.classList.add('hidden');
+                        infoDiv.classList.remove('animate-fade-in');
+                        this.querySelector('p').innerText = "Clique para detalhes";
+                        this.classList.remove('ring-2', 'ring-sky-500', 'border-sky-300');
+                    }
+                });
+            });
+
+            // --- Workflow Timeline Interaction ---
+            const stepBtns = document.querySelectorAll('#workflow-steps button');
+            const contents = document.querySelectorAll('.workflow-content');
+
+            stepBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const stepNum = this.getAttribute('data-step');
+                    
+                    // Reset buttons
+                    stepBtns.forEach(b => {
+                        b.classList.remove('step-active');
+                        b.classList.add('step-inactive', 'hover:bg-slate-50');
+                        b.querySelector('span:first-child').classList.remove('bg-sky-600', 'text-white');
+                        b.querySelector('span:first-child').classList.add('bg-slate-300', 'text-slate-600');
+                    });
+
+                    // Activate clicked button
+                    this.classList.remove('step-inactive', 'hover:bg-slate-50');
+                    this.classList.add('step-active');
+                    this.querySelector('span:first-child').classList.remove('bg-slate-300', 'text-slate-600');
+                    this.querySelector('span:first-child').classList.add('bg-sky-600', 'text-white');
+
+                    // Switch content
+                    contents.forEach(content => {
+                        content.classList.add('hidden');
+                        content.classList.remove('animate-fade-in');
+                    });
+                    
+                    const activeContent = document.getElementById(`workflow-content-${stepNum}`);
+                    activeContent.classList.remove('hidden');
+                    // Trigger reflow for animation
+                    void activeContent.offsetWidth; 
+                    activeContent.classList.add('animate-fade-in');
+                });
+            });
+
+            // --- Views Tabs Interaction ---
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const viewPanels = document.querySelectorAll('.view-panel');
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const viewId = this.getAttribute('data-view');
+                    
+                    // Update tabs styling
+                    tabBtns.forEach(t => {
+                        t.classList.remove('tab-active', 'bg-f0f9ff'); // Custom bg class via tailwind config style
+                        t.style.backgroundColor = 'transparent';
+                        t.classList.add('tab-inactive', 'hover:bg-slate-100');
+                    });
+                    this.classList.remove('tab-inactive', 'hover:bg-slate-100');
+                    this.classList.add('tab-active');
+                    this.style.backgroundColor = '#f0f9ff';
+
+                    // Update panels
+                    viewPanels.forEach(panel => {
+                        panel.classList.add('hidden');
+                        panel.classList.remove('animate-fade-in');
+                    });
+                    const targetPanel = document.getElementById(`view-${viewId}`);
+                    targetPanel.classList.remove('hidden');
+                    void targetPanel.offsetWidth;
+                    targetPanel.classList.add('animate-fade-in');
+                });
+            });
+
+            // Simple fade-in keyframes via CSS injection
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in {
+                    animation: fadeIn 0.4s ease-out forwards;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // --- Gemini API Integrations ---
+            const apiKey = "AIzaSyCvWJuPZR2NdYyr6n5iNDc8FXNqxXGyxNA";
+            
+            async function fetchGeminiWithBackoff(prompt, systemInstruction) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    systemInstruction: { parts: [{ text: systemInstruction }] }
+                };
+                
+                const delays = [1000, 2000, 4000, 8000, 16000];
+                for (let i = 0; i < 5; i++) {
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) throw new Error('API request failed');
+                        const result = await response.json();
+                        return result.candidates?.[0]?.content?.parts?.[0]?.text || "Resposta não disponível.";
+                    } catch (error) {
+                        if (i === 4) return "Serviço de IA indisponível. Tente novamente mais tarde.";
+                        await new Promise(resolve => setTimeout(resolve, delays[i]));
+                    }
+                }
+            }
+
+            // Simulador Win32 Logic
+            const simuladorBtn = document.getElementById('simulador-btn');
+            const simuladorInput = document.getElementById('simulador-input');
+            const simuladorLoading = document.getElementById('simulador-loading');
+            const simuladorOutput = document.getElementById('simulador-output');
+
+            simuladorBtn.addEventListener('click', async () => {
+                const text = simuladorInput.value.trim();
+                if (!text) return;
+
+                simuladorLoading.classList.remove('hidden');
+                simuladorOutput.classList.add('hidden');
+                simuladorBtn.disabled = true;
+                simuladorBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+                const systemInstruction = "Você é o FacAuditor, um motor inteligente de regras de faturamento médico. Analise o procedimento fornecido e diga se ele deve ser: 1) Liberado automaticamente, 2) Ir para auditoria de enfermagem (foco em materiais/medicamentos) ou 3) Ir para auditoria médica (foco em complexidade/pertinência). Responda de forma direta e curta (máx 3 linhas) justificando sua decisão.";
+                const prompt = `Analise este cenário de cobrança: ${text}`;
+                
+                const response = await fetchGeminiWithBackoff(prompt, systemInstruction);
+                
+                simuladorOutput.innerHTML = response.replace(/\n/g, '<br>');
+                simuladorLoading.classList.add('hidden');
+                simuladorOutput.classList.remove('hidden');
+                simuladorBtn.disabled = false;
+                simuladorBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            });
+
+            // Tradutor de Glosas Logic
+            const tradutorBtn = document.getElementById('tradutor-btn');
+            const tradutorInput = document.getElementById('tradutor-input');
+            const tradutorLoading = document.getElementById('tradutor-loading');
+            const tradutorOutput = document.getElementById('tradutor-output');
+
+            tradutorBtn.addEventListener('click', async () => {
+                const text = tradutorInput.value.trim();
+                if (!text) return;
+
+                tradutorLoading.classList.remove('hidden');
+                tradutorOutput.classList.add('hidden');
+                tradutorBtn.disabled = true;
+                tradutorBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+                const systemInstruction = "Você é um assistente de conciliação de glosas TISS. Pegue o motivo técnico ou código da glosa fornecido e reescreva de forma extremamente simples, didática e construtiva para que a equipe administrativa da clínica (prestador) saiba exatamente o que deu errado e como corrigir a guia. Responda em no máximo 3 linhas.";
+                const prompt = `Traduza esta glosa: ${text}`;
+                
+                const response = await fetchGeminiWithBackoff(prompt, systemInstruction);
+                
+                tradutorOutput.innerHTML = response.replace(/\n/g, '<br>');
+                tradutorLoading.classList.add('hidden');
+                tradutorOutput.classList.remove('hidden');
+                tradutorBtn.disabled = false;
+                tradutorBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+            });
+       
+		});
+    </script>
+</body>
+</html>

@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Validador XML - Padrão TISS (by Alex)</title>
+    <style>
+	
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .upload-box { 
+		//border: none; 
+		border: 2px #0056b3; 
+		padding: 20px; text-align: 
+		center; border-radius: 8px; 
+		background-color: #f8fbf8; }
+        button { background-color: #0244c5; //#0056b3;
+		color: white; 
+		padding: 10px 20px; 
+		border: none; 
+		border-radius: 4px; 
+		cursor: pointer; 
+		margin-top: 15px; }
+        button:hover { background-color: #004494; }
+		
+        #resultado { margin-top: 20px; padding: 15px; border-radius: 4px; display: none; }
+        .sucesso { 
+		background-color: #d4edda; 
+		color: #155724; 
+		border: 1px solid #c3e6cb; }
+		
+        .erro { 
+		background-color: #f8d7da; 
+		color: #721c24; 
+		border: 1px solid #f5c6cb; }
+        pre { white-space: pre-wrap; word-wrap: break-word; font-size: 12px; }
+		
+		/* Estilos do Loading */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #0056b3;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Botão desabilitado */
+        button:disabled {
+            background-color: #a0c4e8;
+            cursor: not-allowed;
+        }
+		
+		/* Estilos das Tabelas de Dados e Erros */
+        .tabela-dados {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+            background-color: white;
+        }
+        .tabela-dados th, .tabela-dados td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .tabela-dados th {
+            background-color: #f4f7f6;
+            color: #333;
+            width: 30%;
+        }
+        .lista-erros {
+            margin-top: 10px;
+            padding-left: 20px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #d8000c;
+        }
+        .lista-erros li { margin-bottom: 5px; }
+		
+		button
+		#btnExportar:hover { background-color: #218838; }
+		
+		.label-cabecalho{
+			display: block;
+			padding: 15px;
+			color: #002233;
+			background-color: #ECFFF2;
+			margin-bottom: 5px;
+			font-weight: 600;
+		}
+		
+		
+    </style>
+</head>
+<body>
+	
+	<label class="label-cabecalho">
+	<table>
+	<tr><th><img src="imagens/xml_img.png" alt="Validar e processamento XML" width="70" length="50" align="left"></img></th>
+	<th>
+    <h2>💻⚙️ Validador e extrator de dados TISS </h2>
+	<h5>  🚨 Havendo falhas estruturais, a rotina exibirá as críticas a serem ajustadas 🚨  </h5></th></tr>
+	</table>
+	</label>
+
+
+
+   <div class="upload-box">
+   
+		<!--<label for="xmlInput" border="20px" color=black style>Selecionar o arquivo XML</label>-->
+        <input type="file" id="xmlInput" accept=".xml">
+        <br>
+        <button id="btnValidar" onclick="processarXML()">
+            🔍 Ler e Processar XML <span id="spinner" class="loader" style="display: none;"></span>
+        </button>
+        <button id="btnExportar" onclick="exportarExcel()" style="display: none; background-color: #28a745; margin-left: 10px;">
+            📊 Exportar para Excel
+        </button>
+		
+    </div>
+
+    <div id="resultado"></div>
+
+    <script>
+        // Variável global para o Excel
+        let dadosParaExportacao = [];
+
+        // --- 1. O NOVO MOTOR DE BUSCA (Blindado contra Namespaces e Prefixos) ---
+        function buscarVariasTags(node, nomeTag) {
+            // O "*" faz o navegador ignorar se é ans:, tiss: ou sem prefixo
+            let elementos = node.getElementsByTagNameNS("*", nomeTag);
+            if (elementos.length === 0) elementos = node.getElementsByTagName(nomeTag);
+            if (elementos.length === 0) elementos = node.getElementsByTagName("ans:" + nomeTag);
+            return elementos;
+        }
+		
+		// Dicionário da Tabela 18 do TISS (Tipos de Despesa)
+        function obterNomeDespesaTISS(codigo) {
+            const dominios = {
+                "01": "Gasoterapia",
+                "02": "Medicamentos",
+                "03": "Materiais",
+                "05": "Diárias",
+				"07": "Taxas e Alugueis",
+                "08": "Órteses/Próteses (OPME)"
+
+            };
+            return dominios[codigo] || "Outra Despesa";
+        }
+
+        function buscarTagUnica(node, nomeTag) {
+            const elementos = buscarVariasTags(node, nomeTag);
+            return elementos.length > 0 ? elementos[0] : null;
+        }
+
+        function extrairTexto(node, nomeTag, valorPadrao = "Não informado") {
+            const elemento = buscarTagUnica(node, nomeTag);
+            return elemento ? elemento.textContent.trim() : valorPadrao;
+        }
+        // ------------------------------------------------------------------------
+
+        async function processarXML() {
+            const fileInput = document.getElementById('xmlInput');
+            const btnValidar = document.getElementById('btnValidar');
+            const spinner = document.getElementById('spinner');
+            
+            if (fileInput.files.length === 0) {
+                mostrarResultadoCustomizado("<p>Por favor, selecione um arquivo XML.</p>", false);
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            btnValidar.disabled = true;
+            spinner.style.display = 'inline-block';
+            mostrarResultadoCustomizado("<p>Lendo arquivo e enviando para o servidor...</p>", true);
+
+            reader.onload = async function(e) {
+                const xmlContent = e.target.result;
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
+                
+                const parserError = buscarTagUnica(xmlDoc, "parsererror");
+                if (parserError) {
+                    mostrarResultadoCustomizado(`<strong>Erro de formatação:</strong> 🛑 O arquivo não é um XML válido.<br><br>Detalhes:<pre>${parserError.textContent}</pre>`, false);
+                    restaurarBotao(btnValidar, spinner);
+                    return;
+                }
+
+                // 2. Extrai a Versão do TISS e a Operadora (Destino)
+                let versaoTiss = "Versão não encontrada";
+                let operadoraID = "Não identificada";
+				let prestadorID = "Não informado";
+                
+                // CORREÇÃO AQUI: A tag no XML é apenas "cabecalho"
+                const cabecalho = buscarTagUnica(xmlDoc, "cabecalho");
+                
+                if (cabecalho) {
+                    // Busca Padrao (TISS 4+) ou versaoPadrao (TISS mais antigo)
+                    const tagPadrao = buscarTagUnica(cabecalho, "Padrao") || buscarTagUnica(cabecalho, "versaoPadrao");
+                    if (tagPadrao) versaoTiss = tagPadrao.textContent.trim();
+
+                    const destino = buscarTagUnica(cabecalho, "destino");
+                    if (destino) {
+                        const regANS = buscarTagUnica(destino, "registroANS");
+                        const cnpj = buscarTagUnica(destino, "cnpj");
+                        
+                        if (regANS) operadoraID = "Registro ANS: " + regANS.textContent.trim();
+                        else if (cnpj) operadoraID = "CNPJ: " + cnpj.textContent.trim();
+                    }
+					
+					const origem = buscarTagUnica(cabecalho, "origem");
+					if (origem){
+						const prestador = buscarTagUnica(origem, "CNPJ") || buscarTagUnica(origem, "codigoPrestadorNaOperadora");
+						if (prestador) prestadorID = prestador.textContent.trim();
+					}
+                }
+
+                try {
+                    const response = await fetch('/api/validador', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ xml: xmlContent, versao: versaoTiss })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.valido) {
+                        const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
+                        let guiasHTML = '';
+                        let totalGuias = 0;
+                        let valorTotalLote = 0;
+						//let valorTotalProcedimentos = 0;
+						//let valorTotalOutrasDespesas = 0;									
+						let valorProcedimentos = 0;
+						let valorGasoterapia = 0;
+						let valorMateriais = 0;
+						let valorMedicamentos = 0;
+						//let valorTaxas = 0;
+						let valorDiarias = 0;
+						let valorTaxasAlugueis = 0;
+						let valorOPME = 0;
+						let valorTotalProcedimentosItem = 0;
+						
+	
+						dadosParaExportacao = [];
+
+                        tiposGuias.forEach(tipo => {
+                            let guias = buscarVariasTags(xmlDoc, tipo);
+
+                            for(let i = 0; i < guias.length; i++) {
+                                totalGuias++;
+                                const guia = guias[i];
+                                
+                                const numeroGuia = extrairTexto(guia, "numeroGuiaPrestador");
+                                const nomeBeneficiario = extrairTexto(guia, "nomeBeneficiario");
+                                const carteira = extrairTexto(guia, "numeroCarteira");
+								let dadosExecutante = buscarVariasTags(guia, "dadosExecutante");
+								let prestadorExecutante = buscarVariasTags(guia, "prestadorExecutante");
+										
+										if (dadosExecutante){
+											let codigoContratado = extrairTexto(guia, "codigoPrestadorNaOperadora");
+											if(codigoContratado === "Não informado") codigoContratado = extrairTexto(guia, "cnpjContratado");
+											
+											const codigoContratadoExecutante = extrairTexto(guia, "cnpjContratado") || extrairTexto(guia,"codigoPrestadorNaOperadora");
+											const nomeContratadoExecutante = extrairTexto(guia, "nomeContratado") || extrairTexto(guia, "nomeContratadoExecutante");
+											
+											if(nomeContratadoExecutante !== "Não informado") dadosExecutanteGuia = '('+codigoContratado+')'+ ' ' +
+											nomeContratadoExecutante;
+											else if(nomeContratadoExecutante === "Não informado") dadosExecutanteGuia = '('+codigoContratado+')'+ ' ' +"Nome não informado";
+											else{dadosExecutanteGuia = "Dados de executante não informado";}											
+										}
+										
+										///Item para tratar o pagamento a terceiros, em desenvolvimento
+										
+										if(prestadorExecutante){
+											let identificadorPrestadorExecutante = extrairTexto(guia,"CNPJ");
+										}
+								
+								let dataAtendimento = extrairTexto(guia, "dataAtendimento");
+                                if (dataAtendimento === "Não informado") dataAtendimento = extrairTexto(guia, "dataExecucao");
+
+                                let valorGuiaStr = extrairTexto(guia, "valorTotalGuia");
+                                if (valorGuiaStr === "Não informado") valorGuiaStr = extrairTexto(guia, "valorTotalGeral");
+								
+								let valorGuia = 0;
+								let valorTotalProcedimentos = 0;
+								let valorTotalOutrasDespesas = 0;
+                     
+                                const nomeExibicaoGuia = tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
+
+                                // Busca os procedimentos e despesas usando o novo motor
+                                let procedimentos = buscarVariasTags(guia, "procedimentoExecutado");
+                                
+                                // ATENÇÃO: No TISS, a tag que repete cada item chama-se "despesa" (fica dentro de outrasDespesas)
+                                let despesas = buscarVariasTags(guia, "despesa"); 
+                                
+                                let tabelaProcedimentosHTML = '';
+                                let tabelaOutrasDespesasHTML = '';
+                                let possuiDetalhes = false; // Controle para saber se exportamos a capa ou os detalhes
+						
+						// --- 1. PROCESSAR PROCEDIMENTOS ---
+                                if (procedimentos.length > 0) {
+                                    possuiDetalhes = true;
+									
+                                    tabelaProcedimentosHTML = `
+										<details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
+                                            <summary style="cursor: pointer; font-weight: bold; padding: 10px; background-color: #e6f2ff; color: #004085; outline: none;"> 💵 Procedimentos / Exames Executados (${procedimentos.length} procedimentos  encontrados)								
+                                        <!--<h5 style="margin: 15px 0 5px 0; color: #555;"></h5>-->										
+										</summary>
+										<div style="padding: 10px;">
+                                        <table class="tabela-dados" style="font-size: 12px; margin-top: 0;">
+                                            <tr style="background-color: #f0f0f0;">
+                                                <th>Tabela</th><th>Código</th><th>Descrição</th><th>Profissional</th>><th>Qtd</th><th>Valor unitário</th><th>Valor Total</th>
+                                            </tr>
+                                    `;
+
+                                    for(let p = 0; p < procedimentos.length; p++) {
+                                        const proc = procedimentos[p];
+                                        const tabela = extrairTexto(proc, "codigoTabela");
+                                        const codigo = extrairTexto(proc, "codigoProcedimento");
+                                        const descricao = extrairTexto(proc, "descricaoProcedimento");
+                                        const qtd = extrairTexto(proc, "quantidadeExecutada");
+										const vlUnit = extrairTexto(proc, "valorUnitario");
+                                        const valorTotalProc = extrairTexto(proc, "valorTotal");
+                                        const grauPart = extrairTexto(proc, "grauPart");
+                                        const nomeProf = extrairTexto(proc, "nomeProf");
+										
+										let valorProc = 0;
+										if (valorTotalProc !== "Não informado"){
+										valorProc = parseFloat(valorTotalProc);
+										valorTotalProcedimentos += valorProc;
+										valorGuia += valorProc;
+										valorTotalProcedimentosItem += valorProc;
+										} 				
+										
+										valorTotalLote += valorProc;
+										
+                                        // APLICAÇÃO DO COLLAPSE NO PROFISSIONAL
+                                        let profHTML = `<span style="color: #999;">Não informado</span>`;
+                                        if (nomeProf !== "Profissional não informado" || grauPart !== "Gráu não informado") {
+                                            profHTML = `
+                                                <details style="background: #fdfdfd; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
+                                                    <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold;">Ver Profissional</summary>
+                                                    <div style="margin-top: 5px; font-size: 11px; color: #333;">
+                                                        <strong>Nome:</strong> ${nomeProf}<br>
+                                                        <strong>Grau Part.:</strong> ${grauPart}
+                                                    </div>
+                                                </details>
+                                            `;
+                                        }
+                                        
+                                        tabelaProcedimentosHTML += 
+										`   <tr>
+                                                <td>${tabela}</td>
+                                                <td>${codigo}</td>
+                                                <td>${descricao}</td>
+                                                <td>${profHTML}</td>
+                                                <td>${qtd}</td>
+												<td>R$ ${vlUnit}</td>
+                                                <td>R$ ${valorTotalProc}</td>
+                                            </tr>
+                                        `;
+
+                                        dadosParaExportacao.push({
+                                            tipoGuia: nomeExibicaoGuia, 
+											numeroGuia: numeroGuia, 
+											beneficiario: nomeBeneficiario, 
+											carteira: carteira, 
+											data: dataAtendimento,
+                                            tabela: tabela, 
+											codigoItem: codigo, 
+											descricaoItem: descricao, 
+											tipoDespesa: "Procedimentos",
+											profissional: nomeProf, 
+											grauParticipacao: grauPart,
+											dadosExecutante: dadosExecutanteGuia,
+                                            qtdItem: qtd, 
+											valorUnitario: vlUnit.replace('.',','), 
+											valorItem: valorTotalProc.replace('.', ',')
+                                        });
+                                    }
+                                    tabelaProcedimentosHTML += `
+									<span style="color: #0056b3; font-size: 0.9em;" align=right>Total R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</span>
+                                         </table></div></details>`;
+									//`</table>`;
+                                }
+
+                                // --- 2. PROCESSAR OUTRAS DESPESAS COM COLLAPSE (SANFONA) ---
+                                if(despesas.length > 0) {
+                                    possuiDetalhes = true;
+                                    
+                                    // APLICAÇÃO DO COLLAPSE NA TABELA INTEIRA DE DESPESAS
+                                    tabelaOutrasDespesasHTML = `
+                                        <details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
+                                            <summary style="cursor: pointer; font-weight: bold; padding: 10px; background-color: #e6f2ff; color: #004085; outline: none;">
+                                                📦 Outras Despesas / Materiais e Medicamentos (${despesas.length} itens encontrados)												
+                                            </summary>
+                                            <div style="padding: 10px;">
+                                                <table class="tabela-dados" style="font-size: 12px; margin-top: 0;">
+                                                    <tr style="background-color: #f0f0f0;">
+                                                        <th>Tipo da Despesa</th><th>Tabela</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>Valor unitário</th><th>Valor Total</th>
+                                                    </tr>
+                                    `;
+
+                                    for(let o = 0; o < despesas.length; o++) {
+                                        const desp = despesas[o];
+                                        const tabela = extrairTexto(desp, "codigoTabela");
+                                        const codigo = extrairTexto(desp, "codigoProcedimento");
+                                        const descricao = extrairTexto(desp, "descricaoProcedimento");
+                                        const qtd = extrairTexto(desp, "quantidadeExecutada");
+										const vlUnit = extrairTexto(desp, "valorUnitario");
+                                        const valorTotalDesp = extrairTexto(desp, "valorTotal");
+                                        
+                                        // UTILIZA O DICIONÁRIO PARA DESCOBRIR O NOME DA DESPESA
+                                        const tipoDespesaCod = extrairTexto(desp, "codigoDespesa"); 
+                                        const tipoDespesaNome = obterNomeDespesaTISS(tipoDespesaCod);
+										
+										//let tpDespesaCod = extrairTexto(guia, "codigoDespesa"); 
+										
+									//if(tipoDespesaCod === "Não informado") tpDespesaCod = "00";
+								
+									//let vlDespGuia = extrairTexto(guia, "valorTotal");
+									//if (valorTotalDesp === "Não informado") valorTotalDesp = 0;
+									
+									let vlDespesa = 0;
+									if (valorTotalDesp !== "Não informado"){
+										vlDespesa = parseFloat(valorTotalDesp);	
+										valorGuia += vlDespesa;																				
+									
+                                      	
+										// CALCULA O TOTAL POR GRUPO DE DESPESAS
+									
+										if(tipoDespesaCod === '01'){
+										valorGasoterapia += vlDespesa;
+										}
+										else if(tipoDespesaCod === '02'){
+										valorMedicamentos += vlDespesa;
+										}
+										else if(tipoDespesaCod === '03'){
+										valorMateriais += vlDespesa;
+										}
+										else if(tipoDespesaCod === '05'){
+										valorDiarias += vlDespesa;
+										}
+										else if(tipoDespesaCod === '07'){
+										valorTaxasAlugueis += vlDespesa;
+										}
+										else if(tipoDespesaCod === '08'){
+										valorOPME += vlDespesa;
+										}
+										else 0;
+										
+										valorTotalOutrasDespesas += vlDespesa;
+										valorTotalLote += vlDespesa;
+									 }
+										tabelaOutrasDespesasHTML += `
+										    <tr>
+                                                <td><span style="background: #e2e3e5; padding: 3px 6px; border-radius: 4px; font-size: 10px;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td>
+                                                <td>${tabela}</td>
+                                                <td>${codigo}</td>													
+                                                <td>${descricao}</td>
+                                                <td>${qtd}</td>
+												<td>R$ ${vlUnit}</td>
+                                                <td>R$ ${valorTotalDesp}</td>
+                                            </tr>
+                                        `;
+
+                                        dadosParaExportacao.push({
+                                            tipoGuia: nomeExibicaoGuia, 
+											numeroGuia: numeroGuia, 
+											beneficiario: nomeBeneficiario, 
+											carteira: carteira, 
+											data: dataAtendimento,
+                                            tabela: tabela, 
+											codigoItem: codigo, 
+											descricaoItem: descricao,
+											tipoDespesa: tipoDespesaNome,
+											profissional: "N/A", 
+											grauParticipacao: "N/A",
+											dadosExecutante: "N/A",
+                                            qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalDesp.replace('.', ',')
+                                        });
+                                    }
+                                    tabelaOutrasDespesasHTML += `
+									<span style="color: #0056b3; font-size: 0.9em;">Total R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</span></table></div></details>`;
+                                } 
+                                
+                                // --- 3. SE A GUIA FOR VAZIA ---
+                                if (!possuiDetalhes) {
+                                    dadosParaExportacao.push({
+                                        tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, carteira: carteira, data: dataAtendimento,
+                                        tabela: "-", codigoItem: "-", descricaoItem: "Sem detalhes lançados", profissional: "-", grauParticipacao: "-",
+                                        qtdItem: "-", valorItem: valorGuia.toFixed(2).replace('.', ',')
+                                    });
+                                }
+
+								// --- 4. MONTAR A TELA DA GUIA ---
+                                // Usamos a variável totalGuias como ID único para não misturar as respostas da IA
+                                guiasHTML += `
+                                <details style="margin-bottom: 8px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
+                                    <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; outline: none; display: flex; justify-content: space-between;">
+                                        <span>📄 ${numeroGuia} | ${nomeBeneficiario}</span>
+                                        <span style="color: #0056b3; font-size: 0.9em;">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
+                                    </summary>
+                                    <div style="padding: 10px;">
+                                        <table class="tabela-dados" style="margin-top: 0;">
+										    <tr><th>Dados do contratado Executante</th><td>${dadosExecutanteGuia}</td></tr>
+                                            <tr><th>Tipo de Guia</th><td>${nomeExibicaoGuia}</td></tr>
+                                            <tr><th>Nº da Guia</th><td>${numeroGuia}</td></tr>
+                                            <tr><th>Beneficiário</th><td>${nomeBeneficiario}</td></tr>
+                                            <tr><th>Carteira</th><td>${carteira}</td></tr>
+                                            <tr><th>Data / Atendimento</th><td>${dataAtendimento}</td></tr>
+                                        </table>
+                                        ${tabelaProcedimentosHTML}
+                                        ${tabelaOutrasDespesasHTML}
+                                        
+                                        <!--
+										<div style="margin-top: 15px; text-align: right;">
+                                            <button id="btn-ia-${totalGuias}" onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}')" style="background-color: #6f42c1; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                                ✨ Analisar Guia com IA
+                                            </button>
+                                        </div>
+                                        <div id="resultado-ia-${totalGuias}" style="margin-top: 10px; font-size: 13px; display: none; padding: 15px; background: #f8f5ff; border: 1px solid #d8cbf0; border-radius: 6px; text-align: left;"></div>
+										--->
+										<div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+											<button id="btn-ia-gemini-${totalGuias}" onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'gemini')" style="background-color: #1a73e8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                                                ✨ Gemini
+											  </button>
+											<button id="btn-ia-chatgpt-${totalGuias}" onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'chatgpt')" style="background-color: #10a37f; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+												✨ ChatGPT
+											</button>
+											<button id="btn-ia-deepseek-${totalGuias}" onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'deepseek')" style="background-color: #4d6bfe; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+												✨ DeepSeek
+											</button>
+									</div>
+									<div id="resultado-ia-${totalGuias}" style="margin-top: 10px; font-size: 13px; display: none; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; text-align: left;"></div>
+                                        </div>
+                                </details>
+                                `;
+								
+							}
+                        });
+                        const htmlSucesso = `
+                            <h3 style="margin-top:0; color: #155724;">✅ Arquivo XML Válido! 👍🏻</h3>
+                            <p>O arquivo passou na validação estrutural do XSD (Versão ${versaoTiss}).</p>
+                            
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
+                                <h4 style="margin: 0 0 10px 0; color: #333;">Resumo do Lote</h4>
+								<strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span><br>
+                                <strong>Operadora Destino:</strong> <span style="color: #0056b3;">${operadoraID}</span><br>
+                                <strong>Total de Guias:</strong> <span style="color": blue; font-weight: bold;"> ${totalGuias}</span><br>
+                                <strong>Valor Total do Lote:</strong> <span style="color: blue; font-weight: bold;">R$ ${valorTotalLote.toFixed(2).replace('.', ',')}</span><br>
+								
+								<details style="background: #ededff; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
+                                     <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold;">Totais por Despesas</summary>
+										<div style="margin-top: 5px; font-size: 10px; color: #333;">
+										<table class="tabela-dados" style="margin-top: 0;">
+											<tr><th>Item</th><th>Total</th>
+											<tr><th><strong>Total de Procedimentos:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorTotalProcedimentosItem.toFixed(2).replace('.',',')}</span></td></tr>
+											<tr><th><strong>Total de Diárias:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorDiarias.toFixed(2).replace('.',',')}</span></td></tr> 
+											<tr><th><strong>Total de Taxas e Alugueis:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorTaxasAlugueis.toFixed(2).replace('.',',')}</span></td></tr>
+											<tr><th><strong>Total de Materiais:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorMateriais.toFixed(2).replace('.',',')}</span></td></tr> 
+											<tr><th><strong>Total de Medicamentos:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorMedicamentos.toFixed(2).replace('.',',')}</span></td></tr>
+											<tr><th><strong>Total de Gasoterapia:</strong></th> <td><span style="color": red; font-weight: bold;"> 
+											${valorGasoterapia.toFixed(2).replace('.',',')}</span></td></tr>
+											<tr><th><strong>Total de OPME:</strong></th> <td><span style="color": red; font-weight: bold;"> ${valorOPME.toFixed(2).replace('.',',')}</span></td></tr>
+											</tr>
+										</table>
+										</div>
+										</details>
+										
+                                <strong> 🐘 Tamanho do Arquivo:</strong> ${(file.size / 1024).toFixed(2)} KB
+                            </div>					
+                            <h4 style="color: #333; margin-bottom: 10px;">Detalhamento das Guias (Clique para expandir)</h4>
+                            ${guiasHTML || "<p>Nenhuma guia detalhada encontrada neste XML.</p>"}
+                        `;
+                        
+                        mostrarResultadoCustomizado(htmlSucesso, true);
+                        document.getElementById('btnExportar').style.display = 'inline-block';
+                        
+                    } else {
+                        document.getElementById('btnExportar').style.display = 'none';
+                        let htmlErro = `
+                            <h3 style="margin-top:0; color: #721c24;">❌ Falha na Validação XSD ❗ </h3>
+                            <p>O arquivo possui erros estruturais e foi rejeitado pelo validador (Versão ${versaoTiss}).</p>
+                            <strong>Lista de Erros:</strong>
+                            <ul class="lista-erros">
+                        `;
+                        
+                        if (data.erros && data.erros.length > 0) {
+                            data.erros.forEach(erro => { htmlErro += `<li>${erro}</li>`; });
+                        } else {
+                            htmlErro += `<li>${data.erro || 'Erro desconhecido durante a validação.'}</li>`;
+                        }
+                        htmlErro += `</ul>`;
+                        
+                        mostrarResultadoCustomizado(htmlErro, false);
+                    }
+                } catch (error) {
+                    mostrarResultadoCustomizado(`<strong>Erro de Comunicação:</strong> Não foi possível conectar ao servidor.<br><br>Detalhes: ${error.message}`, false);
+                } finally {
+                    restaurarBotao(btnValidar, spinner);
+                }
+            };
+
+            reader.onerror = function() {
+                mostrarResultadoCustomizado("<p>Erro ao ler o arquivo localmente.</p>", false);
+                restaurarBotao(btnValidar, spinner);
+            };
+
+            reader.readAsText(file);
+        }
+
+        function restaurarBotao(btn, spinner) {
+            btn.disabled = false;
+            spinner.style.display = 'none';
+        }
+
+        function mostrarResultadoCustomizado(htmlContent, sucesso) {
+            const div = document.getElementById('resultado');
+            div.style.display = 'block';
+            div.className = sucesso ? 'sucesso' : 'erro';
+            div.innerHTML = htmlContent;
+        }
+
+
+ // --- MOTOR DE ANÁLISE DE IA MULTIPROVEDOR ---
+        async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
+            // Identifica qual botão foi clicado
+            const btnClicado = document.getElementById(`btn-ia-${provedor}-${idUnico}`);
+            const divResultado = document.getElementById(`resultado-ia-${idUnico}`);
+            
+            // Textos originais para restaurar depois
+            const nomesProvedores = { 'gemini': '✨ Gemini', 'chatgpt': '✨ ChatGPT', 'deepseek': '✨ DeepSeek' };
+            const nomeIA = nomesProvedores[provedor];
+
+            btnClicado.disabled = true;
+            btnClicado.innerText = "⏳ Processando...";
+            divResultado.style.display = 'block';
+            divResultado.innerHTML = `<strong>Aguarde...</strong> O ${nomeIA} está analisando a pertinência da guia <strong>${numeroGuia}</strong>...`;
+
+            try {
+                const itensDestaGuia = dadosParaExportacao.filter(item => item.numeroGuia === numeroGuia);
+
+                const response = await fetch('/api/auditoria', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // Enviamos o provedor escolhido para o Python saber qual API chamar
+                    body: JSON.stringify({ guia: numeroGuia, itens: itensDestaGuia, provedor: provedor })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let textoFormatado = data.analise.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); 
+                    textoFormatado = textoFormatado.replace(/\n/g, '<br>'); 
+                    
+                    divResultado.innerHTML = `
+                        <strong style="color: #333; font-size: 15px;">Parecer do Auditor IA (${nomeIA} - Guia ${numeroGuia})</strong><br><br>
+                        ${textoFormatado}
+                        <br><br><em style="color: #888; font-size: 11px;">⚠️ Nota: A IA auxilia na detecção de padrões, mas não substitui a avaliação final de um médico auditor humano.</em>
+                    `;
+                } else {
+                    divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro:</strong> ${data.erro}</span>`;
+                }
+            } catch (error) {
+                divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro na Conexão:</strong> Não foi possível alcançar o servidor de IA.</span>`;
+            } finally {
+                btnClicado.disabled = false;
+                btnClicado.innerText = nomeIA;
+            }
+        }
+		
+		
+        function exportarExcel() {
+            if (dadosParaExportacao.length === 0) {
+                alert("Nenhum dado encontrado para exportar.");
+                return;
+            }
+
+            let csvContent = "\uFEFF"; 
+            
+            // Cabeçalho atualizado com as novas colunas
+            csvContent += "Tipo de Guia;Número da Guia;Nome do Beneficiário;Carteira;Data Atendimento;Tabela;Código Item;Descrição do Item; Tipo  Despesa;Profissional;Grau Part.;Quantidade;Valor Unitário; Valor Total do Item\r\n";
+
+            dadosParaExportacao.forEach(linha => {
+                let nomeLimpo = linha.beneficiario.replace(/;/g, ","); 
+                let descLimpa = linha.descricaoItem.replace(/;/g, ",");
+                let profLimpo = linha.profissional.replace(/;/g, ",");
+                
+                csvContent += `${linha.tipoGuia};${linha.numeroGuia};${nomeLimpo};${linha.carteira};${linha.data};${linha.tabela};${linha.codigoItem};${descLimpa};${linha.tipoDespesa};${profLimpo};${linha.grauParticipacao};${linha.qtdItem};${linha.valorUnitario};${linha.valorItem}\r\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", "Relatorio_Detalhado_TISS.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+	
+	
+</body>
+</html>
+
+
+        
