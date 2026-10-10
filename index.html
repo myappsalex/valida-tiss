@@ -1,115 +1,183 @@
-<!DOCTYPE html>
-<html lang="pt-PT">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Validador TISS SaaS - Portal do Faturista</title>
-    <link rel="stylesheet" href="style.css"> <!-- Opcional: pode mover o CSS para cá no futuro -->
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; color: #333; }
-        .container { max-width: 900px; margin: 20px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+// Variável global para o Excel
+let dadosParaExportacao = [];
+
+// --- CONTROLE DO WIZARD (UX) ---
+function alterarPasso(passo) {
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+    document.getElementById(`step-${passo}`).classList.add('active');
+}
+
+function iniciarProcessamento() {
+    const fileInput = document.getElementById('xmlInput');
+    if (fileInput.files.length === 0) return;
+    
+    alterarPasso(2); // Avança para o ecrã de Loading
+    processarXML(); // Inicia a lógica antiga
+}
+
+function reiniciarWizard() {
+    document.getElementById('xmlInput').value = '';
+    document.getElementById('resultado').innerHTML = '';
+    dadosParaExportacao = [];
+    document.getElementById('btnExportar').style.display = 'none';
+    alterarPasso(1);
+}
+
+// --- CONTROLE DE UPSELL (PAYWALL IA) ---
+function analisarGuiaIA(idUnico, numeroGuia, provedor) {
+    // Ao clicar em qualquer botão de IA, exibimos a oferta do plano Premium
+    document.getElementById('modalPremium').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('modalPremium').style.display = 'none';
+}
+
+function redirecionarCheckout() {
+    // Aqui insere o link para o seu Stripe, Hotmart ou página de subscrição
+    window.location.href = "https://seusite.com/checkout-premium";
+}
+
+// --- FUNÇÕES DE BUSCA E DICIONÁRIOS (Sua lógica existente mantida) ---
+function buscarVariasTags(node, nomeTag) {
+    let elementos = node.getElementsByTagNameNS("*", nomeTag);
+    if (elementos.length === 0) elementos = node.getElementsByTagName(nomeTag);
+    if (elementos.length === 0) elementos = node.getElementsByTagName("ans:" + nomeTag);
+    return elementos;
+}
+
+function obterNomeDespesaTISS(codigo) {
+    const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" };
+    return dominios[codigo] || "Outra Despesa";
+}
+
+function buscarTagUnica(node, nomeTag) {
+    const elementos = buscarVariasTags(node, nomeTag);
+    return elementos.length > 0 ? elementos[0] : null;
+}
+
+function extrairTexto(node, nomeTag, valorPadrao = "Não informado") {
+    const elemento = buscarTagUnica(node, nomeTag);
+    return elemento ? elemento.textContent.trim() : valorPadrao;
+}
+
+// --- MOTOR DE REGRAS DE NEGÓCIO ---
+function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
+    let badgesHTML = '';
+    let validacoesHTML = '';
+
+    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
+        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
+        if (partesData.length === 3) {
+            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
+            const hoje = new Date();
+            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
+            if (diffDias < 0) validacoesHTML += `<div class="erro-box">❌ Data de atendimento futura.</div>`;
+            else if (diffDias > 60) validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade (> 60 dias).</div>`;
+        }
+    }
+
+    if (tipoGuia === 'guiaConsulta') {
+        if (extrairTexto(guia, "indicacaoAcidente") === "Não informado") validacoesHTML += `<div class="erro-box">❌ Campo 'Indicação de Acidente' ausente.</div>`;
+    } else if (tipoGuia === 'guiaSP-SADT') {
+        const carater = extrairTexto(guia, "caraterAtendimento");
+        if (carater === "2" || carater === "U") badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
+        else if (carater === "1" || carater === "E") badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
+    } else if (tipoGuia === 'guiaResumoInternacao') {
+        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
+        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
+    }
+    return { badges: badgesHTML, alertas: validacoesHTML };
+}
+
+// --- O CORE DO PROCESSAMENTO ---
+async function processarXML() {
+    const fileInput = document.getElementById('xmlInput');
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async function(e) {
+        const xmlContent = e.target.result;
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
         
-        /* Espaços Publicitários (Monetização) */
-        .ad-banner { background-color: #e9ecef; border: 1px dashed #adb5bd; color: #6c757d; text-align: center; padding: 20px; margin: 15px auto; max-width: 728px; border-radius: 8px; font-size: 14px; }
-        
-        /* Sistema Wizard */
-        .wizard-step { display: none; }
-        .wizard-step.active { display: block; animation: fadeIn 0.5s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* UX de Upload */
-        .upload-area { border: 2px dashed #0056b3; padding: 50px 20px; text-align: center; border-radius: 12px; background-color: #f8fbff; cursor: pointer; transition: 0.3s; }
-        .upload-area:hover { background-color: #eef5ff; border-color: #004494; }
-        .upload-area input { display: none; }
-        .btn-primary { background-color: #0056b3; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; margin-top: 20px; transition: 0.3s; }
-        .btn-primary:hover { background-color: #004494; }
-        .btn-success { background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
-        
-        /* Modal Premium (Upsell) */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .modal-content h3 { color: #6f42c1; margin-top: 0; }
-        .btn-premium { background: linear-gradient(90deg, #6f42c1, #a166ab); color: white; padding: 12px 24px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 15px; font-size: 16px; }
-        .close-modal { margin-top: 15px; cursor: pointer; color: #888; font-size: 12px; text-decoration: underline; background: none; border: none; }
+        const parserError = buscarTagUnica(xmlDoc, "parsererror");
+        if (parserError) {
+            mostrarResultado(`<div class="erro-box"><strong>Erro de formatação:</strong> O ficheiro não é um XML válido.</div>`, false);
+            return;
+        }
 
-        /* Tabelas e Alertas (Seu CSS anterior adaptado) */
-        .tabela-dados { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-        .tabela-dados th, .tabela-dados td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .tabela-dados th { background-color: #f4f7f6; }
-        .badge { padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; margin-left: 10px; color: white; display: inline-block; }
-        .bg-urgencia { background-color: #dc3545; }
-        .bg-obito { background-color: #000000; }
-        .bg-eletivo { background-color: #28a745; }
-        .alerta-box { background-color: #fff3cd; color: #856404; padding: 8px; border-left: 4px solid #ffeeba; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
-        .erro-box { background-color: #f8d7da; color: #721c24; padding: 8px; border-left: 4px solid #f5c6cb; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
-    </style>
-</head>
-<body>
+        let versaoTiss = "Versão não encontrada";
+        const cabecalho = buscarTagUnica(xmlDoc, "cabecalho");
+        if (cabecalho) {
+            const tagPadrao = buscarTagUnica(cabecalho, "Padrao") || buscarTagUnica(cabecalho, "versaoPadrao");
+            if (tagPadrao) versaoTiss = tagPadrao.textContent.trim();
+        }
 
-    <!-- Cabeçalho de Publicidade (Google AdSense, etc) -->
-    <div class="ad-banner">
-        <span>Espaço Publicitário - Leaderboard (728x90)</span>
-        <!-- Inserir código de script do anúncio aqui -->
-    </div>
+        try {
+            // Chamada à sua Vercel (O Back-end permanece intacto)
+            const response = await fetch('/api/validador', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ xml: xmlContent, versao: versaoTiss })
+            });
 
-    <div class="container">
-        <!-- WIZARD PASSO 1: Upload -->
-        <div id="step-1" class="wizard-step active">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2>Análise e Validação TISS Avançada</h2>
-                <p style="color: #666;">Faça o upload do seu ficheiro XML para iniciar a auditoria estrutural e de negócio.</p>
-            </div>
-            
-            <label class="upload-area" for="xmlInput">
-                <h1 style="margin: 0; color: #0056b3;">📁</h1>
-                <h3 style="margin: 10px 0;">Clique para procurar ou arraste o ficheiro XML</h3>
-                <p style="color: #888; font-size: 13px;">Suporta padrões TISS 3.x e 4.x</p>
-                <input type="file" id="xmlInput" accept=".xml" onchange="iniciarProcessamento()">
-            </label>
-        </div>
+            const data = await response.json();
 
-        <!-- WIZARD PASSO 2: Loading -->
-        <div id="step-2" class="wizard-step" style="text-align: center; padding: 50px 0;">
-            <h2>⏳ A processar o lote TISS...</h2>
-            <p>A validar schema XSD e a processar regras de negócio da ANS.</p>
-            <div class="loader" style="width: 40px; height: 40px; border-width: 5px; margin-top: 20px;"></div>
-        </div>
+            if (response.ok && data.valido) {
+                const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual"];
+                let guiasHTML = '';
+                let totalGuias = 0;
+                dadosParaExportacao = [];
 
-        <!-- WIZARD PASSO 3: Resultados -->
-        <div id="step-3" class="wizard-step">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
-                <h2 style="margin: 0;">Relatório de Validação</h2>
-                <div>
-                    <button class="btn-success" id="btnExportar" onclick="exportarExcel()" style="display: none;">📊 Exportar Excel</button>
-                    <button class="btn-primary" onclick="reiniciarWizard()" style="padding: 10px 20px; margin-top: 0; margin-left: 10px;">Novo Ficheiro</button>
-                </div>
-            </div>
-            <div id="resultado"></div>
-        </div>
-    </div>
+                tiposGuias.forEach(tipo => {
+                    let guias = buscarVariasTags(xmlDoc, tipo);
+                    for(let i = 0; i < guias.length; i++) {
+                        totalGuias++;
+                        const guia = guias[i];
+                        const numeroGuia = extrairTexto(guia, "numeroGuiaPrestador");
+                        const nomeBeneficiario = extrairTexto(guia, "nomeBeneficiario");
+                        let dataAtendimento = extrairTexto(guia, "dataAtendimento");
+                        const regrasAuditoria = validarRegrasNegocio(guia, tipo, dataAtendimento);
+                        
+                        // Botões de IA agora acionam o Paywall
+                        guiasHTML += `
+                        <details style="margin-bottom: 8px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
+                            <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085;">
+                                📄 Guia: ${numeroGuia} | Paciente: ${nomeBeneficiario} ${regrasAuditoria.badges}
+                            </summary>
+                            <div style="padding: 10px;">
+                                ${regrasAuditoria.alertas}
+                                <p style="font-size: 12px; color: #555;">[Detalhes estruturais dos procedimentos suprimidos nesta versão resumida para o código JS]</p>
+                                
+                                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; background: #f9f9f9; padding: 10px; border-radius: 6px; border: 1px dashed #ccc;">
+                                    <span style="font-size: 12px; color: #666; margin-top: 8px;">Auditoria IA Avançada:</span>
+                                    <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'gemini')" style="background-color: #1a73e8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✨ Gemini</button>
+                                    <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'chatgpt')" style="background-color: #10a37f; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✨ ChatGPT</button>
+                                    <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'deepseek')" style="background-color: #4d6bfe; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">✨ DeepSeek</button>
+                                </div>
+                            </div>
+                        </details>`;
+                    }
+                });
+                
+                mostrarResultado(`<h3>✅ Validação XSD Concluída</h3>${guiasHTML}`, true);
+                document.getElementById('btnExportar').style.display = 'inline-block';
+            } else {
+                mostrarResultado(`<div class="erro-box"><strong>❌ Falha no XSD:</strong> ${data.erros ? data.erros.join(', ') : 'Erro desconhecido'}</div>`, false);
+            }
+        } catch (error) {
+            mostrarResultado(`<div class="erro-box"><strong>Erro de Servidor:</strong> ${error.message}</div>`, false);
+        }
+    };
+    reader.readAsText(file);
+}
 
-    <!-- Rodapé de Publicidade -->
-    <div class="ad-banner">
-        <span>Espaço Publicitário - Rodapé (728x90)</span>
-        <!-- Inserir código de script do anúncio aqui -->
-    </div>
+function mostrarResultado(htmlContent, sucesso) {
+    const div = document.getElementById('resultado');
+    div.innerHTML = htmlContent;
+    alterarPasso(3); // Avança para o ecrã de Resultados
+}
 
-    <!-- Modal Paywall (Upsell IA) -->
-    <div id="modalPremium" class="modal-overlay">
-        <div class="modal-content">
-            <h3>✨ Desbloqueie a Auditoria por IA</h3>
-            <p>A análise inteligente de pertinência clínica cruzando procedimentos, OPME e taxas exige o plano <strong>Auditor Premium</strong>.</p>
-            <ul style="text-align: left; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px 30px; border-radius: 8px;">
-                <li>Identificação de cobranças excessivas.</li>
-                <li>Deteção de anomalias por especialidade.</li>
-                <li>Escolha entre motores Gemini, ChatGPT ou DeepSeek.</li>
-            </ul>
-            <button class="btn-premium" onclick="redirecionarCheckout()">Fazer Upgrade Agora</button>
-            <button class="close-modal" onclick="fecharModal()">Agora não, continuar auditoria manual</button>
-        </div>
-    </div>
-
-    <!-- Ligação ao ficheiro JavaScript Externo -->
-    <script src="app.js"></script>
-</body>
-</html>
+// A sua função exportarExcel original vai aqui sem alterações
+function exportarExcel() { alert("Função de exportação retida."); }
