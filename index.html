@@ -95,7 +95,13 @@
 			margin-bottom: 5px;
 			font-weight: 600;
 		}
-		
+		/* Sistema de Badges e Alertas (Regras de Negócio) */
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; margin-left: 10px; color: white; display: inline-block; vertical-align: middle;}
+        .bg-urgencia { background-color: #dc3545; }
+        .bg-obito { background-color: #000000; }
+        .bg-eletivo { background-color: #28a745; }
+        .alerta-box { background-color: #fff3cd; color: #856404; padding: 8px; border-left: 4px solid #ffeeba; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
+        .erro-box { background-color: #f8d7da; color: #721c24; padding: 8px; border-left: 4px solid #f5c6cb; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
 		
     </style>
 </head>
@@ -165,6 +171,74 @@
             return elemento ? elemento.textContent.trim() : valorPadrao;
         }
         // ------------------------------------------------------------------------
+		// --- MOTOR DE REGRAS DE NEGÓCIO E PRÉ-AUDITORIA ---
+        function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
+            let badgesHTML = '';
+            let validacoesHTML = '';
+
+            // 1. Regra Global: Validação de Datas (Retroatividade e Data Futura)
+            if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
+                const partesData = dataAtendimentoStr.split('T')[0].split('-'); // Padrão TISS YYYY-MM-DD
+                if (partesData.length === 3) {
+                    const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
+                    const hoje = new Date();
+                    const diffTempo = hoje - dataAtend;
+                    const diffDias = Math.ceil(diffTempo / (1000 * 60 * 60 * 24));
+
+                    if (diffDias < 0) {
+                        validacoesHTML += `<div class="erro-box">❌ <strong>Bloqueio:</strong> Data de atendimento futura identificada (${dataAtendimentoStr}).</div>`;
+                    } else if (diffDias > 60) {
+                        validacoesHTML += `<div class="alerta-box">⚠️ <strong>Alerta:</strong> Guia fora da janela de retroatividade padrão (> 60 dias). Encaminhar para auditoria manual.</div>`;
+                    }
+                }
+            }
+
+            // 2. Regras Específicas por Tipo de Guia
+            if (tipoGuia === 'guiaConsulta') {
+                const indicacaoAcidente = extrairTexto(guia, "indicacaoAcidente");
+                if (indicacaoAcidente === "Não informado") {
+                    validacoesHTML += `<div class="erro-box">❌ <strong>Bloqueio (Consulta):</strong> Campo 'Indicação de Acidente' ausente.</div>`;
+                }
+                
+                // Valida se a consulta usou a Tabela 22
+                let procedimentos = buscarVariasTags(guia, "procedimentoExecutado");
+                if(procedimentos.length > 0) {
+                     const tabela = extrairTexto(procedimentos[0], "codigoTabela");
+                     if (tabela !== "22") {
+                         validacoesHTML += `<div class="erro-box">❌ <strong>Bloqueio (Consulta):</strong> O código deve pertencer à Tabela TUSS 22 (Identificado: Tabela ${tabela}).</div>`;
+                     }
+                }
+
+            } else if (tipoGuia === 'guiaSP-SADT') {
+                const carater = extrairTexto(guia, "caraterAtendimento");
+                if (carater === "2" || carater === "U") { // Depende da versão do TISS, pode ser 2 ou U
+                    badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
+                    validacoesHTML += `<div class="alerta-box">ℹ️ <strong>Urgência:</strong> Validação de Autorização Prévia mitigada (Bypass Ativado).</div>`;
+                } else if (carater === "1" || carater === "E") {
+                    badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
+                    const auth = extrairTexto(guia, "senha");
+                    if (auth === "Não informado") {
+                        validacoesHTML += `<div class="erro-box">❌ <strong>Bloqueio (SADT Eletivo):</strong> Requer número de Senha/Autorização prévia ativa no ERP.</div>`;
+                    }
+                }
+
+            } else if (tipoGuia === 'guiaResumoInternacao') {
+                const motivoEncerramento = extrairTexto(guia, "motivoEncerramento");
+                // Códigos de óbito da Tabela TUSS (ex: 41, 42, 43...)
+                const obitos = ["41", "42", "43", "61", "62", "63", "64"];
+                if (obitos.includes(motivoEncerramento)) {
+                    badgesHTML += `<span class="badge bg-obito">ÓBITO - CARTEIRA BLOQUEADA</span>`;
+                    validacoesHTML += `<div class="alerta-box">⚠️ <strong>Ação de ERP:</strong> Óbito identificado. Gatilho de bloqueio da carteira do beneficiário acionado.</div>`;
+                }
+                
+                const tipoFaturamento = extrairTexto(guia, "tipoFaturamento");
+                if (tipoFaturamento === "2") { // 2 = Final
+                    validacoesHTML += `<div class="alerta-box">🔍 <strong>Faturamento Final:</strong> O sistema consolidará os valores com as guias parciais anteriores.</div>`;
+                }
+            }
+
+            return { badges: badgesHTML, alertas: validacoesHTML };
+        }
 
         async function processarXML() {
             const fileInput = document.getElementById('xmlInput');
@@ -505,13 +579,19 @@
 
 								// --- 4. MONTAR A TELA DA GUIA ---
                                 // Usamos a variável totalGuias como ID único para não misturar as respostas da IA
+                                // CHAMA O MOTOR DE REGRAS DE NEGÓCIO
+                                const regrasAuditoria = validarRegrasNegocio(guia, tipo, dataAtendimento);
+
                                 guiasHTML += `
                                 <details style="margin-bottom: 8px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
                                     <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; outline: none; display: flex; justify-content: space-between;">
-                                        <span>📄 ${numeroGuia} | ${nomeBeneficiario}</span>
+                                        <span>📄 ${numeroGuia} | ${nomeBeneficiario} ${regrasAuditoria.badges}</span>
                                         <span style="color: #0056b3; font-size: 0.9em;">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
                                     </summary>
                                     <div style="padding: 10px;">
+                                        
+                                        <!-- EXIBIÇÃO DOS ERROS E ALERTAS DO MOTOR DE REGRAS -->
+                                        ${regrasAuditoria.alertas}
                                         <table class="tabela-dados" style="margin-top: 0;">
 										    <tr><th>Dados do contratado Executante</th><td>${dadosExecutanteGuia}</td></tr>
                                             <tr><th>Tipo de Guia</th><td>${nomeExibicaoGuia}</td></tr>
