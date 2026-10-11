@@ -47,3 +47,12 @@ model Campanha {
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
 }
+
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  perfil    String   
+  criadoEm  DateTime @default(now())
+}
