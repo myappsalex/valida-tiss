@@ -287,3 +287,4 @@ async function processarXML() {
                         
                         let valorGuiaStr = extrairTexto(guia, "valorTotalGuia");
                         if (valorGuiaStr === "Não informado") valorGuiaStr = extrairTexto(guia, "valorTotalGeral");
+}
