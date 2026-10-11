@@ -56,6 +56,17 @@
             max-width: 728px; border-radius: 8px; font-weight: bold; cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s;
         }
+		
+		/* --- Banners Animados (CSS3) --- */
+        .ad-banner-animated-rodape {
+            background: linear-gradient(-45deg, #eef552, #e54c7f, #23c6d2, #15d5cb);
+            background-size: 400% 400%;
+            animation: gradientBG 10s ease infinite;
+            color: white; text-align: center; padding: 20px; margin: 15px auto; 
+            max-width: 728px; border-radius: 8px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s;
+        }
+		
         .ad-banner-animated:hover { transform: scale(1.02); }
         @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .pulse-text { animation: pulse 1.5s infinite; display: inline-block; background: white; color: #e73c7e; padding: 5px 15px; border-radius: 20px; margin-top: 10px;}
@@ -72,7 +83,7 @@
     <div style="display: flex; justify-content: flex-end; align-items: center; padding: 10px 20px; background: #fff; border-bottom: 1px solid #ddd;">
         <span id="user-status" style="margin-right: 15px; font-size: 13px; color: #666; font-weight: 500;">Visitante (Não autenticado)</span>
         <button id="btn-login-top" class="btn-primary" style="padding: 6px 15px; font-size: 13px; margin: 0;" onclick="abrirModal('modalAuth')">🔒 Acesso Cliente</button>
-        <a href="admin.html" style="margin-left: 20px; font-size: 12px; color: #6f42c1; text-decoration: none; font-weight: bold; border-left: 1px solid #ddd; padding-left: 20px;">⚙️ Painel Admin</a>
+        <button onclick="abrirModal('modalAdminAuth')" style="margin-left: 20px; font-size: 12px; color: #dc3545; background: none; border: none; font-weight: bold; border-left: 1px solid #ddd; padding-left: 20px; cursor: pointer;">⚙️ Painel Admin</button>
     </div>
 	
 <body>
@@ -120,7 +131,11 @@
     </div>
 
     <!-- Rodapé Publicitário -->
-    <div class="ad-banner">Espaço Publicitário - Rodapé (728x90)</div>
+    <div class="ad-banner-animated-rodape" onclick="abrirModal('modalPublicidade')">
+        <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
+        <span class="pulse-text">Clique aqui e anuncie no portal</span>
+    </div>
+
 
     <!-- Modal Paywall (Aviso de Funcionalidade Premium IA) -->
     <div id="modalPremium" class="modal-overlay">
@@ -195,6 +210,20 @@
                 <option>Banner Rodapé (728x90) - R$ 300/mês</option>
             </select>
             <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+            <button class="close-modal" onclick="fecharModais()">Cancelar</button>
+        </div>
+    </div>
+	
+	<!-- Modal Acesso Restrito (Admin) -->
+    <div id="modalAdminAuth" class="modal-overlay">
+        <div class="modal-content" style="max-width: 350px;">
+            <h3 style="color: #dc3545; margin-top: 0;">⚙️ Acesso Restrito</h3>
+            <p style="font-size: 12px; color: #666;">Área exclusiva para colaboradores e gestão.</p>
+            
+            <input type="email" id="admin-email" placeholder="E-mail Corporativo" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            <input type="password" id="admin-senha" placeholder="Senha" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            
+            <button onclick="efetuarLoginAdmin()" style="width: 100%; margin-top: 15px; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Entrar no Backoffice</button>
             <button class="close-modal" onclick="fecharModais()">Cancelar</button>
         </div>
     </div>

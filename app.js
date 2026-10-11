@@ -621,3 +621,34 @@ function iniciarRotacaoPublicidade() {
         });
     }, 6000); // Roda a cada 6 segundos
 }
+
+async function efetuarLoginAdmin() {
+    const email = document.getElementById('admin-email').value;
+    const senha = document.getElementById('admin-senha').value;
+    
+    if (!email || !senha) { alert("Preencha as credenciais administrativas."); return; }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'login', email: email, senha: senha })
+        });
+        const data = await response.json();
+        
+        if (response.ok && data.sucesso) {
+            // Verifica se é realmente um admin
+            if(!data.usuario.email.includes("admin")) {
+                alert("Este utilizador não tem privilégios de administrador.");
+                return;
+            }
+            data.usuario.perfil = "ADMIN";
+            sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario));
+            window.location.href = "admin.html"; // Redireciona com segurança
+        } else {
+            alert(`Falha no acesso: ${data.erro}`);
+        }
+    } catch (error) {
+        alert("Erro de conexão com o servidor.");
+    }
+}
