@@ -446,3 +446,37 @@ function exportarExcel() {
     link.setAttribute("download", "Relatorio_TISS_Completo.csv");
     link.click();
 }
+
+// --- GESTÃO DE MODAIS E ROTAS ---
+function abrirModal(idModal) {
+    document.getElementById(idModal).style.display = 'flex';
+}
+
+function fecharModais() {
+    document.querySelectorAll('.modal-overlay').forEach(modal => modal.style.display = 'none');
+}
+
+function solicitarCompra(tipo, pacote) {
+    // Na vida real, enviaria os dados do pacote para o Stripe/Asaas
+    alert(`Redirecionando para o Gateway de Pagamento...\nItem: ${pacote}`);
+    fecharModais();
+}
+
+function enviarPedidoPub() {
+    const empresa = document.getElementById('pub-empresa').value;
+    if(!empresa) { alert("Preencha o nome da empresa."); return; }
+    alert(`Pedido de publicidade para ${empresa} enviado ao administrador! Em breve entraremos em contato com as métricas e contrato.`);
+    fecharModais();
+}
+
+// Sobrescrita da função da IA para intercetar o fluxo de compra
+async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
+    // Simulação: Se o utilizador não estiver logado, ofereça a venda
+    if (!usuarioLogado) {
+        // Redireciona para o fluxo de compra/login
+        abrirModal('modalLojaTokens');
+        return; 
+    }
+    
+    // ... [Se logado, desconta token e executa a IA conforme o código que criámos anteriormente] ...
+}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>SaaS Admin - Gestão de Tokens IA</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
+        .dashboard { background: white; padding: 20px; border-radius: 8px; max-width: 1000px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background: #0056b3; color: white; }
+        .btn-aprovar { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-rejeitar { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h2>Gestão de Contratos e Uso de IA</h2>
+        <table>
+            <tr>
+                <th>Cliente / Empresa</th>
+                <th>Email de Acesso</th>
+                <th>Status Financeiro</th>
+                <th>Tokens Consumidos</th>
+                <th>Limite de Tokens</th>
+                <th>Ações</th>
+            </tr>
+            <tr>
+                <td>Hospital Santa Maria</td>
+                <td>faturamento@hsm.com</td>
+                <td><span style="color: green; font-weight: bold;">Ativo</span></td>
+                <td>845</td>
+                <td>1000</td>
+                <td><button class="btn-aprovar">Gerir Limite</button></td>
+            </tr>
+            <tr>
+                <td>Clínica Radiologia</td>
+                <td>contas@rad.com</td>
+                <td><span style="color: orange; font-weight: bold;">Pendente Aprovação</span></td>
+                <td>0</td>
+                <td>0</td>
+                <td>
+                    <button class="btn-aprovar">Aprovar Contrato</button>
+                    <button class="btn-rejeitar">Rejeitar</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>
