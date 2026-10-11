@@ -60,6 +60,7 @@ function fecharModalAuth() {
     document.getElementById('modalAuth').style.display = 'none'; 
 }
 
+// --- LOGIN ATUALIZADO ---
 async function efetuarLogin() {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
@@ -81,7 +82,15 @@ async function efetuarLogin() {
         if (response.ok && data.sucesso) {
             usuarioLogado = data.usuario; 
             fecharModalAuth();
-            alert(`Bem-vindo, ${usuarioLogado.nome}! Saldo atual: ${usuarioLogado.tokensRestantes} análises IA.`);
+            
+            // Atualiza a interface do topo do site
+            document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
+            document.getElementById('user-status').style.color = "#0056b3";
+            const btnTop = document.getElementById('btn-login-top');
+            btnTop.innerText = "Painel do Cliente";
+            btnTop.onclick = () => { window.location.href = "dashboard_cliente.html"; };
+            
+            alert(`Bem-vindo, ${usuarioLogado.nome}!`);
         } else {
             alert(`Falha no login: ${data.erro}`);
         }
@@ -89,6 +98,7 @@ async function efetuarLogin() {
         alert("Erro ao comunicar com o servidor de autenticação.");
     }
 }
+
 
 async function solicitarConta() {
     const nome = document.getElementById('reg-nome').value;
@@ -188,10 +198,10 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     return { badges: badgesHTML, alertas: validacoesHTML };
 }
 
-// --- INTERCEÇÃO DA IA ---
+// --- CHAMADA REAL DE IA LIGADA AO PYTHON ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
     if (!usuarioLogado) {
-        document.getElementById('modalAuth').style.display = 'flex';
+        abrirModal('modalAuth');
         return; 
     }
     
@@ -200,10 +210,69 @@ async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
         return;
     }
 
-    // Deduz Token Localmente e Executa a Simulação/Chamada
-    usuarioLogado.tokensRestantes -= 1;
-    alert(`Token Deduzido! Iniciando análise IA com ${provedor} para a Guia ${numeroGuia}...`);
-    // No futuro, a chamada real de IA (`fetch('/api/auditoria')`) será injetada aqui.
+    // UX: Trava os botões e mostra carregamento (mantendo a sua lógica anterior)
+    const btnClicado = document.getElementById(`btn-ia-${provedor}-${idUnico}`);
+    const divResultado = document.getElementById(`resultado-ia-${idUnico}`);
+    const nomesProvedores = { 'gemini': '✨ Gemini', 'chatgpt': '✨ ChatGPT', 'deepseek': '✨ DeepSeek' };
+    const nomeIA = nomesProvedores[provedor];
+
+    if (!btnClicado || !divResultado) {
+        alert("Erro de interface. Tente expandir a guia novamente.");
+        return;
+    }
+
+    btnClicado.disabled = true;
+    btnClicado.innerText = "⏳ A processar...";
+    divResultado.style.display = 'block';
+    divResultado.innerHTML = `<strong>Aguarde...</strong> O ${nomeIA} está a analisar a guia <strong>${numeroGuia}</strong>...`;
+
+    try {
+        const itensDestaGuia = dadosParaExportacao.filter(item => item.numeroGuia === numeroGuia);
+
+        // Comunicação Real com o seu backend Python (que desconta o Prisma)
+        const response = await fetch('/api/auditoria', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                guia: numeroGuia, 
+                itens: itensDestaGuia, 
+                provedor: provedor,
+                email: usuarioLogado.email // A CHAVE PARA DESCONTAR O SALDO
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Atualiza o saldo local na tela imediatamente após o sucesso
+            usuarioLogado.tokensRestantes -= 1;
+            document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
+
+            // Formata e exibe a resposta da IA
+            let textoFormatado = '';
+            try {
+                // Tenta formatar se o Python retornou o JSON certinho
+                const iaJson = JSON.parse(data.analise.replace(/```json/g, '').replace(/```/g, ''));
+                textoFormatado = `<strong>Status:</strong> ${iaJson.status === 'ALERTA' ? '<span style="color:red">⚠️ ALERTA</span>' : '<span style="color:green">✅ OK</span>'}<br><br>`;
+                textoFormatado += `<strong>Achados da Auditoria:</strong><br>• ${iaJson.achados.join('<br>• ')}`;
+            } catch(e) {
+                // Fallback caso a IA não retorne JSON estrito
+                textoFormatado = data.analise.replace(/\n/g, '<br>');
+            }
+            
+            divResultado.innerHTML = `
+                <strong style="color: #333; font-size: 14px;">Parecer do Auditor IA (${nomeIA})</strong><br><br>
+                ${textoFormatado}
+            `;
+        } else {
+            divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro:</strong> ${data.erro}</span>`;
+        }
+    } catch (error) {
+        divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro na Conexão:</strong> Não foi possível alcançar a IA.</span>`;
+    } finally {
+        btnClicado.disabled = false;
+        btnClicado.innerText = nomeIA;
+    }
 }
 
 // --- PROCESSAMENTO CENTRAL E EXTRAÇÃO ---
