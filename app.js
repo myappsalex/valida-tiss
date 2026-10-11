@@ -60,12 +60,11 @@ function fecharModalAuth() {
     document.getElementById('modalAuth').style.display = 'none'; 
 }
 
-// --- AUTENTICAÇÃO E SESSÃO SEGURA ---
+// --- LOGIN SEGURO DO CLIENTE ---
 async function efetuarLogin() {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
-    
-    if (!email || !senha) { alert("Por favor, preencha todos os campos."); return; }
+    if (!email || !senha) { alert("Preencha todos os campos."); return; }
 
     try {
         const response = await fetch('/api/auth', {
@@ -77,32 +76,24 @@ async function efetuarLogin() {
         
         if (response.ok && data.sucesso) {
             usuarioLogado = data.usuario; 
-            
-            // Simulação de Perfil Admin (Para o seu teste)
-            if(email.includes("admin")) usuarioLogado.perfil = "ADMIN";
-            else usuarioLogado.perfil = "CLIENTE";
-
-            // GRAVA A SESSÃO NO NAVEGADOR
             sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
-            
             fecharModalAuth();
             atualizarTopoSite();
             alert(`Bem-vindo, ${usuarioLogado.nome}!`);
         } else {
             alert(`Falha no login: ${data.erro}`);
         }
-    } catch (error) {
-        alert("Erro ao comunicar com o servidor.");
-    }
+    } catch (error) { alert("Erro ao comunicar com o servidor."); }
 }
+
 
 function atualizarTopoSite() {
     if(!usuarioLogado) return;
     document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
     const btnTop = document.getElementById('btn-login-top');
-    btnTop.innerText = usuarioLogado.perfil === "ADMIN" ? "⚙️ Área Master" : "📊 Meu Painel";
+    btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
     btnTop.onclick = () => { 
-        window.location.href = usuarioLogado.perfil === "ADMIN" ? "admin.html" : "dashboard_cliente.html"; 
+        window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; 
     };
 }
 
@@ -592,34 +583,58 @@ function exportarExcel() {
 }
 
 // --- MOTOR DE ROTAÇÃO DE PUBLICIDADE ---
+/*
 const filaAnuncios = [
     { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal do faturista", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e)" },
     { titulo: "🎓 Especialização em Auditoria TISS", texto: "Aprenda a evitar glosas. Clique e conheça.", link: "https://google.com", cor: "linear-gradient(-45deg, #23a6d5, #23d5ab)" },
     { titulo: "🏥 ERP Saúde Plus", texto: "Gestão hospitalar sem dores de cabeça. Teste grátis.", link: "https://apple.com", cor: "linear-gradient(-45deg, #6f42c1, #a166ab)" }
 ];
+*/
+
+// --- MOTOR DE ROTAÇÃO DE PUBLICIDADE DINÂMICA ---
+let filaAnuncios = [];
 let anuncioAtual = 0;
 
-function iniciarRotacaoPublicidade() {
-    const banners = document.querySelectorAll('.ad-banner-animated');
-    if (banners.length === 0) return;
+async function iniciarRotacaoPublicidade() {
+    const bannersCabecalho = document.querySelectorAll('.ad-banner-animated');
+    const bannersRodape = document.querySelectorAll('.ad-banner-animated-rodape');
+    if (bannersCabecalho.length === 0 && bannersRodape.length === 0) return;
+
+    try {
+        // Tenta buscar as campanhas ativas e dentro da validade no banco de dados
+        const response = await fetch('/api/campanhas');
+        if (response.ok) {
+            filaAnuncios = await response.json();
+        }
+    } catch (e) {
+        console.log("A carregar anúncios locais (API de campanhas não disponível).");
+    }
+
+    // Se o banco retornar vazio, usa os banners padrão do sistema
+    if (filaAnuncios.length === 0) {
+        filaAnuncios = [
+            { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5)", local: "TODOS" },
+            { titulo: "🎓 Especialização em Auditoria TISS", texto: "Aprenda a evitar glosas.", link: "https://google.com", cor: "linear-gradient(-45deg, #23a6d5, #23d5ab)", local: "TODOS" }
+        ];
+    }
 
     setInterval(() => {
+        if(filaAnuncios.length === 0) return;
+        
         anuncioAtual = (anuncioAtual + 1) % filaAnuncios.length;
         const ad = filaAnuncios[anuncioAtual];
         
-        banners.forEach(banner => {
-            banner.style.background = ad.cor;
-            banner.style.backgroundSize = "400% 400%";
-            banner.innerHTML = `
-                <h3 style="margin: 0; color: white;">${ad.titulo}</h3>
-                <span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>
-            `;
-            banner.onclick = () => {
-                if(ad.link === "modal") abrirModal('modalPublicidade');
-                else window.open(ad.link, '_blank');
-            };
-        });
-    }, 6000); // Roda a cada 6 segundos
+        // Atualiza os banners com os dados dinâmicos (Título, Link, Cor e Localização)
+        const htmlConteudo = `<h3 style="margin: 0; color: white;">${ad.titulo}</h3><span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>`;
+        const acaoClique = () => { ad.link === "modal" ? abrirModal('modalPublicidade') : window.open(ad.link, '_blank'); };
+
+        if (ad.local === "CABECALHO" || ad.local === "TODOS") {
+            bannersCabecalho.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; });
+        }
+        if (ad.local === "RODAPE" || ad.local === "TODOS") {
+            bannersRodape.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; });
+        }
+    }, 6000); // Rotação a cada 6 segundos
 }
 
 async function efetuarLoginAdmin() {
@@ -651,4 +666,58 @@ async function efetuarLoginAdmin() {
     } catch (error) {
         alert("Erro de conexão com o servidor.");
     }
+}
+
+// --- LOGIN SEGURO ADMINISTRATIVO ---
+async function efetuarLoginAdmin() {
+    const email = document.getElementById('admin-email').value;
+    const senha = document.getElementById('admin-senha').value;
+    if (!email || !senha) { alert("Preencha as credenciais administrativas."); return; }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'login_admin', email: email, senha: senha })
+        });
+        const data = await response.json();
+        
+        if (response.ok && data.sucesso) {
+            sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario));
+            window.location.href = "admin.html"; // Redireciona com segurança
+        } else {
+            alert(`Falha no acesso restrito: ${data.erro}`);
+        }
+    } catch (error) { alert("Erro de conexão com o servidor."); }
+}
+
+// --- CADASTRO DE USUÁRIOS (SÓ RODA NO ADMIN.HTML) ---
+async function cadastrarUsuarioInterno() {
+    // Dupla checagem: Front-end garante que quem clica é Admin
+    if (!usuarioLogado || usuarioLogado.perfil !== "ADMIN") {
+        alert("Sem permissão para cadastrar utilizadores internos.");
+        return;
+    }
+
+    const nome = document.getElementById('cad-nome-interno').value;
+    const perfil = document.getElementById('cad-perfil-interno').value;
+    const email = document.getElementById('cad-email-interno').value;
+    const senha = document.getElementById('cad-senha-interno').value;
+
+    if (!nome || !email || !senha) { alert("Preencha todos os campos."); return; }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'registro_admin', nome: nome, email: email, senha: senha, perfil: perfil })
+        });
+        const data = await response.json();
+        if (response.ok && data.sucesso) {
+            alert(data.mensagem);
+            fecharModais(); // Fecha o modal do admin.html
+        } else {
+            alert(`Erro: ${data.erro}`);
+        }
+    } catch (error) { alert("Erro ao cadastrar usuário."); }
 }

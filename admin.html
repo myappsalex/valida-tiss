@@ -64,27 +64,26 @@
             <h3>👤 Novo Utilizador Interno</h3>
             <div class="form-group">
                 <label>Nome Completo</label>
-                <!-- oninput força CAIXA ALTA conforme solicitado -->
-                <input type="text" class="form-control" oninput="this.value = this.value.toUpperCase()" placeholder="EX: JOÃO SILVA">
+                <input type="text" id="cad-nome-interno" class="form-control" oninput="this.value = this.value.toUpperCase()" placeholder="EX: JOÃO SILVA">
             </div>
             <div class="form-group">
                 <label>Perfil de Acesso</label>
-                <select class="form-control">
-                    <option value="admin">Administrador Geral</option>
-                    <option value="operacao">Operação de Faturamento</option>
-                    <option value="publicidade">Gestor de Publicidade</option>
-                    <option value="gestao">Gestão de Contas (Viewer)</option>
+                <select id="cad-perfil-interno" class="form-control">
+                    <option value="ADMIN">Administrador Geral</option>
+                    <option value="OPERACAO">Operação de Faturamento</option>
+                    <option value="PUBLICIDADE">Gestor de Publicidade</option>
+                    <option value="GESTAO">Gestão de Contas (Viewer)</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>E-mail Corporativo</label>
-                <input type="email" class="form-control" placeholder="nome@empresa.com">
+                <input type="email" id="cad-email-interno" class="form-control" placeholder="nome@empresa.com">
             </div>
             <div class="form-group">
                 <label>Senha Provisória</label>
-                <input type="password" class="form-control" value="Mudar@123">
+                <input type="password" id="cad-senha-interno" class="form-control" value="Mudar@123">
             </div>
-            <button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalFuncionario')">Salvar Utilizador</button>
+            <button class="btn btn-primary" style="width: 100%;" onclick="cadastrarUsuarioInterno()">Salvar Utilizador</button>
             <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalFuncionario')">Cancelar</button>
         </div>
     </div>
