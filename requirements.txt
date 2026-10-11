@@ -1,4 +1,4 @@
-lxml==5.1.0
+lxml
 google-generativeai
 openai
 prisma
