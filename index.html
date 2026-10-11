@@ -46,12 +46,34 @@
         .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
         .btn-premium { background: linear-gradient(90deg, #6f42c1, #a166ab); color: white; padding: 12px 24px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 15px; font-size: 16px; }
         .close-modal { margin-top: 15px; cursor: pointer; color: #888; font-size: 12px; text-decoration: underline; background: none; border: none; }
+
+		/* --- Banners Animados (CSS3) --- */
+        .ad-banner-animated {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 10s ease infinite;
+            color: white; text-align: center; padding: 20px; margin: 15px auto; 
+            max-width: 728px; border-radius: 8px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s;
+        }
+        .ad-banner-animated:hover { transform: scale(1.02); }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .pulse-text { animation: pulse 1.5s infinite; display: inline-block; background: white; color: #e73c7e; padding: 5px 15px; border-radius: 20px; margin-top: 10px;}
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+        
+        /* Preços de Tokens */
+        .pricing-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin: 10px 0; cursor: pointer; transition: 0.3s; }
+        .pricing-card:hover { border-color: #6f42c1; background: #f8f5ff; }
+		
     </style>
 </head>
 <body>
 
-    <!-- Cabeçalho Publicitário -->
-    <div class="ad-banner">Espaço Publicitário - Leaderboard (728x90)</div>
+    <!-- Banner Cabeçalho (Venda de Publicidade) -->
+    <div class="ad-banner-animated" onclick="abrirModal('modalPublicidade')">
+        <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
+        <span class="pulse-text">Clique aqui e anuncie no portal</span>
+    </div>
 
     <div class="container">
         <!-- WIZARD PASSO 1: Upload -->
@@ -134,6 +156,39 @@
             <button class="close-modal" onclick="fecharModalAuth()">Cancelar</button>
         </div>
     </div>
-	
+	<!-- Modal Venda de Tokens de IA -->
+    <div id="modalLojaTokens" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="color: #6f42c1;">🛒 Adquirir Tokens de Auditoria IA</h3>
+            <p style="font-size: 13px;">Sem mensalidades. Compre pacotes de análise e use quando precisar.</p>
+            
+            <div class="pricing-card" onclick="solicitarCompra('IA', '100 Tokens - R$ 49,90')">
+                <strong>Pacote Starter (100 Análises)</strong><br>
+                <span style="color: #28a745; font-size: 18px;">R$ 49,90</span>
+            </div>
+            <div class="pricing-card" style="border-color: #6f42c1; background: #f8f5ff;" onclick="solicitarCompra('IA', '500 Tokens - R$ 199,90')">
+                <strong>Pacote Pro (500 Análises) - Mais Popular</strong><br>
+                <span style="color: #28a745; font-size: 18px;">R$ 199,90</span>
+            </div>
+            
+            <button class="close-modal" onclick="fecharModais()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal Venda de Publicidade -->
+    <div id="modalPublicidade" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="color: #0056b3;">📢 Anuncie no Portal do Faturista</h3>
+            <p style="font-size: 13px;">Mais de 10.000 guias validadas diariamente. Fale com o seu público-alvo (Hospitais, Clínicas e Auditores).</p>
+            <input type="text" id="pub-empresa" placeholder="Nome da Empresa" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
+            <input type="email" id="pub-email" placeholder="E-mail de Contato" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
+            <select id="pub-local" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
+                <option>Banner Cabeçalho (728x90) - R$ 500/mês</option>
+                <option>Banner Rodapé (728x90) - R$ 300/mês</option>
+            </select>
+            <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+            <button class="close-modal" onclick="fecharModais()">Cancelar</button>
+        </div>
+    </div>
 </body>
 </html>
