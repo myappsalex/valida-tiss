@@ -19,23 +19,6 @@ function reiniciarWizard() {
     alterarPasso(1);
 }
 
-// --- UPSELL IA ---
-sync function analisarGuiaIA(idUnico, numeroGuia, provedor) {
-    // 1. Regra de Negócio: Exigir Login e Saldo Ativo
-    if (!usuarioLogado) {
-        document.getElementById('modalAuth').style.display = 'flex';
-        return; // Interrompe a execução até o utilizador fazer login
-    }
-    
-    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) {
-        alert("O seu plano não está ativo ou esgotou o limite de tokens. Contacte o administrador.");
-        return;
-    }
-
-    // 2. Execução da IA (Deduz 1 Token localmente para UX)
-    usuarioLogado.tokensRestantes -= 1;
-
-}
 
 function alternarFormAuth(tipo) {
     document.getElementById('form-login').style.display = tipo === 'login' ? 'block' : 'none';
@@ -43,30 +26,82 @@ function alternarFormAuth(tipo) {
 }
 
 function fecharModalAuth() { document.getElementById('modalAuth').style.display = 'none'; }
+// --- LIGAÇÃO REAL COM O BACK-END DE AUTENTICAÇÃO ---
 
-function efetuarLogin() {
-    // Simulação de validação de API e verificação de tokens financeiros
+async function efetuarLogin() {
     const email = document.getElementById('login-email').value;
-    if (email.includes('@')) {
-        usuarioLogado = { email: email, statusPagamento: 'ATIVO', tokensRestantes: 150 };
-        fecharModalAuth();
-        alert(`Bem-vindo! Saldo atual: ${usuarioLogado.tokensRestantes} análises IA.`);
-    } else {
-        alert("Credenciais inválidas.");
+    const senha = document.getElementById('login-senha').value;
+    
+    if (!email || !senha) {
+        alert("Por favor, preencha o e-mail e a palavra-passe.");
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'login', email: email, senha: senha })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.sucesso) {
+            usuarioLogado = data.usuario; // Guarda os dados e os tokens na sessão
+            fecharModalAuth();
+            alert(`Bem-vindo, ${usuarioLogado.nome}! Saldo atual: ${usuarioLogado.tokensRestantes} análises IA.`);
+        } else {
+            alert(`Falha no login: ${data.erro}`);
+        }
+    } catch (error) {
+        alert("Erro ao comunicar com o servidor de autenticação.");
     }
 }
 
-function solicitarConta() {
-    alert("Pedido enviado para aprovação do Administrador. Aguarde a libertação dos seus tokens.");
-    alternarFormAuth('login');
+async function solicitarConta() {
+    const nome = document.getElementById('reg-nome').value;
+    const email = document.getElementById('reg-email').value;
+    const senha = document.getElementById('reg-senha').value;
+    
+    // Validação básica de segurança da palavra-passe no ecrã (Front-end)
+    const regexSenha = /(?=.*[!@#$%^&*]).{8,}/;
+    if (!regexSenha.test(senha)) {
+        alert("A palavra-passe deve ter pelo menos 8 caracteres e um caractere especial (!@#$...).");
+        return;
+    }
+    
+    if (!nome || !email) {
+        alert("Preencha todos os campos obrigatórios.");
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'registro', nome: nome, email: email, senha: senha })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.sucesso) {
+            alert(data.mensagem);
+            alternarFormAuth('login'); // Volta para o ecrã de login
+        } else {
+            alert(`Erro no registo: ${data.erro}`);
+        }
+    } catch (error) {
+        alert("Erro ao enviar o pedido de registo.");
+    }
 }
 
-// Interceção do Botão de IA
+
+// --- UPSELL IA E INTERCEÇÃO ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
     // 1. Regra de Negócio: Exigir Login e Saldo Ativo
     if (!usuarioLogado) {
         document.getElementById('modalAuth').style.display = 'flex';
-        return; // Interrompe a execução até o utilizador fazer login
+        return; 
     }
     
     if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) {
@@ -77,9 +112,10 @@ async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
     // 2. Execução da IA (Deduz 1 Token localmente para UX)
     usuarioLogado.tokensRestantes -= 1;
     
-    // ... [Aqui entra o código fetch('/api/auditoria') que já construímos anteriormente] ...
+    // NOTA: O código de fetch('/api/auditoria') que fará a requisição real virá aqui
+    alert("Simulação: Token deduzido! IA em processamento...");
 }
-}
+
 function fecharModal() { document.getElementById('modalPremium').style.display = 'none'; }
 function redirecionarCheckout() { alert("Redirecionando para página de pagamento..."); }
 

@@ -3,24 +3,14 @@ from http.server import BaseHTTPRequestHandler
 import os
 import google.generativeai as genai
 from openai import OpenAI
-
-
 from prisma import Prisma
 
-# Dentro da função handler do seu auditoria.py:
-db = Prisma()
-db.connect()
-
-# 1. Verifica se o cliente tem saldo
-cliente = db.cliente.find_unique(where={"emailAcesso": email_usuario})
-
-if not cliente or cliente.tokensIA <= 0 or cliente.statusConta != "ATIVO":
-    # Retorna erro de falta de saldo
-    return
-    
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        db = Prisma()
         try:
+            db.connect()
+            
             # 1. Lê os dados enviados pelo JavaScript
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
@@ -28,13 +18,21 @@ class handler(BaseHTTPRequestHandler):
 
             numero_guia = data.get('guia', 'Desconhecida')
             itens = data.get('itens', [])
-            provedor = data.get('provedor', 'gemini') # Identifica qual IA foi chamada
+            provedor = data.get('provedor', 'gemini') 
+            email_usuario = data.get('email', '') # Precisa enviar o e-mail no JS
+
+            # 2. Verifica se o cliente tem saldo
+            cliente = db.cliente.find_unique(where={"emailAcesso": email_usuario})
+
+            if not cliente or cliente.tokensIA <= 0 or cliente.statusConta != "ATIVO":
+                self._send_error(403, "Plano inativo ou sem tokens suficientes.")
+                return
 
             if not itens:
                 self._send_error(400, "Nenhum item encontrado nesta guia para analisar.")
                 return
 
-            # 2. Monta a lista de itens cruzados
+            # 3. Monta a lista de itens cruzados
             resumo_itens = ""
             for item in itens:
                 tipo = item.get('tipoDespesa', 'Procedimento')
@@ -46,8 +44,7 @@ class handler(BaseHTTPRequestHandler):
                 if codigo != "-":
                     resumo_itens += f"- [{tipo}] Código: {codigo} | Descrição: {descricao} | Qtd: {qtd} | Valor: R$ {valor}\n"
 
-            # 3. Engenharia de Prompt
-            # Engenharia de Prompt Otimizada para Economia de Tokens (Zero-shot, JSON output)
+            # 4. Engenharia de Prompt
             prompt = f"""
                         Atue como auditor médico rigoroso (padrão TISS/TUSS).
                         Cruze o procedimento principal com os itens cobrados (materiais/taxas/medicamentos).
@@ -64,12 +61,11 @@ class handler(BaseHTTPRequestHandler):
 """
             resposta_ia = ""
 
-            # 4. Roteamento de Modelos de IA
+            # 5. Roteamento de Modelos de IA
             if provedor == 'gemini':
                 api_key = os.environ.get("GEMINI_API_KEY")
                 if not api_key: raise Exception("GEMINI_API_KEY não configurada.")
                 genai.configure(api_key=api_key)
-                ##model = genai.GenerativeModel('gemini-1.5-flash')
                 model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
                 resposta_ia = response.text
@@ -79,7 +75,7 @@ class handler(BaseHTTPRequestHandler):
                 if not api_key: raise Exception("OPENAI_API_KEY não configurada.")
                 client = OpenAI(api_key=api_key)
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini", # Usando o modelo rápido e barato da OpenAI
+                    model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}]
                 )
                 resposta_ia = response.choices[0].message.content
@@ -87,19 +83,31 @@ class handler(BaseHTTPRequestHandler):
             elif provedor == 'deepseek':
                 api_key = os.environ.get("DEEPSEEK_API_KEY")
                 if not api_key: raise Exception("DEEPSEEK_API_KEY não configurada.")
-                # DeepSeek usa a mesma biblioteca da OpenAI, apenas mudamos a Base URL
-                #client = OpenAI(api_key=api_key, base_url="https://api.chat.deepseek.com/v1")
                 client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
                 response = client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[{"role": "user", "content": prompt}]
                 )
                 resposta_ia = response.choices[0].message.content
-            
             else:
                 raise Exception("Provedor de IA desconhecido.")
 
-            # 5. Devolve a resposta
+            # 6. Deduz o token e grava o histórico
+            db.cliente.update(
+                where={"id": cliente.id},
+                data={"tokensIA": {"decrement": 1}}
+            )
+
+            db.logia.create(
+                data={
+                    "clienteId": cliente.id,
+                    "numeroGuia": numero_guia,
+                    "motorUsado": provedor,
+                    "tokensGastos": 1
+                }
+            )
+
+            # 7. Devolve a resposta
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -107,27 +115,13 @@ class handler(BaseHTTPRequestHandler):
 
         except Exception as e:
             self._send_error(500, f"Erro interno ao processar IA: {str(e)}")
+            
+        finally:
+            if db.is_connected():
+                db.disconnect()
 
     def _send_error(self, status, mensagem):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps({'erro': mensagem}).encode('utf-8'))
-        
-       
-# 3. Deduz o token e grava o histórico
-db.cliente.update(
-    where={"id": cliente.id},
-    data={"tokensIA": {"decrement": 1}}
-)
-
-db.logia.create(
-    data={
-        "clienteId": cliente.id,
-        "numeroGuia": numero_guia,
-        "motorUsado": provedor_escolhido,
-        "tokensGastos": 1
-    }
-)
-
-db.disconnect()
