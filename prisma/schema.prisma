@@ -1,0 +1,49 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabela principal de Clientes (Hospitais, Clínicas, Faturistas)
+model Cliente {
+  id            String     @id @default(uuid())
+  nomeEmpresa   String
+  emailAcesso   String     @unique
+  senhaHash     String
+  tokensIA      Int        @default(0)
+  statusConta   String     @default("PENDENTE") // PENDENTE, ATIVO, BLOQUEADO
+  criadoEm      DateTime   @default(now())
+
+  // Relacionamentos
+  logsIA        LogIA[]
+  campanhas     Campanha[]
+}
+
+// Registo de auditorias (Para o extrato do cliente e controlo de custos)
+model LogIA {
+  id            String   @id @default(uuid())
+  clienteId     String
+  numeroGuia    String
+  motorUsado    String   // gemini, chatgpt, deepseek
+  tokensGastos  Int      @default(1)
+  dataUso       DateTime @default(now())
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// Gestão dos Banners de Publicidade
+model Campanha {
+  id            String   @id @default(uuid())
+  clienteId     String
+  localBanner   String   // CABECALHO, RODAPE
+  status        String   @default("ANALISE") // ANALISE, ATIVO, CONCLUIDO
+  urlDestino    String?
+  dataInicio    DateTime?
+  dataFim       DateTime?
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
