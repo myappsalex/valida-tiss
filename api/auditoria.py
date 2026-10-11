@@ -4,6 +4,20 @@ import os
 import google.generativeai as genai
 from openai import OpenAI
 
+
+from prisma import Prisma
+
+# Dentro da função handler do seu auditoria.py:
+db = Prisma()
+db.connect()
+
+# 1. Verifica se o cliente tem saldo
+cliente = db.cliente.find_unique(where={"emailAcesso": email_usuario})
+
+if not cliente or cliente.tokensIA <= 0 or cliente.statusConta != "ATIVO":
+    # Retorna erro de falta de saldo
+    return
+    
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -99,3 +113,21 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps({'erro': mensagem}).encode('utf-8'))
+        
+       
+# 3. Deduz o token e grava o histórico
+db.cliente.update(
+    where={"id": cliente.id},
+    data={"tokensIA": {"decrement": 1}}
+)
+
+db.logia.create(
+    data={
+        "clienteId": cliente.id,
+        "numeroGuia": numero_guia,
+        "motorUsado": provedor_escolhido,
+        "tokensGastos": 1
+    }
+)
+
+db.disconnect()
