@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("VALIDA_TISS_DATABASE_PRISMA_DATABASE_URL")
 }
 
 // Tabela principal de Clientes (Hospitais, Clínicas, Faturistas)
