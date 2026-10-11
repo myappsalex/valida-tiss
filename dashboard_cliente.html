@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Área do Cliente - Portal TISS</title>
+    <!-- Inclui a biblioteca de Gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
         .dashboard-container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 3fr; gap: 20px; }
@@ -10,25 +12,28 @@
         .main-content { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .metric-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
         .card { padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #eee; }
-        .card h2 { margin: 10px 0 0 0; color: #6f42c1; font-size: 28px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background: #f8f9fa; color: #333; }
-        .badge-success { background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; }
+        .card h2 { margin: 10px 0 0 0; font-size: 28px; }
+        .chart-container { background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 30px;}
     </style>
+    <!-- AUTH GUARD: Proteção de Rota -->
+    <script>
+        const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+        if (!sessao) {
+            alert("Acesso restrito. Por favor, faça login.");
+            window.location.href = "index.html";
+        }
+    </script>
 </head>
 <body>
     <div class="dashboard-container">
         <!-- Menu Lateral -->
         <div class="sidebar">
-            <h3 style="color: #0056b3;">Olá, Hospital Santa Maria</h3>
-            <p style="font-size: 12px; color: #666;">faturamento@hsm.com</p>
+            <h3 style="color: #0056b3;" id="nome-cliente">Carregando...</h3>
+            <p style="font-size: 12px; color: #666;" id="email-cliente"></p>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 2.5;">
-                <li><a href="#" style="color: #333; text-decoration: none;">📊 Visão Geral</a></li>
-                <li><a href="#" style="color: #333; text-decoration: none;">🤖 Extrato de IA (Logs)</a></li>
-                <li><a href="#" style="color: #333; text-decoration: none;">📢 Meus Anúncios</a></li>
-                <li><a href="index.html" style="color: #0056b3; font-weight: bold; text-decoration: none;">↪ Voltar ao Validador</a></li>
+            <ul style="list-style: none; padding: 0; font-size: 14px; line-height: 2.5;">
+                <li><a href="index.html" style="color: #0056b3; font-weight: bold; text-decoration: none;">↪ Validador e Auditoria</a></li>
+                <li><a href="#" style="color: #dc3545; text-decoration: none;" onclick="efetuarLogout()">Sair da Conta</a></li>
             </ul>
         </div>
 
@@ -39,46 +44,63 @@
             <div class="metric-cards">
                 <div class="card" style="border-top: 4px solid #6f42c1;">
                     <p style="margin:0; color: #666;">Tokens IA Disponíveis</p>
-                    <h2>845</h2>
-                    <button style="margin-top:10px; background:#6f42c1; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Comprar Mais</button>
+                    <h2 id="saldo-tokens" style="color: #6f42c1;">0</h2>
                 </div>
                 <div class="card" style="border-top: 4px solid #28a745;">
-                    <p style="margin:0; color: #666;">Anúncios Ativos</p>
-                    <h2 style="color: #28a745;">1</h2>
-                    <p style="font-size: 11px; margin-top:10px;">Válido até 15/12/2026</p>
+                    <p style="margin:0; color: #666;">Contas Analisadas (IA)</p>
+                    <h2 style="color: #28a745;">124</h2>
                 </div>
                 <div class="card" style="border-top: 4px solid #0056b3;">
-                    <p style="margin:0; color: #666;">Economia Estimada</p>
-                    <h2 style="color: #0056b3;">R$ 14k</h2>
-                    <p style="font-size: 11px; margin-top:10px;">Com glosas evitadas</p>
+                    <p style="margin:0; color: #666;">Risco Mitigado (R$)</p>
+                    <h2 style="color: #0056b3;">R$ 14,2k</h2>
                 </div>
             </div>
 
-            <h3>Log de Utilização da Inteligência Artificial</h3>
-            <table>
-                <tr>
-                    <th>Data/Hora</th>
-                    <th>Nº da Guia</th>
-                    <th>Motor IA Usado</th>
-                    <th>Resultado</th>
-                    <th>Custo (Tokens)</th>
-                </tr>
-                <tr>
-                    <td>10/10/2026 14:30</td>
-                    <td>192837465</td>
-                    <td>✨ Gemini 2.5</td>
-                    <td><span class="badge-success">OK - Sem anomalias</span></td>
-                    <td>-1</td>
-                </tr>
-                <tr>
-                    <td>10/10/2026 14:15</td>
-                    <td>998827364</td>
-                    <td>✨ DeepSeek</td>
-                    <td><span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px;">Alerta - Excesso Insumos</span></td>
-                    <td>-1</td>
-                </tr>
-            </table>
+            <!-- Dashboard Estatístico da IA -->
+            <h3>📊 Estatísticas de Análise Clínica (IA)</h3>
+            <div class="chart-container">
+                <canvas id="iaStatsChart" height="80"></canvas>
+            </div>
+            <p style="font-size: 12px; color: #888;">*Dados ilustrativos gerados a partir do histórico de faturamento cruzado pela inteligência artificial contra o padrão TUSS e tabelas de Mat/Med.</p>
         </div>
     </div>
+
+    <script>
+        // Carrega dados da sessão
+        document.getElementById('nome-cliente').innerText = sessao.nome;
+        document.getElementById('email-cliente').innerText = sessao.email;
+        document.getElementById('saldo-tokens').innerText = sessao.tokensRestantes;
+
+        function efetuarLogout() {
+            sessionStorage.removeItem('sessaoTISS');
+            window.location.href = "index.html";
+        }
+
+        // --- Gráfico de Inteligência Clínica ---
+        const ctx = document.getElementById('iaStatsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Contas Coerentes (Limpa)', 'Alerta: Incompatibilidade TUSS', 'Alerta: Excesso OPME/MatMed', 'Alerta: Quantidade de Diárias', 'Glosas Administrativas Identificadas'],
+                datasets: [{
+                    label: 'Volume de Guias Analisadas',
+                    data: [85, 12, 18, 5, 4], // Dados simulados
+                    backgroundColor: [
+                        '#28a745', // Verde para OK
+                        '#ffc107', // Amarelo
+                        '#dc3545', // Vermelho OPME
+                        '#fd7e14', // Laranja
+                        '#6f42c1'  // Roxo
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    </script>
 </body>
 </html>

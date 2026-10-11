@@ -60,15 +60,12 @@ function fecharModalAuth() {
     document.getElementById('modalAuth').style.display = 'none'; 
 }
 
-// --- LOGIN ATUALIZADO ---
+// --- AUTENTICAÇÃO E SESSÃO SEGURA ---
 async function efetuarLogin() {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
     
-    if (!email || !senha) {
-        alert("Por favor, preencha o e-mail e a palavra-passe.");
-        return;
-    }
+    if (!email || !senha) { alert("Por favor, preencha todos os campos."); return; }
 
     try {
         const response = await fetch('/api/auth', {
@@ -76,29 +73,53 @@ async function efetuarLogin() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ acao: 'login', email: email, senha: senha })
         });
-        
         const data = await response.json();
         
         if (response.ok && data.sucesso) {
             usuarioLogado = data.usuario; 
+            
+            // Simulação de Perfil Admin (Para o seu teste)
+            if(email.includes("admin")) usuarioLogado.perfil = "ADMIN";
+            else usuarioLogado.perfil = "CLIENTE";
+
+            // GRAVA A SESSÃO NO NAVEGADOR
+            sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
+            
             fecharModalAuth();
-            
-            // Atualiza a interface do topo do site
-            document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
-            document.getElementById('user-status').style.color = "#0056b3";
-            const btnTop = document.getElementById('btn-login-top');
-            btnTop.innerText = "Painel do Cliente";
-            btnTop.onclick = () => { window.location.href = "dashboard_cliente.html"; };
-            
+            atualizarTopoSite();
             alert(`Bem-vindo, ${usuarioLogado.nome}!`);
         } else {
             alert(`Falha no login: ${data.erro}`);
         }
     } catch (error) {
-        alert("Erro ao comunicar com o servidor de autenticação.");
+        alert("Erro ao comunicar com o servidor.");
     }
 }
 
+function atualizarTopoSite() {
+    if(!usuarioLogado) return;
+    document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
+    const btnTop = document.getElementById('btn-login-top');
+    btnTop.innerText = usuarioLogado.perfil === "ADMIN" ? "⚙️ Área Master" : "📊 Meu Painel";
+    btnTop.onclick = () => { 
+        window.location.href = usuarioLogado.perfil === "ADMIN" ? "admin.html" : "dashboard_cliente.html"; 
+    };
+}
+
+function efetuarLogout() {
+    sessionStorage.removeItem('sessaoTISS');
+    window.location.href = "index.html";
+}
+
+// Verifica a sessão ao carregar a página index.html
+window.onload = () => {
+    const sessaoSalva = sessionStorage.getItem('sessaoTISS');
+    if (sessaoSalva) {
+        usuarioLogado = JSON.parse(sessaoSalva);
+        atualizarTopoSite();
+    }
+    iniciarRotacaoPublicidade();
+};
 
 async function solicitarConta() {
     const nome = document.getElementById('reg-nome').value;
@@ -568,4 +589,35 @@ function exportarExcel() {
     link.setAttribute("href", url);
     link.setAttribute("download", "Relatorio_TISS_Completo.csv");
     link.click();
+}
+
+// --- MOTOR DE ROTAÇÃO DE PUBLICIDADE ---
+const filaAnuncios = [
+    { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal do faturista", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e)" },
+    { titulo: "🎓 Especialização em Auditoria TISS", texto: "Aprenda a evitar glosas. Clique e conheça.", link: "https://google.com", cor: "linear-gradient(-45deg, #23a6d5, #23d5ab)" },
+    { titulo: "🏥 ERP Saúde Plus", texto: "Gestão hospitalar sem dores de cabeça. Teste grátis.", link: "https://apple.com", cor: "linear-gradient(-45deg, #6f42c1, #a166ab)" }
+];
+let anuncioAtual = 0;
+
+function iniciarRotacaoPublicidade() {
+    const banners = document.querySelectorAll('.ad-banner-animated');
+    if (banners.length === 0) return;
+
+    setInterval(() => {
+        anuncioAtual = (anuncioAtual + 1) % filaAnuncios.length;
+        const ad = filaAnuncios[anuncioAtual];
+        
+        banners.forEach(banner => {
+            banner.style.background = ad.cor;
+            banner.style.backgroundSize = "400% 400%";
+            banner.innerHTML = `
+                <h3 style="margin: 0; color: white;">${ad.titulo}</h3>
+                <span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>
+            `;
+            banner.onclick = () => {
+                if(ad.link === "modal") abrirModal('modalPublicidade');
+                else window.open(ad.link, '_blank');
+            };
+        });
+    }, 6000); // Roda a cada 6 segundos
 }

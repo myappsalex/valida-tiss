@@ -2,49 +2,151 @@
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
-    <title>SaaS Admin - Gestão de Tokens IA</title>
+    <title>Master Admin - Portal TISS</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
-        .dashboard { background: white; padding: 20px; border-radius: 8px; max-width: 1000px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background: #0056b3; color: white; }
-        .btn-aprovar { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        .btn-rejeitar { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .dashboard { background: white; padding: 30px; border-radius: 8px; max-width: 1200px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+        .action-bar { display: flex; gap: 15px; margin-bottom: 20px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-primary { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-warning { background: #f39c12; }
+        .btn-danger { background: #dc3545; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 30px;}
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; }
+        
+        /* Modais */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 450px; }
+        .modal-content h3 { margin-top: 0; color: #0056b3; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
     </style>
+    <!-- AUTH GUARD: Proteção de Rota -->
+    <script>
+        const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+        if (!sessao || sessao.perfil !== "ADMIN") {
+            alert("Acesso Negado. Faça login com credenciais administrativas.");
+            window.location.href = "index.html";
+        }
+    </script>
 </head>
 <body>
     <div class="dashboard">
-        <h2>Gestão de Contratos e Uso de IA</h2>
+        <div class="header">
+            <h2 style="margin: 0;">⚙️ Centro de Operações (Backoffice)</h2>
+            <button class="btn btn-danger" onclick="efetuarLogout()">Sair do Sistema</button>
+        </div>
+
+        <div class="action-bar">
+            <button class="btn btn-primary" onclick="abrirModal('modalFuncionario')">👤 Cadastrar Utilizador Interno</button>
+            <button class="btn btn-success" onclick="abrirModal('modalTokens')">💰 Gerir Tokens de IA</button>
+            <button class="btn btn-warning" onclick="abrirModal('modalAds')">📢 Gerir Publicidade</button>
+        </div>
+
+        <h3>Gestão de Contratos de IA</h3>
         <table>
+            <tr><th>Cliente</th><th>Email</th><th>Tokens Restantes</th><th>Status</th><th>Ações</th></tr>
             <tr>
-                <th>Cliente / Empresa</th>
-                <th>Email de Acesso</th>
-                <th>Status Financeiro</th>
-                <th>Tokens Consumidos</th>
-                <th>Limite de Tokens</th>
-                <th>Ações</th>
-            </tr>
-            <tr>
-                <td>Hospital Santa Maria</td>
-                <td>faturamento@hsm.com</td>
+                <td>Hospital Santa Maria</td><td>faturamento@hsm.com</td><td>845</td>
                 <td><span style="color: green; font-weight: bold;">Ativo</span></td>
-                <td>845</td>
-                <td>1000</td>
-                <td><button class="btn-aprovar">Gerir Limite</button></td>
-            </tr>
-            <tr>
-                <td>Clínica Radiologia</td>
-                <td>contas@rad.com</td>
-                <td><span style="color: orange; font-weight: bold;">Pendente Aprovação</span></td>
-                <td>0</td>
-                <td>0</td>
-                <td>
-                    <button class="btn-aprovar">Aprovar Contrato</button>
-                    <button class="btn-rejeitar">Rejeitar</button>
-                </td>
+                <td><button class="btn btn-success" style="padding: 5px;" onclick="abrirModal('modalTokens')">Add Tokens</button></td>
             </tr>
         </table>
     </div>
+
+    <!-- Modal: Cadastro de Utilizadores Internos -->
+    <div id="modalFuncionario" class="modal-overlay">
+        <div class="modal-content">
+            <h3>👤 Novo Utilizador Interno</h3>
+            <div class="form-group">
+                <label>Nome Completo</label>
+                <!-- oninput força CAIXA ALTA conforme solicitado -->
+                <input type="text" class="form-control" oninput="this.value = this.value.toUpperCase()" placeholder="EX: JOÃO SILVA">
+            </div>
+            <div class="form-group">
+                <label>Perfil de Acesso</label>
+                <select class="form-control">
+                    <option value="admin">Administrador Geral</option>
+                    <option value="operacao">Operação de Faturamento</option>
+                    <option value="publicidade">Gestor de Publicidade</option>
+                    <option value="gestao">Gestão de Contas (Viewer)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>E-mail Corporativo</label>
+                <input type="email" class="form-control" placeholder="nome@empresa.com">
+            </div>
+            <div class="form-group">
+                <label>Senha Provisória</label>
+                <input type="password" class="form-control" value="Mudar@123">
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalFuncionario')">Salvar Utilizador</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalFuncionario')">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal: Gestão de Tokens -->
+    <div id="modalTokens" class="modal-overlay">
+        <div class="modal-content">
+            <h3>💰 Creditar / Debitar Tokens IA</h3>
+            <div class="form-group">
+                <label>Selecione o Cliente</label>
+                <select class="form-control">
+                    <option>Hospital Santa Maria (CNPJ: 12.345...)</option>
+                    <option>Clínica Radiologia (CNPJ: 98.765...)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Quantidade de Tokens a Adicionar</label>
+                <input type="number" class="form-control" placeholder="Ex: 500">
+            </div>
+            <button class="btn btn-success" style="width: 100%;" onclick="fecharModal('modalTokens')">Creditar Saldo</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalTokens')">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal: Gestão de Publicidade -->
+    <div id="modalAds" class="modal-overlay">
+        <div class="modal-content">
+            <h3>📢 Configurar Campanha de Publicidade</h3>
+            <div class="form-group">
+                <label>Selecione o Cliente Anunciante</label>
+                <select class="form-control">
+                    <option>TechHealth Sistemas ERP</option>
+                    <option>Pós-Graduação Auditoria</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Título do Anúncio (O que vai rodar no Banner)</label>
+                <input type="text" class="form-control" placeholder="Ex: ERP Saúde Plus">
+            </div>
+            <div class="form-group">
+                <label>Link de Destino (Site, App Store, Instagram)</label>
+                <input type="url" class="form-control" placeholder="https://...">
+            </div>
+            <div class="form-group" style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label>Data Início</label>
+                    <input type="date" class="form-control">
+                </div>
+                <div style="flex: 1;">
+                    <label>Data Fim (Validade)</label>
+                    <input type="date" class="form-control">
+                </div>
+            </div>
+            <button class="btn btn-warning" style="width: 100%;" onclick="fecharModal('modalAds')">Publicar Campanha</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalAds')">Cancelar</button>
+        </div>
+    </div>
+
+    <script>
+        function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+        function efetuarLogout() { sessionStorage.removeItem('sessaoTISS'); window.location.href = "index.html"; }
+    </script>
 </body>
 </html>
