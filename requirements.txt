@@ -1,5 +1,5 @@
 lxml
-google-generativeai
 openai
 prisma
 bcrypt
+requests

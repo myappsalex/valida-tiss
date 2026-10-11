@@ -1,7 +1,7 @@
 import json
 from http.server import BaseHTTPRequestHandler
 import os
-import google.generativeai as genai
+import requests
 from openai import OpenAI
 from prisma import Prisma
 
@@ -25,7 +25,7 @@ class handler(BaseHTTPRequestHandler):
             cliente = db.cliente.find_unique(where={"emailAcesso": email_usuario})
 
             if not cliente or cliente.tokensIA <= 0 or cliente.statusConta != "ATIVO":
-                self._send_error(403, "Plano inativo ou sem tokens suficientes.")
+                self._send_error(403, "Plano inativo ou sem tokens suficientes. Contacte o suporte.")
                 return
 
             if not itens:
@@ -44,7 +44,7 @@ class handler(BaseHTTPRequestHandler):
                 if codigo != "-":
                     resumo_itens += f"- [{tipo}] Código: {codigo} | Descrição: {descricao} | Qtd: {qtd} | Valor: R$ {valor}\n"
 
-            # 4. Engenharia de Prompt
+            # 4. Engenharia de Prompt Otimizada
             prompt = f"""
                         Atue como auditor médico rigoroso (padrão TISS/TUSS).
                         Cruze o procedimento principal com os itens cobrados (materiais/taxas/medicamentos).
@@ -58,17 +58,22 @@ class handler(BaseHTTPRequestHandler):
 
                         Responda ESTRITAMENTE neste formato JSON:
                         {{"status": "ALERTA" ou "OK", "achados": ["lista curta de desvios, se houver"]}}
-"""
+            """
             resposta_ia = ""
 
-            # 5. Roteamento de Modelos de IA
+            # 5. Roteamento de Modelos de IA (Gemini agora via API REST super leve)
             if provedor == 'gemini':
                 api_key = os.environ.get("GEMINI_API_KEY")
                 if not api_key: raise Exception("GEMINI_API_KEY não configurada.")
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                response = model.generate_content(prompt)
-                resposta_ia = response.text
+                
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                
+                resp = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+                if resp.status_code == 200:
+                    resposta_ia = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                else:
+                    raise Exception(f"Erro na API do Gemini: {resp.text}")
 
             elif provedor == 'chatgpt':
                 api_key = os.environ.get("OPENAI_API_KEY")
