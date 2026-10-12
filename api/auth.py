@@ -55,11 +55,24 @@ class handler(BaseHTTPRequestHandler):
                 })
                 self._send_response(200, {'sucesso': True, 'mensagem': 'Usuário administrativo cadastrado com sucesso!'})
 
+            # --- ÁREA ADMINISTRATIVA (USUÁRIOS INTERNOS) ---
             elif acao == 'login_admin':
-                usuario = db.usuario.find_unique(where={"email": email})
-                if not usuario or not bcrypt.checkpw(senha.encode('utf-8'), usuario.senhaHash.encode('utf-8')):
-                    self._send_response(401, {'sucesso': False, 'erro': 'Credenciais administrativas inválidas ou acesso não autorizado.'})
+                # Remove espaços em branco que o utilizador possa ter digitado sem querer
+                email_limpo = email.strip() if email else ""
+                
+                usuario = db.usuario.find_unique(where={"email": email_limpo})
+                
+                # Teste 1: O e-mail existe no banco?
+                if not usuario:
+                    self._send_response(401, {'sucesso': False, 'erro': f"O e-mail '{email_limpo}' não foi encontrado no banco de dados."})
                     return
+                
+                # Teste 2: A senha bate com a criptografia?
+                if not bcrypt.checkpw(senha.encode('utf-8'), usuario.senhaHash.encode('utf-8')):
+                    self._send_response(401, {'sucesso': False, 'erro': 'O e-mail foi encontrado, mas a senha está incorreta.'})
+                    return
+                
+                # Sucesso!
                 self._send_response(200, {'sucesso': True, 'usuario': {
                     "id": usuario.id, "nome": usuario.nome, "email": usuario.email, "perfil": usuario.perfil, "tipo": "INTERNO"
                 }})
