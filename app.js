@@ -42,8 +42,13 @@ function enviarPedidoPub() {
     fecharModais();
 }
 
-function fecharModal() { 
-    document.getElementById('modalPremium').style.display = 'none'; 
+function fecharModal(idModal) { 
+    // Se nenhum ID for passado, tenta fechar o modalPremium (retrocompatibilidade)
+    const alvo = idModal || 'modalPremium';
+    const modal = document.getElementById(alvo);
+    if (modal) {
+        modal.style.display = 'none'; 
+    }
 }
 
 function redirecionarCheckout() { 
@@ -733,4 +738,64 @@ async function cadastrarUsuarioInterno() {
             alert(`Erro: ${data.erro}`);
         }
     } catch (error) { alert("Erro ao cadastrar usuário."); }
+}
+
+// --- GESTÃO DE ACESSOS (IAM) ---
+function abrirModalGestaoAcessos() {
+    abrirModal('modalGestaoAcessos');
+    carregarListaUsuarios(); // Carrega automaticamente ao abrir
+}
+
+async function carregarListaUsuarios() {
+    const tipo = document.getElementById('filtro-tipo-usuario').value;
+    const tbody = document.getElementById('lista-usuarios-body');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">⏳ A pesquisar na base de dados...</td></tr>';
+    
+    try {
+        const response = await fetch(`/api/gestao_usuarios?tipo=${tipo}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum registo encontrado.</td></tr>';
+                return;
+            }
+            
+            data.forEach(user => {
+                // Lógica visual de cores para perfis ou status
+                const perfilStatus = tipo === 'INTERNO' ? user.perfil : user.statusConta;
+                const corBadge = (perfilStatus === 'ATIVO' || perfilStatus === 'ADMIN') ? '#28a745' : (perfilStatus === 'BLOQUEADO' ? '#dc3545' : '#f39c12');
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${user.nome}</strong></td>
+                        <td>${user.email}</td>
+                        <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">${perfilStatus}</span></td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="alert('Funcionalidade Editar em construção')">✏️ Editar</button>
+                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="resetarSenha('${user.email}')">🔑 Reset Senha</button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="bloquearAcesso('${user.id}')">🚫 Bloquear</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: red;">Erro: ${data.erro}</td></tr>`;
+        }
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro de comunicação com o servidor.</td></tr>';
+    }
+}
+
+function resetarSenha(email) {
+    if(confirm(`Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`)) {
+        alert("E-mail de redefinição enviado com sucesso (Simulação).");
+    }
+}
+
+function bloquearAcesso(id) {
+    if(confirm("Atenção! Ao confirmar, este utilizador não poderá entrar no sistema. Deseja prosseguir?")) {
+        alert("Acesso revogado com sucesso (Simulação).");
+    }
 }
