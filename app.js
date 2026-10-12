@@ -91,9 +91,9 @@ function atualizarTopoSite() {
     if(!usuarioLogado) return;
     document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
     const btnTop = document.getElementById('btn-login-top');
-    btnTop.innerText = usuarioLogado.perfil === "ADMIN" ? "⚙️ Área Master" : "📊 Meu Painel";	
+    btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
     btnTop.onclick = () => { 
-        window.location.href = usuarioLogado.perfil === "ADMIN" ? "admin.html" : "dashboard_cliente.html"; 
+        window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; 
     };
 }
 
