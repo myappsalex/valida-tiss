@@ -90,20 +90,24 @@ async function efetuarLogin() {
 function atualizarTopoSite() {
     if(!usuarioLogado) return;
     
-    // Verifica se é da equipa interna ou se é um cliente externo
-    if (usuarioLogado.tipo === "INTERNO") {
-        document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Perfil: ${usuarioLogado.perfil}`;
-        document.getElementById('user-status').style.color = "#dc3545"; // Vermelho para destacar que é admin
-    } else {
-        document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
-        document.getElementById('user-status').style.color = "#0056b3"; // Azul para clientes
-    }
-
+    const elStatus = document.getElementById('user-status');
     const btnTop = document.getElementById('btn-login-top');
-    btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
-    btnTop.onclick = () => { 
-        window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; 
-    };
+    
+    // TRAVÃO DE SEGURANÇA: Só executa se estiver numa página que tenha o topo (ex: index.html)
+    if (elStatus && btnTop) {
+        if (usuarioLogado.tipo === "INTERNO") {
+            elStatus.innerText = `👤 ${usuarioLogado.nome} | Perfil: ${usuarioLogado.perfil}`;
+            elStatus.style.color = "#dc3545"; 
+        } else {
+            elStatus.innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
+            elStatus.style.color = "#0056b3"; 
+        }
+
+        btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
+        btnTop.onclick = () => { 
+            window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; 
+        };
+    }
 }
 
 function efetuarLogout() {
