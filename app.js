@@ -773,10 +773,10 @@ async function carregarListaUsuarios() {
                         <td>${user.email}</td>
                         <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">${perfilStatus}</span></td>
                         <td>
-                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="alert('Funcionalidade Editar em construção')">✏️ Editar</button>
-                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="resetarSenha('${user.email}')">🔑 Reset Senha</button>
-                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="bloquearAcesso('${user.id}')">🚫 Bloquear</button>
-                        </td>
+                            // Substitua os 3 botões dentro do tbody.innerHTML += `...` por estes:
+							<button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="editarAcesso('${user.id}', '${tipo}', '${perfilStatus}')">✏️ Editar</button>
+							<button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="resetarSenha('${user.id}', '${tipo}', '${user.email}')">🔑 Reset Senha</button>
+							<button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="bloquearAcesso('${user.id}', '${tipo}')">🚫 Bloquear</button></td>
                     </tr>
                 `;
             });
@@ -788,14 +788,51 @@ async function carregarListaUsuarios() {
     }
 }
 
-function resetarSenha(email) {
-    if(confirm(`Tem certeza que deseja enviar um link de redefinição de senha para ${email}?`)) {
-        alert("E-mail de redefinição enviado com sucesso (Simulação).");
+// O "Motor" que envia os pedidos para o Python
+async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
+    try {
+        const response = await fetch('/api/gestao_usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: acao, id: id, tipo: tipo, novo_dado: novoDado })
+        });
+        const data = await response.json();
+        
+        if (response.ok && data.sucesso) {
+            alert(data.mensagem);
+            carregarListaUsuarios(); // Recarrega a tabela para mostrar a alteração
+        } else {
+            alert(`Erro do Servidor: ${data.erro}`);
+        }
+    } catch(e) {
+        alert("Erro de comunicação com o servidor.");
     }
 }
 
-function bloquearAcesso(id) {
-    if(confirm("Atenção! Ao confirmar, este utilizador não poderá entrar no sistema. Deseja prosseguir?")) {
-        alert("Acesso revogado com sucesso (Simulação).");
+// 1. Botão Resetar Senha
+function resetarSenha(id, tipo, email) {
+    if(confirm(`Confirma a redefinição de senha para ${email}?\nA nova senha provisória será: Mudar@123`)) {
+        executarAcaoIAM('resetar', id, tipo);
+    }
+}
+
+// 2. Botão Bloquear
+function bloquearAcesso(id, tipo) {
+    if(confirm("Deseja realmente bloquear este utilizador? Ele perderá imediatamente o acesso ao sistema.")) {
+        executarAcaoIAM('bloquear', id, tipo);
+    }
+}
+
+// 3. Botão Editar (Abre um Prompt rápido de edição de status)
+function editarAcesso(id, tipo, statusAtual) {
+    const instrucao = tipo === 'INTERNO' 
+        ? "Digite o novo PERFIL (ADMIN, OPERACAO, PUBLICIDADE, GESTAO):" 
+        : "Digite o novo STATUS (ATIVO, PENDENTE, BLOQUEADO):";
+        
+    const novoValor = prompt(instrucao, statusAtual);
+    
+    // Se o gestor clicou em OK e alterou o texto
+    if (novoValor && novoValor.trim() !== "" && novoValor.toUpperCase() !== statusAtual) {
+        executarAcaoIAM('editar', id, tipo, novoValor);
     }
 }
