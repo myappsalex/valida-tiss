@@ -75,3 +75,4 @@ model RegraCliente {
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
 }
+//Redeploy
