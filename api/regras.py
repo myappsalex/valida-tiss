@@ -1,77 +1,72 @@
-// --- DASHBOARD DO CLIENTE: REGRAS CUSTOMIZADAS ---
-function abrirModalNovaRegra() {
-    abrirModal('modalNovaRegra');
-}
+import json
+from http.server import BaseHTTPRequestHandler
+from prisma import Prisma
+from urllib.parse import urlparse, parse_qs
 
-async function carregarRegrasCliente() {
-    if (!usuarioLogado || usuarioLogado.tipo !== 'CLIENTE') return;
+class handler(BaseHTTPRequestHandler):
     
-    const tbody = document.getElementById('lista-regras-body');
-    if(!tbody) return; // Se não estiver na página dashboard, ignora
-    
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">⏳ A carregar regras...</td></tr>';
-    
-    try {
-        const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhuma regra configurada. Crie a sua primeira regra!</td></tr>';
-                return;
-            }
+    # Busca as regras de um cliente específico
+    def do_GET(self):
+        db = Prisma()
+        try:
+            db.connect()
+            parsed_path = urlparse(self.path)
+            query_params = parse_qs(parsed_path.query)
+            cliente_id = query_params.get('clienteId', [None])[0]
             
-            data.forEach(r => {
-                const corBadge = r.acao === 'BLOQUEIO' ? '#dc3545' : '#f39c12';
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${r.nomeRegra}</strong></td>
-                        <td>${r.tipoGuia} <br><span style="font-size: 11px; color: #666;">Campo: ${r.campoValidado}</span></td>
-                        <td>${r.condicao} <strong>${r.valorEsperado}</strong></td>
-                        <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${r.acao}</span></td>
-                    </tr>
-                `;
-            });
-        }
-    } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro ao carregar regras.</td></tr>';
-    }
-}
+            if not cliente_id:
+                self._send_response(400, {'erro': 'ID do cliente não fornecido.'})
+                return
+                
+            regras = db.regracliente.find_many(
+                where={"clienteId": cliente_id},
+                order={"criadoEm": "desc"}
+            )
+            
+            lista = []
+            for r in regras:
+                lista.append({
+                    "id": r.id, "nomeRegra": r.nomeRegra, "tipoGuia": r.tipoGuia, 
+                    "campoValidado": r.campoValidado, "condicao": r.condicao, 
+                    "valorEsperado": r.valorEsperado, "acao": r.acao, "mensagemErro": r.mensagemErro
+                })
+                
+            self._send_response(200, lista)
+            
+        except Exception as e:
+            self._send_response(500, {'erro': str(e)})
+        finally:
+            if db.is_connected(): db.disconnect()
 
-async function salvarNovaRegra() {
-    const dados = {
-        clienteId: usuarioLogado.id,
-        nomeRegra: document.getElementById('regra-nome').value,
-        tipoGuia: document.getElementById('regra-tipo').value,
-        campoValidado: document.getElementById('regra-campo').value,
-        condicao: document.getElementById('regra-condicao').value,
-        valorEsperado: document.getElementById('regra-valor').value,
-        acao: document.getElementById('regra-acao').value,
-        mensagemErro: document.getElementById('regra-mensagem').value
-    };
+    # Cria uma nova regra
+    def do_POST(self):
+        db = Prisma()
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            dados = json.loads(post_data.decode('utf-8'))
+            
+            db.connect()
+            nova_regra = db.regracliente.create(data={
+                "clienteId": dados.get("clienteId"),
+                "nomeRegra": dados.get("nomeRegra"),
+                "tipoGuia": dados.get("tipoGuia"),
+                "campoValidado": dados.get("campoValidado"),
+                "condicao": dados.get("condicao"),
+                "valorEsperado": dados.get("valorEsperado"),
+                "acao": dados.get("acao"),
+                "mensagemErro": dados.get("mensagemErro")
+            })
+            
+            self._send_response(200, {'sucesso': True, 'id': nova_regra.id})
+            
+        except Exception as e:
+            self._send_response(500, {'sucesso': False, 'erro': str(e)})
+        finally:
+            if db.is_connected(): db.disconnect()
 
-    if(!dados.nomeRegra || !dados.valorEsperado || !dados.mensagemErro) {
-        alert("Preencha todos os campos obrigatórios!");
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/regras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dados)
-        });
-        const resultado = await response.json();
-        
-        if (response.ok && resultado.sucesso) {
-            alert("Regra criada com sucesso!");
-            fecharModal('modalNovaRegra');
-            carregarRegrasCliente(); // Recarrega a tabela visualmente
-        } else {
-            alert(`Erro: ${resultado.erro}`);
-        }
-    } catch (e) {
-        alert("Erro de comunicação com o servidor.");
-    }
-}
+    def _send_response(self, status, payload):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode('utf-8'))
