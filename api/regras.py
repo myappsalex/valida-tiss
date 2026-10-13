@@ -18,7 +18,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send_response(400, {'erro': 'ID do cliente não fornecido.'})
                 return
                 
-            regras = db.regra_cliente.find_many(
+            regras = db.regracliente.find_many(
                 where={"clienteId": cliente_id},
                 order={"criadoEm": "desc"}
             )
@@ -47,7 +47,7 @@ class handler(BaseHTTPRequestHandler):
             dados = json.loads(post_data.decode('utf-8'))
             
             db.connect()
-            nova_regra = db.regra_cliente.create(data={
+            nova_regra = db.regracliente.create(data={
                 "clienteId": dados.get("clienteId"),
                 "nomeRegra": dados.get("nomeRegra"),
                 "tipoGuia": dados.get("tipoGuia"),
