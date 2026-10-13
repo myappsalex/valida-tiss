@@ -47,7 +47,7 @@ class handler(BaseHTTPRequestHandler):
             dados = json.loads(post_data.decode('utf-8'))
             
             db.connect()
-            nova_regra = db.db.regra_cliente.create(data={
+            nova_regra = db.regra_cliente.create(data={
                 "clienteId": dados.get("clienteId"),
                 "nomeRegra": dados.get("nomeRegra"),
                 "tipoGuia": dados.get("tipoGuia"),
