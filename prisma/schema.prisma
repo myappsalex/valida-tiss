@@ -8,19 +8,21 @@ datasource db {
   url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")
 }
 
-// Tabela principal de Clientes (Hospitais, Clínicas, Faturistas)
-model Cliente {
-  id            String     @id @default(uuid())
-  nomeEmpresa   String
-  emailAcesso   String     @unique
-  senhaHash     String
-  tokensIA      Int        @default(0)
-  statusConta   String     @default("PENDENTE") // PENDENTE, ATIVO, BLOQUEADO
-  criadoEm      DateTime   @default(now())
+// Motor de Regras Customizáveis por Cliente
+model RegraCliente {
+  id            String   @id @default(uuid())
+  clienteId     String
+  nomeRegra     String   // Ex: "Alerta de OPME Caro"
+  tipoGuia      String   // "TODAS", "guiaConsulta", "guiaSP-SADT"
+  campoValidado String   // "codigoProcedimento", "valorTotalGeral", "codigoTabela"
+  condicao      String   // "IGUAL", "CONTEM", "MAIOR_QUE", "MENOR_QUE"
+  valorEsperado String   // Ex: "5000.00"
+  acao          String   // "ALERTA" ou "BLOQUEIO"
+  mensagemErro  String   // Ex: "Guia retida: Valor de OPME superior ao teto contratual."
+  status        String   @default("ATIVO") // ATIVO, INATIVO
+  criadoEm      DateTime @default(now())
 
-  // Relacionamentos
-  logsIA        LogIA[]
-  campanhas     Campanha[]
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
 }
 
 // Registo de auditorias (Para o extrato do cliente e controlo de custos)
@@ -55,4 +57,21 @@ model Usuario {
   senhaHash String
   perfil    String   
   criadoEm  DateTime @default(now())
+}
+
+// Motor de Regras Customizáveis por Cliente
+model RegraCliente {
+  id            String   @id @default(uuid())
+  clienteId     String
+  nomeRegra     String   // Ex: "Alerta de OPME Caro"
+  tipoGuia      String   // "TODAS", "guiaConsulta", "guiaSP-SADT"
+  campoValidado String   // "codigoProcedimento", "valorTotalGeral", "codigoTabela"
+  condicao      String   // "IGUAL", "CONTEM", "MAIOR_QUE", "MENOR_QUE"
+  valorEsperado String   // Ex: "5000.00"
+  acao          String   // "ALERTA" ou "BLOQUEIO"
+  mensagemErro  String   // Ex: "Guia retida: Valor de OPME superior ao teto contratual."
+  status        String   @default("ATIVO") // ATIVO, INATIVO
+  criadoEm      DateTime @default(now())
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
 }
