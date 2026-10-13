@@ -8,48 +8,23 @@ datasource db {
   url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")
 }
 
-// Motor de Regras Customizáveis por Cliente
-model RegraCliente {
-  id            String   @id @default(uuid())
-  clienteId     String
-  nomeRegra     String   // Ex: "Alerta de OPME Caro"
-  tipoGuia      String   // "TODAS", "guiaConsulta", "guiaSP-SADT"
-  campoValidado String   // "codigoProcedimento", "valorTotalGeral", "codigoTabela"
-  condicao      String   // "IGUAL", "CONTEM", "MAIOR_QUE", "MENOR_QUE"
-  valorEsperado String   // Ex: "5000.00"
-  acao          String   // "ALERTA" ou "BLOQUEIO"
-  mensagemErro  String   // Ex: "Guia retida: Valor de OPME superior ao teto contratual."
-  status        String   @default("ATIVO") // ATIVO, INATIVO
-  criadoEm      DateTime @default(now())
+// Tabela 1: Clientes Externos (SaaS)
+model Cliente {
+  id            String         @id @default(uuid())
+  nomeEmpresa   String
+  emailAcesso   String         @unique
+  senhaHash     String
+  tokensIA      Int            @default(0)
+  statusConta   String         @default("PENDENTE") 
+  criadoEm      DateTime       @default(now())
 
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  // Relacionamentos (O que o cliente "possui")
+  logsIA        LogIA[]
+  campanhas     Campanha[]
+  regras        RegraCliente[]
 }
 
-// Registo de auditorias (Para o extrato do cliente e controlo de custos)
-model LogIA {
-  id            String   @id @default(uuid())
-  clienteId     String
-  numeroGuia    String
-  motorUsado    String   // gemini, chatgpt, deepseek
-  tokensGastos  Int      @default(1)
-  dataUso       DateTime @default(now())
-
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
-}
-
-// Gestão dos Banners de Publicidade
-model Campanha {
-  id            String   @id @default(uuid())
-  clienteId     String
-  localBanner   String   // CABECALHO, RODAPE
-  status        String   @default("ANALISE") // ANALISE, ATIVO, CONCLUIDO
-  urlDestino    String?
-  dataInicio    DateTime?
-  dataFim       DateTime?
-
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
-}
-
+// Tabela 2: Utilizadores Internos (Admin/Backoffice)
 model Usuario {
   id        String   @id @default(uuid())
   nome      String
@@ -59,18 +34,43 @@ model Usuario {
   criadoEm  DateTime @default(now())
 }
 
-// Motor de Regras Customizáveis por Cliente
+// Tabela 3: Registo de auditorias (Controlo de custos)
+model LogIA {
+  id            String   @id @default(uuid())
+  clienteId     String
+  numeroGuia    String
+  motorUsado    String   
+  tokensGastos  Int      @default(1)
+  dataUso       DateTime @default(now())
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// Tabela 4: Gestão dos Banners de Publicidade
+model Campanha {
+  id            String   @id @default(uuid())
+  clienteId     String
+  localBanner   String   
+  status        String   @default("ANALISE") 
+  urlDestino    String?
+  dataInicio    DateTime?
+  dataFim       DateTime?
+  
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// Tabela 5: Motor de Regras Customizáveis por Cliente
 model RegraCliente {
   id            String   @id @default(uuid())
   clienteId     String
-  nomeRegra     String   // Ex: "Alerta de OPME Caro"
-  tipoGuia      String   // "TODAS", "guiaConsulta", "guiaSP-SADT"
-  campoValidado String   // "codigoProcedimento", "valorTotalGeral", "codigoTabela"
-  condicao      String   // "IGUAL", "CONTEM", "MAIOR_QUE", "MENOR_QUE"
-  valorEsperado String   // Ex: "5000.00"
-  acao          String   // "ALERTA" ou "BLOQUEIO"
-  mensagemErro  String   // Ex: "Guia retida: Valor de OPME superior ao teto contratual."
-  status        String   @default("ATIVO") // ATIVO, INATIVO
+  nomeRegra     String   
+  tipoGuia      String   
+  campoValidado String   
+  condicao      String   
+  valorEsperado String   
+  acao          String   
+  mensagemErro  String   
+  status        String   @default("ATIVO") 
   criadoEm      DateTime @default(now())
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
