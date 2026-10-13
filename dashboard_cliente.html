@@ -2,103 +2,142 @@
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
-    <title>Área do Cliente - Portal TISS</title>
-    <!-- Inclui a biblioteca de Gráficos -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Meu Painel - ValidaTISS</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .dashboard-container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 3fr; gap: 20px; }
-        .sidebar { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .main-content { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .metric-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
-        .card { padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #eee; }
-        .card h2 { margin: 10px 0 0 0; font-size: 28px; }
-        .chart-container { background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 30px;}
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .dashboard { background: white; padding: 30px; border-radius: 8px; max-width: 1000px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-primary { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-danger { background: #dc3545; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 15px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 500px; max-height: 90vh; overflow-y: auto; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
     </style>
-    <!-- AUTH GUARD: Proteção de Rota -->
+    <!-- PROTEÇÃO DE ROTA (Apenas Clientes) -->
     <script>
         const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-        if (!sessao) {
-            alert("Acesso restrito. Por favor, faça login.");
+        if (!sessao || sessao.tipo === "INTERNO") {
+            alert("Acesso exclusivo para clientes. Redirecionando...");
             window.location.href = "index.html";
         }
     </script>
 </head>
 <body>
-    <div class="dashboard-container">
-        <!-- Menu Lateral -->
-        <div class="sidebar">
-            <h3 style="color: #0056b3;" id="nome-cliente">Carregando...</h3>
-            <p style="font-size: 12px; color: #666;" id="email-cliente"></p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <ul style="list-style: none; padding: 0; font-size: 14px; line-height: 2.5;">
-                <li><a href="index.html" style="color: #0056b3; font-weight: bold; text-decoration: none;">↪ Validador e Auditoria</a></li>
-                <li><a href="#" style="color: #dc3545; text-decoration: none;" onclick="efetuarLogout()">Sair da Conta</a></li>
-            </ul>
+    <div class="dashboard">
+        <div class="header">
+            <div>
+                <h2 style="margin: 0;">📊 Meu Painel - <span id="nome-empresa-painel">Empresa</span></h2>
+                <p style="margin: 5px 0 0 0; color: #666;">Saldo Atual: <strong id="saldo-tokens-painel" style="color: #0056b3; font-size: 18px;">0</strong> Tokens IA</p>
+            </div>
+            <div>
+                <button class="btn btn-primary" onclick="window.location.href='index.html'">Voltar ao Validador</button>
+                <button class="btn btn-danger" onclick="efetuarLogout()">Sair</button>
+            </div>
         </div>
 
-        <!-- Conteúdo Principal -->
-        <div class="main-content">
-            <h2>Visão Geral da Conta</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
+            <h3 style="margin: 0; color: #333;">⚙️ As Minhas Regras de Negócio Customizadas</h3>
+            <button class="btn btn-success" onclick="abrirModalNovaRegra()">+ Criar Nova Regra</button>
+        </div>
+        <p style="font-size: 13px; color: #666;">Crie gatilhos para que o validador bloqueie ou alerte guias que saiam do padrão do seu contrato antes do envio.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome da Regra</th>
+                    <th>Alvo</th>
+                    <th>Condição</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="lista-regras-body">
+                <tr><td colspan="4" style="text-align: center;">A carregar regras...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MODAL: NOVA REGRA -->
+    <div id="modalNovaRegra" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; color: #28a745;">Criar Gatilho de Validação</h3>
             
-            <div class="metric-cards">
-                <div class="card" style="border-top: 4px solid #6f42c1;">
-                    <p style="margin:0; color: #666;">Tokens IA Disponíveis</p>
-                    <h2 id="saldo-tokens" style="color: #6f42c1;">0</h2>
+            <div class="form-group">
+                <label>Nome da Regra (Para identificação)</label>
+                <input type="text" id="regra-nome" class="form-control" placeholder="Ex: Alerta de OPME de Alto Custo">
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Tipo de Guia</label>
+                    <select id="regra-tipo" class="form-control">
+                        <option value="TODAS">Qualquer Guia</option>
+                        <option value="guiaSP-SADT">Apenas SP-SADT</option>
+                        <option value="guiaConsulta">Apenas Consultas</option>
+                        <option value="guiaResumoInternacao">Internação</option>
+                    </select>
                 </div>
-                <div class="card" style="border-top: 4px solid #28a745;">
-                    <p style="margin:0; color: #666;">Contas Analisadas (IA)</p>
-                    <h2 style="color: #28a745;">124</h2>
-                </div>
-                <div class="card" style="border-top: 4px solid #0056b3;">
-                    <p style="margin:0; color: #666;">Risco Mitigado (R$)</p>
-                    <h2 style="color: #0056b3;">R$ 14,2k</h2>
+                <div class="form-group" style="flex: 1;">
+                    <label>Campo a Validar</label>
+                    <select id="regra-campo" class="form-control">
+                        <option value="valorTotalGeral">Valor Total (R$)</option>
+                        <option value="codigoProcedimento">Código do Item/TUSS</option>
+                    </select>
                 </div>
             </div>
 
-            <!-- Dashboard Estatístico da IA -->
-            <h3>📊 Estatísticas de Análise Clínica (IA)</h3>
-            <div class="chart-container">
-                <canvas id="iaStatsChart" height="80"></canvas>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Condição Lógica</label>
+                    <select id="regra-condicao" class="form-control">
+                        <option value="MAIOR_QUE">Maior Que (>)</option>
+                        <option value="IGUAL">Igual a (=)</option>
+                        <option value="CONTEM">Contém o texto</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Valor Esperado</label>
+                    <input type="text" id="regra-valor" class="form-control" placeholder="Ex: 5000">
+                </div>
             </div>
-            <p style="font-size: 12px; color: #888;">*Dados ilustrativos gerados a partir do histórico de faturamento cruzado pela inteligência artificial contra o padrão TUSS e tabelas de Mat/Med.</p>
+
+            <div class="form-group">
+                <label>Ação do Sistema</label>
+                <select id="regra-acao" class="form-control">
+                    <option value="ALERTA">⚠️ Gerar Alerta (Amarelo)</option>
+                    <option value="BLOQUEIO">❌ Bloquear Guia (Vermelho)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Mensagem a exibir para o faturista</label>
+                <input type="text" id="regra-mensagem" class="form-control" placeholder="Ex: Revisar com a diretoria médica!">
+            </div>
+
+            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarNovaRegra()">Guardar Regra</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalNovaRegra')">Cancelar</button>
         </div>
     </div>
 
     <script>
-        // Carrega dados da sessão
-        document.getElementById('nome-cliente').innerText = sessao.nome;
-        document.getElementById('email-cliente').innerText = sessao.email;
-        document.getElementById('saldo-tokens').innerText = sessao.tokensRestantes;
-
-        function efetuarLogout() {
-            sessionStorage.removeItem('sessaoTISS');
-            window.location.href = "index.html";
-        }
-
-        // --- Gráfico de Inteligência Clínica ---
-        const ctx = document.getElementById('iaStatsChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Contas Coerentes (Limpa)', 'Alerta: Incompatibilidade TUSS', 'Alerta: Excesso OPME/MatMed', 'Alerta: Quantidade de Diárias', 'Glosas Administrativas Identificadas'],
-                datasets: [{
-                    label: 'Volume de Guias Analisadas',
-                    data: [85, 12, 18, 5, 4], // Dados simulados
-                    backgroundColor: [
-                        '#28a745', // Verde para OK
-                        '#ffc107', // Amarelo
-                        '#dc3545', // Vermelho OPME
-                        '#fd7e14', // Laranja
-                        '#6f42c1'  // Roxo
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: { y: { beginAtZero: true } },
-                plugins: { legend: { display: false } }
+        function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+    </script>
+    <!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
+    <script src="app.js"></script>
+    <script>
+        // Quando a página carregar, puxamos os dados do cliente e as regras dele
+        window.addEventListener('DOMContentLoaded', () => {
+            if(usuarioLogado) {
+                document.getElementById('nome-empresa-painel').innerText = usuarioLogado.nome;
+                document.getElementById('saldo-tokens-painel').innerText = usuarioLogado.tokensRestantes || 0;
+                carregarRegrasCliente();
             }
         });
     </script>
