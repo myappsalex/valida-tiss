@@ -136,17 +136,6 @@
         function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
         function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
-    <script src="app.js"></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-            if (sessao) {
-                usuarioLogado = sessao;
-                document.getElementById('nome-empresa-painel').innerText = sessao.nome || "Empresa";
-                document.getElementById('saldo-tokens-painel').innerText = sessao.tokensRestantes || 0;
-                carregarRegrasCliente();
-            }
-        });
-    </script>
+    <script src="app.js"></script>   
 </body>
 </html>
