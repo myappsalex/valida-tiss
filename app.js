@@ -900,7 +900,8 @@ function abrirModalNovaRegra() {
 }
 
 async function carregarRegrasCliente() {
-    if (!usuarioLogado || usuarioLogado.tipo !== 'CLIENTE') return;
+    //if (!usuarioLogado || usuarioLogado.tipo !== 'CLIENTE') return;
+	if (!usuarioLogado) return;
     
     const tbody = document.getElementById('lista-regras-body');
     if(!tbody) return; // Se não estiver na página dashboard, ignora
@@ -971,3 +972,13 @@ async function salvarNovaRegra() {
         alert("Erro de comunicação com o servidor.");
     }
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+            const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+            if (sessao) {
+                usuarioLogado = sessao; // Preenche a variável global na hora
+                document.getElementById('nome-empresa-painel').innerText = sessao.nome || "Empresa";
+                document.getElementById('saldo-tokens-painel').innerText = sessao.tokensRestantes || 0;
+                carregarRegrasCliente();
+            }
+        });

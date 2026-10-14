@@ -131,15 +131,5 @@
     </script>
     <!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
     <script src="app.js"></script>
-    <script>
-        // Quando a página carregar, puxamos os dados do cliente e as regras dele
-        window.addEventListener('DOMContentLoaded', () => {
-            if(usuarioLogado) {
-                document.getElementById('nome-empresa-painel').innerText = usuarioLogado.nome;
-                document.getElementById('saldo-tokens-painel').innerText = usuarioLogado.tokensRestantes || 0;
-                carregarRegrasCliente();
-            }
-        });
-    </script>
 </body>
 </html>
