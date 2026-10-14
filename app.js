@@ -948,14 +948,18 @@ function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mens
 }
 
 async function carregarRegrasCliente() {
-    if (!usuarioLogado) return; 
+    if (!usuarioLogado) {
+        console.warn("Usuário não está logado no momento da chamada.");
+        return; 
+    }
     
     const tbody = document.getElementById('lista-regras-body');
     if(!tbody) return;
     
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A carregar regras...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A comunicar com o servidor...</td></tr>';
     
     try {
+        console.log("A procurar regras para o Cliente ID:", usuarioLogado.id);
         const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
         const data = await response.json();
         
@@ -968,8 +972,10 @@ async function carregarRegrasCliente() {
             
             data.forEach(r => {
                 const corBadge = r.acao === 'BLOQUEIO' ? '#dc3545' : '#f39c12';
-                // Usando escape simples para não quebrar o HTML no onclick
-                const argsEdit = `'${r.id}', '${r.nomeRegra.replace(/'/g,"")}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${r.mensagemErro.replace(/'/g,"")}'`;
+                // Proteção extra caso algum campo venha vazio do banco
+                const nomeSeguro = r.nomeRegra ? r.nomeRegra.replace(/'/g,"") : "Regra";
+                const msgSegura = r.mensagemErro ? r.mensagemErro.replace(/'/g,"") : "";
+                const argsEdit = `'${r.id}', '${nomeSeguro}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${msgSegura}'`;
                 
                 tbody.innerHTML += `
                     <tr>
@@ -984,9 +990,14 @@ async function carregarRegrasCliente() {
                     </tr>
                 `;
             });
+        } else {
+            // O SERVIDOR RESPONDEU, MAS COM ERRO (Ex: 500, 400)
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro da API:</strong> ${data.erro || 'Motivo desconhecido.'}</td></tr>`;
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar regras.</td></tr>';
+        // O JAVASCRIPT OU A REDE CRASHOU (Ex: Timeout, Variável Indefinida)
+        console.error("Erro Crítico no JS:", e);
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro Crítico:</strong> ${e.message}</td></tr>`;
     }
 }
 
@@ -1055,3 +1066,4 @@ window.addEventListener('DOMContentLoaded', () => {
                 carregarRegrasCliente();
             }
         });
+		
