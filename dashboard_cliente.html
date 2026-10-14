@@ -10,6 +10,7 @@
         .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
         .btn-primary { background: #0056b3; }
         .btn-success { background: #28a745; }
+        .btn-warning { background: #f39c12; }
         .btn-danger { background: #dc3545; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 15px; }
         th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
@@ -20,7 +21,6 @@
         .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
         .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
     </style>
-    <!-- PROTEÇÃO DE ROTA (Apenas Clientes) -->
     <script>
         const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
         if (!sessao || sessao.tipo === "INTERNO") {
@@ -52,42 +52,49 @@
             <thead>
                 <tr>
                     <th>Nome da Regra</th>
-                    <th>Alvo</th>
+                    <th>Alvo e Campo</th>
                     <th>Condição</th>
-                    <th>Ação</th>
+                    <th>Ação do Sistema</th>
+                    <th>Opções</th>
                 </tr>
             </thead>
             <tbody id="lista-regras-body">
-                <tr><td colspan="4" style="text-align: center;">A carregar regras...</td></tr>
+                <tr><td colspan="5" style="text-align: center;">A carregar regras...</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- MODAL: NOVA REGRA -->
+    <!-- MODAL: NOVA/EDITAR REGRA -->
     <div id="modalNovaRegra" class="modal-overlay">
         <div class="modal-content">
-            <h3 style="margin-top: 0; color: #28a745;">Criar Gatilho de Validação</h3>
+            <h3 id="titulo-modal-regra" style="margin-top: 0; color: #28a745;">Criar Gatilho de Validação</h3>
+            
+            <input type="hidden" id="regra-id" value="">
             
             <div class="form-group">
                 <label>Nome da Regra (Para identificação)</label>
-                <input type="text" id="regra-nome" class="form-control" placeholder="Ex: Alerta de OPME de Alto Custo">
+                <input type="text" id="regra-nome" class="form-control" placeholder="Ex: Limite de curativos, Bloqueio OPME...">
             </div>
             
             <div style="display: flex; gap: 10px;">
                 <div class="form-group" style="flex: 1;">
                     <label>Tipo de Guia</label>
                     <select id="regra-tipo" class="form-control">
-                        <option value="TODAS">Qualquer Guia</option>
+                        <option value="TODAS">Qualquer Guia TISS</option>
                         <option value="guiaSP-SADT">Apenas SP-SADT</option>
                         <option value="guiaConsulta">Apenas Consultas</option>
-                        <option value="guiaResumoInternacao">Internação</option>
+                        <option value="guiaResumoInternacao">Resumo de Internação</option>
+                        <option value="guiaHonorarioIndividual">Honorário Individual</option>
                     </select>
                 </div>
                 <div class="form-group" style="flex: 1;">
                     <label>Campo a Validar</label>
                     <select id="regra-campo" class="form-control">
-                        <option value="valorTotalGeral">Valor Total (R$)</option>
-                        <option value="codigoProcedimento">Código do Item/TUSS</option>
+                        <option value="valorTotalGeral">Valor Total da Guia (R$)</option>
+                        <option value="codigoProcedimento">Código do Procedimento (TUSS)</option>
+                        <option value="quantidadeDespesa">Quantidade Faturada (Materiais/Med)</option>
+                        <option value="tipoDespesa">Tipo Despesa (ex: 01, 05, 08)</option>
+                        <option value="grauParticipacao">Grau de Participação (ex: 00, 01, 04)</option>
                     </select>
                 </div>
             </div>
@@ -103,7 +110,7 @@
                 </div>
                 <div class="form-group" style="flex: 1;">
                     <label>Valor Esperado</label>
-                    <input type="text" id="regra-valor" class="form-control" placeholder="Ex: 5000">
+                    <input type="text" id="regra-valor" class="form-control" placeholder="Ex: 5000, 08, 04...">
                 </div>
             </div>
 
@@ -120,7 +127,7 @@
                 <input type="text" id="regra-mensagem" class="form-control" placeholder="Ex: Revisar com a diretoria médica!">
             </div>
 
-            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarNovaRegra()">Guardar Regra</button>
+            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarRegra()">Guardar Regra</button>
             <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalNovaRegra')">Cancelar</button>
         </div>
     </div>
@@ -129,7 +136,17 @@
         function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
         function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
-    <!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
     <script src="app.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+            if (sessao) {
+                usuarioLogado = sessao;
+                document.getElementById('nome-empresa-painel').innerText = sessao.nome || "Empresa";
+                document.getElementById('saldo-tokens-painel').innerText = sessao.tokensRestantes || 0;
+                carregarRegrasCliente();
+            }
+        });
+    </script>
 </body>
 </html>

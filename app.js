@@ -191,32 +191,28 @@ function obterNomeDespesaTISS(codigo) {
 }
 
 // --- MOTOR DE REGRAS DE NEGÓCIO ---
+
 function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     let badgesHTML = '';
     let validacoesHTML = '';
 
-    // 1. REGRAS PADRÃO DO SISTEMA (O que já tínhamos)
+    // 1. REGRAS PADRÃO DO SISTEMA
     if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
         const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
         if (partesData.length === 3) {
             const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
             const hoje = new Date();
             const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
-            if (diffDias > 60) validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade (> 60 dias). Validar contrato.</div>`;
+            if (diffDias > 60) validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade (> 60 dias).</div>`;
         }
     }
 
     if (tipoGuia === 'guiaConsulta') {
         if (extrairTexto(guia, "indicacaoAcidente") === "Não informado") validacoesHTML += `<div class="erro-box">❌ Campo 'Indicação de Acidente' ausente.</div>`;
-        let procedimentos = buscarVariasTags(guia, "procedimentoExecutado");
-        if(procedimentos.length > 0 && extrairTexto(procedimentos[0], "codigoTabela") !== "22") {
-            validacoesHTML += `<div class="erro-box">❌ Código deve pertencer à Tabela TUSS 22.</div>`;
-        }
     } else if (tipoGuia === 'guiaSP-SADT') {
         const carater = extrairTexto(guia, "caraterAtendimento");
         if (carater === "2" || carater === "U") {
             badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
-            validacoesHTML += `<div class="alerta-box">ℹ️ Validação de Autorização mitigada (Caráter de Urgência).</div>`;
         } else if (carater === "1" || carater === "E") {
             badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
         }
@@ -224,32 +220,28 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
         const obitos = ["41", "42", "43", "61", "62", "63", "64"];
         if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
             badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
-            validacoesHTML += `<div class="alerta-box">⚠️ Óbito identificado. Gatilho de bloqueio de carteira acionado.</div>`;
+            validacoesHTML += `<div class="alerta-box">⚠️ Óbito identificado. Gatilho de bloqueio acionado.</div>`;
         }
     }
 
-    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE
+    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
     if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
         regrasAtivasCliente.forEach(regra => {
-            // Verifica se a regra se aplica a este tipo de guia
             if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
                 let disparar = false;
 
-                // A) Regra para verificar o Valor Total da Guia
+                // A) Valor Total
                 if (regra.campoValidado === 'valorTotalGeral') {
-                    let valorStr = extrairTexto(guia, "valorTotalGuia");
-                    if (valorStr === "Não informado") valorStr = extrairTexto(guia, "valorTotalGeral");
-                    
+                    let valorStr = extrairTexto(guia, "valorTotalGuia") !== "Não informado" ? extrairTexto(guia, "valorTotalGuia") : extrairTexto(guia, "valorTotalGeral");
                     if (valorStr !== "Não informado") {
                         let valorGuia = parseFloat(valorStr);
                         let valorRegra = parseFloat(regra.valorEsperado);
-
                         if (regra.condicao === 'MAIOR_QUE' && valorGuia > valorRegra) disparar = true;
                         if (regra.condicao === 'IGUAL' && valorGuia === valorRegra) disparar = true;
                     }
                 }
 
-                // B) Regra para verificar Códigos de Procedimentos ou Materiais (OPME)
+                // B) Código do Procedimento
                 if (regra.campoValidado === 'codigoProcedimento') {
                     let itens = [...buscarVariasTags(guia, "procedimentoExecutado"), ...buscarVariasTags(guia, "despesa")];
                     itens.forEach(item => {
@@ -261,7 +253,46 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // Se a guia cair na armadilha da regra, exibimos visualmente!
+                // C) Quantidade Faturada (Evita glosa por excesso de material/medicamento)
+                if (regra.campoValidado === 'quantidadeDespesa') {
+                    let itens = [...buscarVariasTags(guia, "procedimentoExecutado"), ...buscarVariasTags(guia, "despesa")];
+                    itens.forEach(item => {
+                        let qtdStr = extrairTexto(item, "quantidadeExecutada");
+                        if (qtdStr !== "Não informado") {
+                            let qtd = parseFloat(qtdStr);
+                            let limite = parseFloat(regra.valorEsperado);
+                            if (regra.condicao === 'MAIOR_QUE' && qtd > limite) disparar = true;
+                            if (regra.condicao === 'IGUAL' && qtd === limite) disparar = true;
+                        }
+                    });
+                }
+
+                // D) Grau de Participação (Cruzar equipes médicas)
+                if (regra.campoValidado === 'grauParticipacao') {
+                    let itens = buscarVariasTags(guia, "procedimentoExecutado");
+                    itens.forEach(item => {
+                        let grau = extrairTexto(item, "grauParticipacao");
+                        if (grau === "Não informado") grau = extrairTexto(item, "grauPart");
+                        if (grau !== "Não informado") {
+                            if (regra.condicao === 'IGUAL' && grau === regra.valorEsperado) disparar = true;
+                            if (regra.condicao === 'CONTEM' && grau.includes(regra.valorEsperado)) disparar = true;
+                        }
+                    });
+                }
+
+                // E) Tipo de Despesa TISS (Ex: 05-Diárias, 08-OPME)
+                if (regra.campoValidado === 'tipoDespesa') {
+                    let despesas = buscarVariasTags(guia, "despesa");
+                    despesas.forEach(desp => {
+                        let tipo = extrairTexto(desp, "codigoDespesa");
+                        if (tipo !== "Não informado") {
+                            if (regra.condicao === 'IGUAL' && tipo === regra.valorEsperado) disparar = true;
+                            if (regra.condicao === 'CONTEM' && tipo.includes(regra.valorEsperado)) disparar = true;
+                        }
+                    });
+                }
+
+                // Disparo visual no Front-end
                 if (disparar) {
                     if (regra.acao === 'BLOQUEIO') {
                         badgesHTML += `<span class="badge" style="background-color: #dc3545; color: white;">BLOQUEIO</span>`;
@@ -896,17 +927,33 @@ function editarAcesso(id, tipo, statusAtual) {
 
 // --- DASHBOARD DO CLIENTE: REGRAS CUSTOMIZADAS ---
 function abrirModalNovaRegra() {
+    document.getElementById('titulo-modal-regra').innerText = "Criar Gatilho de Validação";
+    document.getElementById('regra-id').value = ""; // Limpa o ID
+    document.getElementById('regra-nome').value = "";
+    document.getElementById('regra-valor').value = "";
+    document.getElementById('regra-mensagem').value = "";
+    abrirModal('modalNovaRegra');
+}
+function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mensagem) {
+    document.getElementById('titulo-modal-regra').innerText = "✏️ Editar Regra";
+    document.getElementById('regra-id').value = id;
+    document.getElementById('regra-nome').value = nome;
+    document.getElementById('regra-tipo').value = tipoGuia;
+    document.getElementById('regra-campo').value = campo;
+    document.getElementById('regra-condicao').value = condicao;
+    document.getElementById('regra-valor').value = valor;
+    document.getElementById('regra-acao').value = acao;
+    document.getElementById('regra-mensagem').value = mensagem;
     abrirModal('modalNovaRegra');
 }
 
 async function carregarRegrasCliente() {
-    //if (!usuarioLogado || usuarioLogado.tipo !== 'CLIENTE') return;
-	if (!usuarioLogado) return;
+    if (!usuarioLogado) return; 
     
     const tbody = document.getElementById('lista-regras-body');
-    if(!tbody) return; // Se não estiver na página dashboard, ignora
+    if(!tbody) return;
     
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">⏳ A carregar regras...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A carregar regras...</td></tr>';
     
     try {
         const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
@@ -915,29 +962,38 @@ async function carregarRegrasCliente() {
         if (response.ok) {
             tbody.innerHTML = '';
             if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhuma regra configurada. Crie a sua primeira regra!</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhuma regra configurada. Crie a sua primeira regra!</td></tr>';
                 return;
             }
             
             data.forEach(r => {
                 const corBadge = r.acao === 'BLOQUEIO' ? '#dc3545' : '#f39c12';
+                // Usando escape simples para não quebrar o HTML no onclick
+                const argsEdit = `'${r.id}', '${r.nomeRegra.replace(/'/g,"")}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${r.mensagemErro.replace(/'/g,"")}'`;
+                
                 tbody.innerHTML += `
                     <tr>
                         <td><strong>${r.nomeRegra}</strong></td>
                         <td>${r.tipoGuia} <br><span style="font-size: 11px; color: #666;">Campo: ${r.campoValidado}</span></td>
                         <td>${r.condicao} <strong>${r.valorEsperado}</strong></td>
                         <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${r.acao}</span></td>
+                        <td>
+                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="abrirModalEdicao(${argsEdit})">✏️ Editar</button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="excluirRegra('${r.id}')">🗑️ Cancelar</button>
+                        </td>
                     </tr>
                 `;
             });
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro ao carregar regras.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Erro ao carregar regras.</td></tr>';
     }
 }
 
-async function salvarNovaRegra() {
+async function salvarRegra() {
     const dados = {
+        id: document.getElementById('regra-id').value, // Se tiver ID, é edição
+        acao_req: document.getElementById('regra-id').value ? 'editar' : 'criar',
         clienteId: usuarioLogado.id,
         nomeRegra: document.getElementById('regra-nome').value,
         tipoGuia: document.getElementById('regra-tipo').value,
@@ -962,15 +1018,32 @@ async function salvarNovaRegra() {
         const resultado = await response.json();
         
         if (response.ok && resultado.sucesso) {
-            alert("Regra criada com sucesso!");
+            alert(resultado.mensagem || "Operação realizada com sucesso!");
             fecharModal('modalNovaRegra');
-            carregarRegrasCliente(); // Recarrega a tabela visualmente
+            carregarRegrasCliente();
         } else {
             alert(`Erro: ${resultado.erro}`);
         }
-    } catch (e) {
-        alert("Erro de comunicação com o servidor.");
-    }
+    } catch (e) { alert("Erro de comunicação com o servidor."); }
+}
+
+
+async function excluirRegra(idRegra) {
+    if(!confirm("Tem a certeza que deseja cancelar e excluir esta regra?")) return;
+    
+    try {
+        const response = await fetch('/api/regras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao_req: 'excluir', id: idRegra })
+        });
+        const resultado = await response.json();
+        if (response.ok && resultado.sucesso) {
+            carregarRegrasCliente();
+        } else {
+            alert(`Erro: ${resultado.erro}`);
+        }
+    } catch (e) { alert("Erro de comunicação."); }
 }
 
 window.addEventListener('DOMContentLoaded', () => {

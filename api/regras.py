@@ -5,7 +5,6 @@ from urllib.parse import urlparse, parse_qs
 
 class handler(BaseHTTPRequestHandler):
     
-    # Busca as regras de um cliente específico
     def do_GET(self):
         db = Prisma()
         try:
@@ -18,7 +17,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send_response(400, {'erro': 'ID do cliente não fornecido.'})
                 return
                 
-            regras = db.regracliente.find_many(
+            regras = db.regra_cliente.find_many(
                 where={"clienteId": cliente_id},
                 order={"criadoEm": "desc"}
             )
@@ -38,7 +37,6 @@ class handler(BaseHTTPRequestHandler):
         finally:
             if db.is_connected(): db.disconnect()
 
-    # Cria uma nova regra
     def do_POST(self):
         db = Prisma()
         try:
@@ -46,19 +44,42 @@ class handler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             dados = json.loads(post_data.decode('utf-8'))
             
+            acao_req = dados.get('acao_req', 'criar')
             db.connect()
-            nova_regra = db.regracliente.create(data={
-                "clienteId": dados.get("clienteId"),
-                "nomeRegra": dados.get("nomeRegra"),
-                "tipoGuia": dados.get("tipoGuia"),
-                "campoValidado": dados.get("campoValidado"),
-                "condicao": dados.get("condicao"),
-                "valorEsperado": dados.get("valorEsperado"),
-                "acao": dados.get("acao"),
-                "mensagemErro": dados.get("mensagemErro")
-            })
             
-            self._send_response(200, {'sucesso': True, 'id': nova_regra.id})
+            if acao_req == 'excluir':
+                regra_id = dados.get('id')
+                db.regra_cliente.delete(where={"id": regra_id})
+                self._send_response(200, {'sucesso': True, 'mensagem': 'Regra excluída com sucesso.'})
+                
+            elif acao_req == 'editar':
+                regra_id = dados.get('id')
+                db.regra_cliente.update(
+                    where={"id": regra_id},
+                    data={
+                        "nomeRegra": dados.get("nomeRegra"),
+                        "tipoGuia": dados.get("tipoGuia"),
+                        "campoValidado": dados.get("campoValidado"),
+                        "condicao": dados.get("condicao"),
+                        "valorEsperado": dados.get("valorEsperado"),
+                        "acao": dados.get("acao"),
+                        "mensagemErro": dados.get("mensagemErro")
+                    }
+                )
+                self._send_response(200, {'sucesso': True, 'mensagem': 'Regra atualizada com sucesso.'})
+                
+            else: # Criar nova regra
+                nova_regra = db.regra_cliente.create(data={
+                    "clienteId": dados.get("clienteId"),
+                    "nomeRegra": dados.get("nomeRegra"),
+                    "tipoGuia": dados.get("tipoGuia"),
+                    "campoValidado": dados.get("campoValidado"),
+                    "condicao": dados.get("condicao"),
+                    "valorEsperado": dados.get("valorEsperado"),
+                    "acao": dados.get("acao"),
+                    "mensagemErro": dados.get("mensagemErro")
+                })
+                self._send_response(200, {'sucesso': True, 'id': nova_regra.id})
             
         except Exception as e:
             self._send_response(500, {'sucesso': False, 'erro': str(e)})
