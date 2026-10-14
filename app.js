@@ -1,6 +1,7 @@
 // Variáveis Globais
 let dadosParaExportacao = [];
 let usuarioLogado = null; 
+let regrasAtivasCliente = []; 
 
 // --- NAVEGAÇÃO DO WIZARD ---
 function alterarPasso(passo) {
@@ -194,6 +195,7 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     let badgesHTML = '';
     let validacoesHTML = '';
 
+    // 1. REGRAS PADRÃO DO SISTEMA (O que já tínhamos)
     if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
         const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
         if (partesData.length === 3) {
@@ -225,6 +227,54 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
             validacoesHTML += `<div class="alerta-box">⚠️ Óbito identificado. Gatilho de bloqueio de carteira acionado.</div>`;
         }
     }
+
+    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE
+    if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
+        regrasAtivasCliente.forEach(regra => {
+            // Verifica se a regra se aplica a este tipo de guia
+            if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
+                let disparar = false;
+
+                // A) Regra para verificar o Valor Total da Guia
+                if (regra.campoValidado === 'valorTotalGeral') {
+                    let valorStr = extrairTexto(guia, "valorTotalGuia");
+                    if (valorStr === "Não informado") valorStr = extrairTexto(guia, "valorTotalGeral");
+                    
+                    if (valorStr !== "Não informado") {
+                        let valorGuia = parseFloat(valorStr);
+                        let valorRegra = parseFloat(regra.valorEsperado);
+
+                        if (regra.condicao === 'MAIOR_QUE' && valorGuia > valorRegra) disparar = true;
+                        if (regra.condicao === 'IGUAL' && valorGuia === valorRegra) disparar = true;
+                    }
+                }
+
+                // B) Regra para verificar Códigos de Procedimentos ou Materiais (OPME)
+                if (regra.campoValidado === 'codigoProcedimento') {
+                    let itens = [...buscarVariasTags(guia, "procedimentoExecutado"), ...buscarVariasTags(guia, "despesa")];
+                    itens.forEach(item => {
+                        let cod = extrairTexto(item, "codigoProcedimento");
+                        if (cod !== "Não informado") {
+                            if (regra.condicao === 'IGUAL' && cod === regra.valorEsperado) disparar = true;
+                            if (regra.condicao === 'CONTEM' && cod.includes(regra.valorEsperado)) disparar = true;
+                        }
+                    });
+                }
+
+                // Se a guia cair na armadilha da regra, exibimos visualmente!
+                if (disparar) {
+                    if (regra.acao === 'BLOQUEIO') {
+                        badgesHTML += `<span class="badge" style="background-color: #dc3545; color: white;">BLOQUEIO</span>`;
+                        validacoesHTML += `<div class="erro-box">❌ <strong>Regra: ${regra.nomeRegra}</strong> - ${regra.mensagemErro}</div>`;
+                    } else {
+                        badgesHTML += `<span class="badge" style="background-color: #f39c12; color: white;">ALERTA</span>`;
+                        validacoesHTML += `<div class="alerta-box">⚠️ <strong>Regra: ${regra.nomeRegra}</strong> - ${regra.mensagemErro}</div>`;
+                    }
+                }
+            }
+        });
+    }
+
     return { badges: badgesHTML, alertas: validacoesHTML };
 }
 
@@ -348,6 +398,13 @@ async function processarXML() {
         }
 
         try {
+			// --- PUXAR REGRAS CUSTOMIZADAS ANTES DE LER O LOTE ---
+			if (usuarioLogado && usuarioLogado.tipo === "CLIENTE") {
+				try {
+					const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
+					if (resRegras.ok) regrasAtivasCliente = await resRegras.json();
+				} catch (e) { console.log("Erro ao carregar regras customizadas"); }
+			}
             const response = await fetch('/api/validador', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
