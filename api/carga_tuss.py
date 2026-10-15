@@ -44,7 +44,13 @@ class handler(BaseHTTPRequestHandler):
             self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados.count} termos atualizados na Tabela {tabela}.'})
             
         except Exception as e:
-            self._send_response(500, {'sucesso': False, 'erro': str(e)})
+            # Captura todas as propriedades que o Prisma reconhece e devolve no erro
+            tabelas_disponiveis = [a for a in dir(db) if not a.startswith('_')]
+            self._send_response(500, {
+                'sucesso': False, 
+                'erro': f"Erro: {str(e)}", 
+                'tabelas_encontradas': tabelas_disponiveis
+            })
         finally:
             if db.is_connected(): db.disconnect()
 
@@ -53,3 +59,5 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode('utf-8'))
+        
+        
