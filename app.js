@@ -312,6 +312,7 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
             }
         });
     }
+}
 
     return { badges: badgesHTML, alertas: validacoesHTML };
 
