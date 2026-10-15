@@ -2,6 +2,7 @@
 let dadosParaExportacao = [];
 let usuarioLogado = null; 
 let regrasAtivasCliente = []; 
+let xmlDocAtual = null; // NOVO: Mantém o ficheiro XML original em memória para edição
 
 // --- NAVEGAÇÃO DO WIZARD ---
 function alterarPasso(passo) {
@@ -19,53 +20,25 @@ function reiniciarWizard() {
     document.getElementById('xmlInput').value = '';
     document.getElementById('resultado').innerHTML = '';
     document.getElementById('btnExportar').style.display = 'none';
+    xmlDocAtual = null;
     alterarPasso(1);
 }
 
 // --- GESTÃO DE MODAIS E ROTAS ---
-function abrirModal(idModal) {
-    document.getElementById(idModal).style.display = 'flex';
-}
-
-function fecharModais() {
-    document.querySelectorAll('.modal-overlay').forEach(modal => modal.style.display = 'none');
-}
-
-function solicitarCompra(tipo, pacote) {
-    alert(`Redirecionando para o Gateway de Pagamento...\nItem: ${pacote}`);
-    fecharModais();
-}
-
-function enviarPedidoPub() {
-    const empresa = document.getElementById('pub-empresa').value;
-    if(!empresa) { alert("Preencha o nome da empresa."); return; }
-    alert(`Pedido de publicidade para ${empresa} enviado ao administrador!`);
-    fecharModais();
-}
-
-function fecharModal(idModal) { 
-    const alvo = idModal || 'modalPremium';
-    const modal = document.getElementById(alvo);
-    if (modal) {
-        modal.style.display = 'none'; 
-    }
-}
-
-function redirecionarCheckout() { 
-    alert("Redirecionando para página de pagamento..."); 
-}
+function abrirModal(idModal) { document.getElementById(idModal).style.display = 'flex'; }
+function fecharModais() { document.querySelectorAll('.modal-overlay').forEach(modal => modal.style.display = 'none'); }
+function solicitarCompra(tipo, pacote) { alert(`Redirecionando para o Gateway de Pagamento...\nItem: ${pacote}`); fecharModais(); }
+function enviarPedidoPub() { const empresa = document.getElementById('pub-empresa').value; if(!empresa) { alert("Preencha o nome da empresa."); return; } alert(`Pedido de publicidade para ${empresa} enviado ao administrador!`); fecharModais(); }
+function fecharModal(idModal) { const alvo = idModal || 'modalPremium'; const modal = document.getElementById(alvo); if (modal) { modal.style.display = 'none'; } }
+function redirecionarCheckout() { alert("Redirecionando para página de pagamento..."); }
 
 // --- AUTENTICAÇÃO (SaaS) ---
 function alternarFormAuth(tipo) {
     document.getElementById('form-login').style.display = tipo === 'login' ? 'block' : 'none';
     document.getElementById('form-registro').style.display = tipo === 'registro' ? 'block' : 'none';
 }
+function fecharModalAuth() { document.getElementById('modalAuth').style.display = 'none'; }
 
-function fecharModalAuth() { 
-    document.getElementById('modalAuth').style.display = 'none'; 
-}
-
-// --- LOGIN SEGURO DO CLIENTE ---
 async function efetuarLogin() {
     const email = document.getElementById('login-email').value;
     const senha = document.getElementById('login-senha').value;
@@ -93,7 +66,6 @@ async function efetuarLogin() {
 
 function atualizarTopoSite() {
     if(!usuarioLogado) return;
-    
     const elStatus = document.getElementById('user-status');
     const btnTop = document.getElementById('btn-login-top');
     
@@ -105,26 +77,17 @@ function atualizarTopoSite() {
             elStatus.innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
             elStatus.style.color = "#0056b3"; 
         }
-
         btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
-        btnTop.onclick = () => { 
-            window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; 
-        };
+        btnTop.onclick = () => { window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; };
     }
 }
 
-function efetuarLogout() {
-    sessionStorage.removeItem('sessaoTISS');
-    window.location.href = "index.html";
-}
+function efetuarLogout() { sessionStorage.removeItem('sessaoTISS'); window.location.href = "index.html"; }
 
 window.onload = () => {
     const sessaoSalva = sessionStorage.getItem('sessaoTISS');
-    if (sessaoSalva) {
-        usuarioLogado = JSON.parse(sessaoSalva);
-        atualizarTopoSite();
-    }
-    iniciarRotacaoPublicidade();
+    if (sessaoSalva) { usuarioLogado = JSON.parse(sessaoSalva); atualizarTopoSite(); }
+    if(typeof iniciarRotacaoPublicidade === 'function') iniciarRotacaoPublicidade();
 };
 
 async function solicitarConta() {
@@ -132,16 +95,8 @@ async function solicitarConta() {
     const email = document.getElementById('reg-email').value;
     const senha = document.getElementById('reg-senha').value;
     
-    const regexSenha = /(?=.*[!@#$%^&*]).{8,}/;
-    if (!regexSenha.test(senha)) {
-        alert("A palavra-passe deve ter pelo menos 8 caracteres e um caractere especial (!@#$...).");
-        return;
-    }
-    
-    if (!nome || !email) {
-        alert("Preencha todos os campos obrigatórios.");
-        return;
-    }
+    if (!/(?=.*[!@#$%^&*]).{8,}/.test(senha)) { alert("A palavra-passe deve ter pelo menos 8 caracteres e um caractere especial (!@#$...)."); return; }
+    if (!nome || !email) { alert("Preencha todos os campos obrigatórios."); return; }
 
     try {
         const response = await fetch('/api/auth', {
@@ -149,18 +104,11 @@ async function solicitarConta() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ acao: 'registro', nome: nome, email: email, senha: senha })
         });
-        
         const data = await response.json();
         
-        if (response.ok && data.sucesso) {
-            alert(data.mensagem);
-            alternarFormAuth('login'); 
-        } else {
-            alert(`Erro no registo: ${data.erro}`);
-        }
-    } catch (error) {
-        alert("Erro ao enviar o pedido de registo.");
-    }
+        if (response.ok && data.sucesso) { alert(data.mensagem); alternarFormAuth('login'); } 
+        else { alert(`Erro no registo: ${data.erro}`); }
+    } catch (error) { alert("Erro ao enviar o pedido de registo."); }
 }
 
 // --- FUNÇÕES DE APOIO (TISS) ---
@@ -171,27 +119,89 @@ function buscarVariasTags(node, nomeTag) {
     return elementos;
 }
 
-function buscarTagUnica(node, nomeTag) {
-    const elementos = buscarVariasTags(node, nomeTag);
-    return elementos.length > 0 ? elementos[0] : null;
+function buscarTagUnica(node, nomeTag) { const elementos = buscarVariasTags(node, nomeTag); return elementos.length > 0 ? elementos[0] : null; }
+function extrairTexto(node, nomeTag, valorPadrao = "Não informado") { const elemento = buscarTagUnica(node, nomeTag); return elemento ? elemento.textContent.trim() : valorPadrao; }
+function obterNomeDespesaTISS(codigo) { const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" }; return dominios[codigo] || "Outra Despesa"; }
+
+// --- NOVAS FUNÇÕES: FILTROS E EDIÇÃO XML (AUDITORIA) ---
+
+// 1. Filtro dinâmico nas tabelas
+function filtrarTabelaTISS(inputObj, tableId, colIndex) {
+    const filter = inputObj.value.toUpperCase();
+    const table = document.getElementById(tableId);
+    if(!table) return;
+    const tr = table.getElementsByTagName("tr");
+    
+    for (let i = 1; i < tr.length; i++) {
+        const td = tr[i].getElementsByTagName("td")[colIndex];
+        if (td) {
+            let txtValue = td.textContent || td.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
 }
 
-function extrairTexto(node, nomeTag, valorPadrao = "Não informado") {
-    const elemento = buscarTagUnica(node, nomeTag);
-    return elemento ? elemento.textContent.trim() : valorPadrao;
+// 2. Atualiza o XML real em memória quando o analista altera um input
+function atualizarNodeXML(numeroGuia, tipoItem, indexItem, tagAlvo, novoValor) {
+    if(!xmlDocAtual) return;
+    const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
+    let guiaNode = null;
+    
+    for(let tipo of tiposGuias) {
+        let guias = buscarVariasTags(xmlDocAtual, tipo);
+        for(let i=0; i<guias.length; i++) {
+            if(extrairTexto(guias[i], "numeroGuiaPrestador") === numeroGuia) {
+                guiaNode = guias[i]; break;
+            }
+        }
+        if(guiaNode) break;
+    }
+    
+    if(!guiaNode) return;
+
+    let tagColecao = tipoItem === 'PROCEDIMENTO' ? "procedimentoExecutado" : "despesa";
+    let itens = buscarVariasTags(guiaNode, tagColecao);
+    if(itens[indexItem]) {
+        let alvo = buscarTagUnica(itens[indexItem], tagAlvo);
+        if(alvo) {
+            alvo.textContent = novoValor;
+            console.log(`XML Modificado: Guia ${numeroGuia} | ${tagAlvo} -> ${novoValor}`);
+        }
+    }
 }
 
-function obterNomeDespesaTISS(codigo) {
-    const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" };
-    return dominios[codigo] || "Outra Despesa";
+// 3. Exportador do XML corrigido
+function exportarXMLCorrigido() {
+    if (!xmlDocAtual) { alert("Nenhum ficheiro XML processado."); return; }
+    
+    const serializer = new XMLSerializer();
+    let xmlString = serializer.serializeToString(xmlDocAtual);
+
+    // Garante o cabeçalho correto do TISS
+    if (!xmlString.startsWith("<?xml")) {
+        xmlString = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xmlString;
+    }
+
+    const blob = new Blob([xmlString], { type: 'text/xml;charset=iso-8859-1;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Lote_Corrigido_ValidaTISS.xml");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
+
 
 // --- MOTOR DE REGRAS DE NEGÓCIO ---
 function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     let badgesHTML = '';
     let validacoesHTML = '';
 
-    // 1. REGRAS PADRÃO DO SISTEMA
     if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
         const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
         if (partesData.length === 3) {
@@ -206,11 +216,8 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
         if (extrairTexto(guia, "indicacaoAcidente") === "Não informado") validacoesHTML += `<div class="erro-box">❌ Campo 'Indicação de Acidente' ausente.</div>`;
     } else if (tipoGuia === 'guiaSP-SADT') {
         const carater = extrairTexto(guia, "caraterAtendimento");
-        if (carater === "2" || carater === "U") {
-            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
-        } else if (carater === "1" || carater === "E") {
-            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
-        }
+        if (carater === "2" || carater === "U") { badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`; } 
+        else if (carater === "1" || carater === "E") { badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`; }
     } else if (tipoGuia === 'guiaResumoInternacao') {
         const obitos = ["41", "42", "43", "61", "62", "63", "64"];
         if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
@@ -219,29 +226,24 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
         }
     }
 
-    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
     if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
         regrasAtivasCliente.forEach(regra => {
             if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
                 let disparar = false;
 
-                // A) Valor Total
                 if (regra.campoValidado === 'valorTotalGeral') {
                     let valorStr = extrairTexto(guia, "valorTotalGuia") !== "Não informado" ? extrairTexto(guia, "valorTotalGuia") : extrairTexto(guia, "valorTotalGeral");
                     if (valorStr !== "Não informado") {
-                        let valorGuia = parseFloat(valorStr);
-                        let valorRegra = parseFloat(regra.valorEsperado);
+                        let valorGuia = parseFloat(valorStr); let valorRegra = parseFloat(regra.valorEsperado);
                         if (regra.condicao === 'MAIOR_QUE' && valorGuia > valorRegra) disparar = true;
                         if (regra.condicao === 'IGUAL' && valorGuia === valorRegra) disparar = true;
                     }
                 }
 
-                // B) Código do Procedimento
                 if (regra.campoValidado === 'codigoProcedimento') {
                     let procs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
                     let desps = Array.from(buscarVariasTags(guia, "despesa") || []);
                     let itens = procs.concat(desps);
-                    
                     itens.forEach(item => {
                         let cod = extrairTexto(item, "codigoProcedimento");
                         if (cod !== "Não informado") {
@@ -251,24 +253,20 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // C) Quantidade Faturada
                 if (regra.campoValidado === 'quantidadeDespesa') {
                     let procs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
                     let desps = Array.from(buscarVariasTags(guia, "despesa") || []);
                     let itens = procs.concat(desps);
-                    
                     itens.forEach(item => {
                         let qtdStr = extrairTexto(item, "quantidadeExecutada");
                         if (qtdStr !== "Não informado") {
-                            let qtd = parseFloat(qtdStr);
-                            let limite = parseFloat(regra.valorEsperado);
+                            let qtd = parseFloat(qtdStr); let limite = parseFloat(regra.valorEsperado);
                             if (regra.condicao === 'MAIOR_QUE' && qtd > limite) disparar = true;
                             if (regra.condicao === 'IGUAL' && qtd === limite) disparar = true;
                         }
                     });
                 }
 
-                // D) Grau de Participação
                 if (regra.campoValidado === 'grauParticipacao') {
                     let itens = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
                     itens.forEach(item => {
@@ -281,7 +279,6 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // E) Tipo de Despesa TISS
                 if (regra.campoValidado === 'tipoDespesa') {
                     let despesas = Array.from(buscarVariasTags(guia, "despesa") || []);
                     despesas.forEach(desp => {
@@ -293,7 +290,6 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // Disparo visual no Front-end
                 if (disparar) {
                     if (regra.acao === 'BLOQUEIO') {
                         badgesHTML += `<span class="badge" style="background-color: #dc3545; color: white;">BLOQUEIO</span>`;
@@ -306,79 +302,46 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
             }
         });
     }
-
     return { badges: badgesHTML, alertas: validacoesHTML };
 }
 
-// --- CHAMADA REAL DE IA LIGADA AO PYTHON ---
+// --- CHAMADA REAL DE IA ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
-    if (!usuarioLogado) {
-        abrirModal('modalAuth');
-        return; 
-    }
-    
-    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) {
-        alert("O seu plano não está ativo ou esgotou o limite de tokens. Contacte o administrador.");
-        return;
-    }
+    if (!usuarioLogado) { abrirModal('modalAuth'); return; }
+    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) { alert("Plano inativo ou saldo insuficiente."); return; }
 
     const btnClicado = document.getElementById(`btn-ia-${provedor}-${idUnico}`);
     const divResultado = document.getElementById(`resultado-ia-${idUnico}`);
     const nomesProvedores = { 'gemini': '✨ Gemini', 'chatgpt': '✨ ChatGPT', 'deepseek': '✨ DeepSeek' };
     const nomeIA = nomesProvedores[provedor];
 
-    if (!btnClicado || !divResultado) {
-        alert("Erro de interface. Tente expandir a guia novamente.");
-        return;
-    }
-
-    btnClicado.disabled = true;
-    btnClicado.innerText = "⏳ A processar...";
-    divResultado.style.display = 'block';
-    divResultado.innerHTML = `<strong>Aguarde...</strong> O ${nomeIA} está a analisar a guia <strong>${numeroGuia}</strong>...`;
+    btnClicado.disabled = true; btnClicado.innerText = "⏳ A processar...";
+    divResultado.style.display = 'block'; divResultado.innerHTML = `<strong>Aguarde...</strong> A analisar...`;
 
     try {
         const itensDestaGuia = dadosParaExportacao.filter(item => item.numeroGuia === numeroGuia);
-
         const response = await fetch('/api/auditoria', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                guia: numeroGuia, 
-                itens: itensDestaGuia, 
-                provedor: provedor,
-                email: usuarioLogado.email 
-            })
+            body: JSON.stringify({ guia: numeroGuia, itens: itensDestaGuia, provedor: provedor, email: usuarioLogado.email })
         });
-
         const data = await response.json();
 
         if (response.ok) {
             usuarioLogado.tokensRestantes -= 1;
             document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
-
             let textoFormatado = '';
             try {
                 const iaJson = JSON.parse(data.analise.replace(/```json/g, '').replace(/```/g, ''));
-                textoFormatado = `<strong>Status:</strong> ${iaJson.status === 'ALERTA' ? '<span style="color:red">⚠️ ALERTA</span>' : '<span style="color:green">✅ OK</span>'}<br><br>`;
-                textoFormatado += `<strong>Achados da Auditoria:</strong><br>• ${iaJson.achados.join('<br>• ')}`;
-            } catch(e) {
-                textoFormatado = data.analise.replace(/\n/g, '<br>');
-            }
+                textoFormatado = `<strong>Status:</strong> ${iaJson.status === 'ALERTA' ? '<span style="color:red">⚠️ ALERTA</span>' : '<span style="color:green">✅ OK</span>'}<br><br><strong>Achados:</strong><br>• ${iaJson.achados.join('<br>• ')}`;
+            } catch(e) { textoFormatado = data.analise.replace(/\n/g, '<br>'); }
             
-            divResultado.innerHTML = `
-                <strong style="color: #333; font-size: 14px;">Parecer do Auditor IA (${nomeIA})</strong><br><br>
-                ${textoFormatado}
-            `;
+            divResultado.innerHTML = `<strong style="color: #333; font-size: 14px;">Auditor IA (${nomeIA})</strong><br><br>${textoFormatado}`;
         } else {
             divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro:</strong> ${data.erro}</span>`;
         }
-    } catch (error) {
-        divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro na Conexão:</strong> Não foi possível alcançar a IA.</span>`;
-    } finally {
-        btnClicado.disabled = false;
-        btnClicado.innerText = nomeIA;
-    }
+    } catch (error) { divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro na Conexão.</strong></span>`; } 
+    finally { btnClicado.disabled = false; btnClicado.innerText = nomeIA; }
 }
 
 // --- PROCESSAMENTO CENTRAL E EXTRAÇÃO ---
@@ -394,10 +357,12 @@ async function processarXML() {
         
         const parserError = buscarTagUnica(xmlDoc, "parsererror");
         if (parserError) {
-            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro de formatação:</strong> O arquivo não é um XML válido.</div>`;
-            alterarPasso(3);
-            return;
+            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro:</strong> O arquivo não é um XML válido.</div>`;
+            alterarPasso(3); return;
         }
+
+        // Armazena em memória para permitir a exportação do XML Corrigido
+        xmlDocAtual = xmlDoc;
 
         let versaoTiss = "Versão não encontrada";
         let operadoraID = "Não identificada";
@@ -407,7 +372,6 @@ async function processarXML() {
         if (cabecalho) {
             const tagPadrao = buscarTagUnica(cabecalho, "Padrao") || buscarTagUnica(cabecalho, "versaoPadrao");
             if (tagPadrao) versaoTiss = tagPadrao.textContent.trim();
-
             const destino = buscarTagUnica(cabecalho, "destino");
             if (destino) {
                 const regANS = buscarTagUnica(destino, "registroANS");
@@ -415,7 +379,6 @@ async function processarXML() {
                 if (regANS) operadoraID = "Registro ANS: " + regANS.textContent.trim();
                 else if (cnpj) operadoraID = "CNPJ: " + cnpj.textContent.trim();
             }
-            
             const origem = buscarTagUnica(cabecalho, "origem");
             if (origem){
                 const prestador = buscarTagUnica(origem, "CNPJ") || buscarTagUnica(origem, "codigoPrestadorNaOperadora");
@@ -428,7 +391,7 @@ async function processarXML() {
 				try {
 					const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
 					if (resRegras.ok) regrasAtivasCliente = await resRegras.json();
-				} catch (e) { console.log("Erro ao carregar regras customizadas"); }
+				} catch (e) { console.log("Erro ao carregar regras"); }
 			}
             const response = await fetch('/api/validador', {
                 method: 'POST',
@@ -439,40 +402,27 @@ async function processarXML() {
 
             if (response.ok && data.valido) {
                 const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
-                let guiasHTML = '';
-                let totalGuias = 0;
-                
-                let valorTotalLote = 0;
-                let valorGasoterapia = 0;
-                let valorMateriais = 0;
-                let valorMedicamentos = 0;
-                let valorDiarias = 0;
-                let valorTaxasAlugueis = 0;
-                let valorOPME = 0;
-                let valorTotalProcedimentosItem = 0;
+                let guiasHTML = ''; let totalGuias = 0; let valorTotalLote = 0;
+                let valorGasoterapia = 0; let valorMateriais = 0; let valorMedicamentos = 0;
+                let valorDiarias = 0; let valorTaxasAlugueis = 0; let valorOPME = 0; let valorTotalProcedimentosItem = 0;
                 
                 dadosParaExportacao = [];
 
                 tiposGuias.forEach(tipo => {
                     let guias = buscarVariasTags(xmlDoc, tipo);
-
                     for(let i = 0; i < guias.length; i++) {
                         totalGuias++;
                         const guia = guias[i];
                         
                         const numeroGuia = extrairTexto(guia, "numeroGuiaPrestador");
                         const nomeBeneficiario = extrairTexto(guia, "nomeBeneficiario");
-                        const carteira = extrairTexto(guia, "numeroCarteira");
                         let dataAtendimento = extrairTexto(guia, "dataAtendimento");
                         if (dataAtendimento === "Não informado") dataAtendimento = extrairTexto(guia, "dataExecucao");
                         
                         let valorGuiaStr = extrairTexto(guia, "valorTotalGuia");
                         if (valorGuiaStr === "Não informado") valorGuiaStr = extrairTexto(guia, "valorTotalGeral");
                         
-                        let valorGuia = 0;
-                        let valorTotalProcedimentos = 0;
-                        let valorTotalOutrasDespesas = 0;
-
+                        let valorGuia = 0; let valorTotalProcedimentos = 0; let valorTotalOutrasDespesas = 0;
                         const regrasAuditoria = validarRegrasNegocio(guia, tipo, dataAtendimento);
 
                         let dadosExecutanteGuia = "Não informado";
@@ -481,7 +431,7 @@ async function processarXML() {
                             let cod = extrairTexto(guia, "codigoPrestadorNaOperadora");
                             if(cod === "Não informado") cod = extrairTexto(guia, "cnpjContratado");
                             const nome = extrairTexto(guia, "nomeContratado") || extrairTexto(guia, "nomeContratadoExecutante");
-                            if(nome !== "Não informado") dadosExecutanteGuia = `(${cod}) ${nome}`;
+                            if(nome !== "Não informado") dadosExecutanteGuia = `(${cod})${nome}`;
                         }
 
                         const nomeExibicaoGuia = tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
@@ -498,7 +448,12 @@ async function processarXML() {
                                         💵 Procedimentos Executados (${procedimentos.length})								
                                     </summary>
                                     <div style="padding: 10px;">
-                                        <table class="tabela-dados">
+                                        <!-- FILTROS APLICADOS PARA O ANALISTA -->
+                                        <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                            <input type="text" placeholder="🔍 Filtrar Código..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 1)">
+                                            <input type="text" placeholder="🔍 Filtrar Grau Part..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 3)">
+                                        </div>
+                                        <table class="tabela-dados" id="tb-proc-${numeroGuia}">
                                             <tr style="background-color: #f0f0f0;">
                                                 <th>Tabela</th><th>Código</th><th>Descrição</th><th>Profissional</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th>
                                             </tr>
@@ -514,7 +469,6 @@ async function processarXML() {
                                 
                                 let grauPart = extrairTexto(proc, "grauParticipacao");
                                 if (grauPart === "Não informado") grauPart = extrairTexto(proc, "grauPart"); 
-                                
                                 let nomeProf = extrairTexto(proc, "nomeProfissional");
                                 if (nomeProf === "Não informado") nomeProf = extrairTexto(proc, "nomeProf");
                                 
@@ -523,31 +477,22 @@ async function processarXML() {
                                     profHTML = `
                                         <details style="background: #fdfdfd; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
                                             <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold; font-size: 11px;">Ver Equipe</summary>
-                                            <div style="margin-top: 5px; font-size: 11px; color: #333;">
-                                                <strong>Nome:</strong> ${nomeProf}<br>
-                                                <strong>Grau Part.:</strong> ${grauPart}
-                                            </div>
+                                            <div style="margin-top: 5px; font-size: 11px; color: #333;"><strong>Nome:</strong> ${nomeProf}<br><strong>Grau Part.:</strong>${grauPart}</div>
                                         </details>
                                     `;
                                 }
 
                                 let valorProc = 0;
-                                if (valorTotalProc !== "Não informado"){
-                                    valorProc = parseFloat(valorTotalProc);
-                                    valorTotalProcedimentos += valorProc;
-                                    valorGuia += valorProc;
-                                    valorTotalProcedimentosItem += valorProc;
-                                } 				
+                                if (valorTotalProc !== "Não informado"){ valorProc = parseFloat(valorTotalProc); valorTotalProcedimentos += valorProc; valorGuia += valorProc; valorTotalProcedimentosItem += valorProc; } 				
                                 valorTotalLote += valorProc;
                                 
-                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${qtd}</td><td>R$ ${vlUnit}</td><td>R$ ${valorTotalProc}</td></tr>`;
+                                // CAMPOS EDITÁVEIS (QUANTIDADE E VALOR) QUE MODIFICAM O XML
+                                let inputQtd = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO',${p}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputVlTotal = `<input type="number" step="0.01" value="${valorTotalProc}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO',${p}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+
+                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>R$ ${vlUnit}</td><td>R$ ${inputVlTotal}</td></tr>`;
                                 
-                                dadosParaExportacao.push({
-                                    tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, 
-                                    tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos",
-                                    profissional: nomeProf, grauParticipacao: grauPart,
-                                    qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalProc.replace('.', ',')
-                                });
+                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos", profissional: nomeProf, grauParticipacao: grauPart, qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalProc.replace('.', ',') });
                             }
                             tabelaProcedimentosHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Procedimentos: R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</div></div></details>`;
                         }
@@ -559,7 +504,13 @@ async function processarXML() {
                                         📦 Outras Despesas / OPME (${despesas.length})												
                                     </summary>
                                     <div style="padding: 10px;">
-                                        <table class="tabela-dados">
+                                        <!-- FILTROS APLICADOS PARA O ANALISTA -->
+                                        <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                            <input type="text" placeholder="🔍 Filtrar Tipo (Ex: 08)..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 0)">
+                                            <input type="text" placeholder="🔍 Filtrar Tabela..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 1)">
+                                            <input type="text" placeholder="🔍 Filtrar Código..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 2)">
+                                        </div>
+                                        <table class="tabela-dados" id="tb-desp-${numeroGuia}">
                                             <tr style="background-color: #f0f0f0;">
                                                 <th>Tipo</th><th>Tabela</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>V. Total</th>
                                             </tr>
@@ -577,24 +528,17 @@ async function processarXML() {
                                 
                                 let vlDespesa = 0;
                                 if (valorTotalDesp !== "Não informado"){
-                                    vlDespesa = parseFloat(valorTotalDesp);	
-                                    valorGuia += vlDespesa;																				
-                                    if(tipoDespesaCod === '01') valorGasoterapia += vlDespesa;
-                                    else if(tipoDespesaCod === '02') valorMedicamentos += vlDespesa;
-                                    else if(tipoDespesaCod === '03') valorMateriais += vlDespesa;
-                                    else if(tipoDespesaCod === '05') valorDiarias += vlDespesa;
-                                    else if(tipoDespesaCod === '07') valorTaxasAlugueis += vlDespesa;
-                                    else if(tipoDespesaCod === '08') valorOPME += vlDespesa;
-                                    
-                                    valorTotalOutrasDespesas += vlDespesa;
-                                    valorTotalLote += vlDespesa;
+                                    vlDespesa = parseFloat(valorTotalDesp); valorGuia += vlDespesa;																				
+                                    if(tipoDespesaCod === '01') valorGasoterapia += vlDespesa; else if(tipoDespesaCod === '02') valorMedicamentos += vlDespesa; else if(tipoDespesaCod === '03') valorMateriais += vlDespesa; else if(tipoDespesaCod === '05') valorDiarias += vlDespesa; else if(tipoDespesaCod === '07') valorTaxasAlugueis += vlDespesa; else if(tipoDespesaCod === '08') valorOPME += vlDespesa;
+                                    valorTotalOutrasDespesas += vlDespesa; valorTotalLote += vlDespesa;
                                 }
-                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${qtd}</td><td>R$ ${valorTotalDesp}</td></tr>`;
-                                dadosParaExportacao.push({
-                                    tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, 
-                                    tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome,
-                                    qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalDesp.replace('.', ',')
-                                });
+                                
+                                // CAMPOS EDITÁVEIS QUE MODIFICAM O XML
+                                let inputQtdD = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA',${o}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputVlTotalD = `<input type="number" step="0.01" value="${valorTotalDesp}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA',${o}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+
+                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} -${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlTotalD}</td></tr>`;
+                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalDesp.replace('.', ',') });
                             }
                             tabelaOutrasDespesasHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Despesas: R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</div></div></details>`;
                         }
@@ -602,21 +546,17 @@ async function processarXML() {
                         guiasHTML += `
                         <details style="margin-bottom: 10px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
                             <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; display: flex; justify-content: space-between;">
-                                <span>📄 ${numeroGuia} | ${nomeBeneficiario} ${regrasAuditoria.badges}</span>
+                                <span>📄 ${numeroGuia} | ${nomeBeneficiario}${regrasAuditoria.badges}</span>
                                 <span style="color: #0056b3;">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
                             </summary>
                             <div style="padding: 15px;">
                                 ${regrasAuditoria.alertas}
-                                
                                 <h4 style="margin: 0 0 10px 0; color: #333;">O que está a ser cobrado:</h4>
                                 <table class="tabela-dados" style="margin-top: 0;">
                                     <tr><th>Executante</th><td>${dadosExecutanteGuia}</td></tr>
-                                    <tr><th>Guia / Data</th><td>${nomeExibicaoGuia} - ${dataAtendimento}</td></tr>
+                                    <tr><th>Guia / Data</th><td>${nomeExibicaoGuia} -${dataAtendimento}</td></tr>
                                 </table>
-                                
-                                ${tabelaProcedimentosHTML}
-                                ${tabelaOutrasDespesasHTML}
-                                
+                                ${tabelaProcedimentosHTML}${tabelaOutrasDespesasHTML}
                                 <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
                                     <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'gemini')" style="background-color: #1a73e8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com Gemini</button>
                                     <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'chatgpt')" style="background-color: #10a37f; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com ChatGPT</button>
@@ -630,378 +570,15 @@ async function processarXML() {
                 const htmlSucesso = `
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
                         <h4 style="margin: 0 0 10px 0; color: #333;">Resumo Financeiro do Lote</h4>
-                        <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> | <strong>Operadora:</strong> ${operadoraID}</p>
+                        <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> \vert{} <strong>Operadora:</strong>${operadoraID}</p>
                         <p style="margin: 5px 0;"><strong>Total de Guias:</strong> <span style="color: blue; font-weight: bold;">${totalGuias}</span></p>
                         <p style="margin: 5px 0; font-size: 16px;"><strong>Valor Total a Pagar:</strong> <span style="color: red; font-weight: bold;">R$ ${valorTotalLote.toFixed(2).replace('.', ',')}</span></p>
                         
+                        <!-- BOTÃO DE EXPORTAÇÃO DO XML -->
+                        <button onclick="exportarXMLCorrigido()" class="btn btn-success" style="margin-top: 15px; width: 100%; font-size: 14px; padding: 12px;">💾 Descarregar XML Corrigido (Livre de Glosas)</button>
+
                         <details style="background: #ededff; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-top: 15px;">
                              <summary style="cursor: pointer; color: #0056b3; font-weight: bold;">Ver Detalhamento por Tipo de Despesa</summary>
                              <table class="tabela-dados" style="margin-top: 10px;">
                                 <tr><th>Total de Procedimentos:</th> <td><strong style="color: red;">R$ ${valorTotalProcedimentosItem.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Diárias:</th> <td><strong style="color: red;">R$ ${valorDiarias.toFixed(2).replace('.',',')}</strong></td></tr> 
-                                <tr><th>Total de Taxas e Alugueis:</th> <td><strong style="color: red;">R$ ${valorTaxasAlugueis.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Materiais:</th> <td><strong style="color: red;">R$ ${valorMateriais.toFixed(2).replace('.',',')}</strong></td></tr> 
-                                <tr><th>Total de Medicamentos:</th> <td><strong style="color: red;">R$ ${valorMedicamentos.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Gasoterapia:</th> <td><strong style="color: red;">R$ ${valorGasoterapia.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de OPME:</th> <td><strong style="color: red;">R$ ${valorOPME.toFixed(2).replace('.',',')}</strong></td></tr>
-                             </table>
-                        </details>
-                    </div>					
-                    <h4 style="color: #333; margin-bottom: 10px;">Análise Individual das Guias</h4>
-                    ${guiasHTML || "<p>Nenhuma guia detalhada encontrada.</p>"}
-                `;
-                
-                document.getElementById('resultado').innerHTML = htmlSucesso;
-                document.getElementById('btnExportar').style.display = 'inline-block';
-                alterarPasso(3);
-                
-            } else {
-                document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>❌ Erro XSD:</strong> ${data.erros.join('<br>')}</div>`;
-                alterarPasso(3);
-            }
-        } catch (error) {
-            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro de Conexão:</strong> ${error.message}</div>`;
-            alterarPasso(3);
-        }
-    };
-    reader.readAsText(file);
-}
-
-function exportarExcel() {
-    if (dadosParaExportacao.length === 0) return;
-    let csvContent = "\uFEFF"; 
-    csvContent += "Tipo de Guia;Número da Guia;Nome do Beneficiário;Data Atendimento;Tabela;Código Item;Descrição do Item;Tipo Despesa;Quantidade;Valor Unitário;Valor Total\r\n";
-    dadosParaExportacao.forEach(l => {
-        csvContent += `${l.tipoGuia};${l.numeroGuia};${l.beneficiario};${l.data};${l.tabela};${l.codigoItem};${l.descricaoItem.replace(/;/g, ",")};${l.tipoDespesa};${l.qtdItem};${l.valorUnitario};${l.valorItem}\r\n`;
-    });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "Relatorio_TISS_Completo.csv");
-    link.click();
-}
-
-// --- MOTOR DE ROTAÇÃO DE PUBLICIDADE DINÂMICA ---
-let filaAnuncios = [];
-let anuncioAtual = 0;
-
-async function iniciarRotacaoPublicidade() {
-    const bannersCabecalho = document.querySelectorAll('.ad-banner-animated');
-    const bannersRodape = document.querySelectorAll('.ad-banner-animated-rodape');
-    if (bannersCabecalho.length === 0 && bannersRodape.length === 0) return;
-
-    try {
-        const response = await fetch('/api/campanhas');
-        if (response.ok) {
-            filaAnuncios = await response.json();
-        }
-    } catch (e) {
-        console.log("A carregar anúncios locais (API não disponível).");
-    }
-
-    if (filaAnuncios.length === 0) {
-        filaAnuncios = [
-            { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5)", local: "TODOS" },
-            { titulo: "🎓 Especialização em Auditoria TISS", texto: "Aprenda a evitar glosas.", link: "https://google.com", cor: "linear-gradient(-45deg, #23a6d5, #23d5ab)", local: "TODOS" }
-        ];
-    }
-
-    setInterval(() => {
-        if(filaAnuncios.length === 0) return;
-        
-        anuncioAtual = (anuncioAtual + 1) % filaAnuncios.length;
-        const ad = filaAnuncios[anuncioAtual];
-        
-        const htmlConteudo = `<h3 style="margin: 0; color: white;">${ad.titulo}</h3><span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>`;
-        const acaoClique = () => { ad.link === "modal" ? abrirModal('modalPublicidade') : window.open(ad.link, '_blank'); };
-
-        if (ad.local === "CABECALHO" || ad.local === "TODOS") {
-            bannersCabecalho.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; });
-        }
-        if (ad.local === "RODAPE" || ad.local === "TODOS") {
-            bannersRodape.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; });
-        }
-    }, 6000); 
-}
-
-// --- LOGIN SEGURO ADMINISTRATIVO ---
-async function efetuarLoginAdmin() {
-    const email = document.getElementById('admin-email').value;
-    const senha = document.getElementById('admin-senha').value;
-    if (!email || !senha) { alert("Preencha as credenciais administrativas."); return; }
-
-    try {
-        const response = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'login_admin', email: email, senha: senha })
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) {
-            sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario));
-            window.location.href = "admin.html"; 
-        } else {
-            alert(`Falha no acesso restrito: ${data.erro}`);
-        }
-    } catch (error) { alert("Erro de conexão com o servidor."); }
-}
-
-// --- CADASTRO DE USUÁRIOS (SÓ RODA NO ADMIN.HTML) ---
-async function cadastrarUsuarioInterno() {
-    if (!usuarioLogado || usuarioLogado.perfil !== "ADMIN") {
-        alert("Sem permissão para cadastrar utilizadores internos.");
-        return;
-    }
-
-    const nome = document.getElementById('cad-nome-interno').value;
-    const perfil = document.getElementById('cad-perfil-interno').value;
-    const email = document.getElementById('cad-email-interno').value;
-    const senha = document.getElementById('cad-senha-interno').value;
-
-    if (!nome || !email || !senha) { alert("Preencha todos os campos."); return; }
-
-    try {
-        const response = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'registro_admin', nome: nome, email: email, senha: senha, perfil: perfil })
-        });
-        const data = await response.json();
-        if (response.ok && data.sucesso) {
-            alert(data.mensagem);
-            fecharModais(); 
-        } else {
-            alert(`Erro: ${data.erro}`);
-        }
-    } catch (error) { alert("Erro ao cadastrar usuário."); }
-}
-
-// --- GESTÃO DE ACESSOS (IAM) ---
-function abrirModalGestaoAcessos() {
-    abrirModal('modalGestaoAcessos');
-    carregarListaUsuarios(); 
-}
-
-async function carregarListaUsuarios() {
-    const tipo = document.getElementById('filtro-tipo-usuario').value;
-    const tbody = document.getElementById('lista-usuarios-body');
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">⏳ A pesquisar na base de dados...</td></tr>';
-    
-    try {
-        const response = await fetch(`/api/gestao_usuarios?tipo=${tipo}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum registo encontrado.</td></tr>';
-                return;
-            }
-            
-            data.forEach(user => {
-                const perfilStatus = tipo === 'INTERNO' ? user.perfil : user.statusConta;
-                const corBadge = (perfilStatus === 'ATIVO' || perfilStatus === 'ADMIN') ? '#28a745' : (perfilStatus === 'BLOQUEADO' ? '#dc3545' : '#f39c12');
-                
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${user.nome}</strong></td>
-                        <td>${user.email}</td>
-                        <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">${perfilStatus}</span></td>
-                        <td>
-                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="editarAcesso('${user.id}', '${tipo}', '${perfilStatus}')">✏️ Editar</button>
-                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="resetarSenha('${user.id}', '${tipo}', '${user.email}')">🔑 Reset Senha</button>
-                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="bloquearAcesso('${user.id}', '${tipo}')">🚫 Bloquear</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        } else {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: red;">Erro: ${data.erro}</td></tr>`;
-        }
-    } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro de comunicação com o servidor.</td></tr>';
-    }
-}
-
-async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
-    try {
-        const response = await fetch('/api/gestao_usuarios', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: acao, id: id, tipo: tipo, novo_dado: novoDado })
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) {
-            alert(data.mensagem);
-            carregarListaUsuarios(); 
-        } else {
-            alert(`Erro do Servidor: ${data.erro}`);
-        }
-    } catch(e) {
-        alert("Erro de comunicação com o servidor.");
-    }
-}
-
-function resetarSenha(id, tipo, email) {
-    if(confirm(`Confirma a redefinição de senha para ${email}?\nA nova senha provisória será: Mudar@123`)) {
-        executarAcaoIAM('resetar', id, tipo);
-    }
-}
-
-function bloquearAcesso(id, tipo) {
-    if(confirm("Deseja realmente bloquear este utilizador? Ele perderá imediatamente o acesso ao sistema.")) {
-        executarAcaoIAM('bloquear', id, tipo);
-    }
-}
-
-function editarAcesso(id, tipo, statusAtual) {
-    const instrucao = tipo === 'INTERNO' 
-        ? "Digite o novo PERFIL (ADMIN, OPERACAO, PUBLICIDADE, GESTAO):" 
-        : "Digite o novo STATUS (ATIVO, PENDENTE, BLOQUEADO):";
-        
-    const novoValor = prompt(instrucao, statusAtual);
-    
-    if (novoValor && novoValor.trim() !== "" && novoValor.toUpperCase() !== statusAtual) {
-        executarAcaoIAM('editar', id, tipo, novoValor);
-    }
-}
-
-// --- DASHBOARD DO CLIENTE: REGRAS CUSTOMIZADAS ---
-function abrirModalNovaRegra() {
-    document.getElementById('titulo-modal-regra').innerText = "Criar Gatilho de Validação";
-    document.getElementById('regra-id').value = ""; 
-    document.getElementById('regra-nome').value = "";
-    document.getElementById('regra-valor').value = "";
-    document.getElementById('regra-mensagem').value = "";
-    abrirModal('modalNovaRegra');
-}
-
-function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mensagem) {
-    document.getElementById('titulo-modal-regra').innerText = "✏️ Editar Regra";
-    document.getElementById('regra-id').value = id;
-    document.getElementById('regra-nome').value = nome;
-    document.getElementById('regra-tipo').value = tipoGuia;
-    document.getElementById('regra-campo').value = campo;
-    document.getElementById('regra-condicao').value = condicao;
-    document.getElementById('regra-valor').value = valor;
-    document.getElementById('regra-acao').value = acao;
-    document.getElementById('regra-mensagem').value = mensagem;
-    abrirModal('modalNovaRegra');
-}
-
-async function carregarRegrasCliente() {
-    if (!usuarioLogado) return; 
-    
-    const tbody = document.getElementById('lista-regras-body');
-    if(!tbody) return;
-    
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A comunicar com o servidor...</td></tr>';
-    
-    try {
-        const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhuma regra configurada. Crie a sua primeira regra!</td></tr>';
-                return;
-            }
-            
-            data.forEach(r => {
-                const corBadge = r.acao === 'BLOQUEIO' ? '#dc3545' : '#f39c12';
-                const nomeSeguro = r.nomeRegra ? r.nomeRegra.replace(/'/g,"") : "Regra";
-                const msgSegura = r.mensagemErro ? r.mensagemErro.replace(/'/g,"") : "";
-                const argsEdit = `'${r.id}', '${nomeSeguro}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${msgSegura}'`;
-                
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${r.nomeRegra}</strong></td>
-                        <td>${r.tipoGuia} <br><span style="font-size: 11px; color: #666;">Campo: ${r.campoValidado}</span></td>
-                        <td>${r.condicao} <strong>${r.valorEsperado}</strong></td>
-                        <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${r.acao}</span></td>
-                        <td>
-                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="abrirModalEdicao(${argsEdit})">✏️ Editar</button>
-                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="excluirRegra('${r.id}')">🗑️ Cancelar</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        } else {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro da API:</strong> ${data.erro || 'Motivo desconhecido.'}</td></tr>`;
-        }
-    } catch (e) {
-        console.error("Erro Crítico no JS:", e);
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro Crítico:</strong> ${e.message}</td></tr>`;
-    }
-}
-
-async function salvarRegra() {
-    const dados = {
-        id: document.getElementById('regra-id').value, 
-        acao_req: document.getElementById('regra-id').value ? 'editar' : 'criar',
-        clienteId: usuarioLogado.id,
-        nomeRegra: document.getElementById('regra-nome').value,
-        tipoGuia: document.getElementById('regra-tipo').value,
-        campoValidado: document.getElementById('regra-campo').value,
-        condicao: document.getElementById('regra-condicao').value,
-        valorEsperado: document.getElementById('regra-valor').value,
-        acao: document.getElementById('regra-acao').value,
-        mensagemErro: document.getElementById('regra-mensagem').value
-    };
-
-    if(!dados.nomeRegra || !dados.valorEsperado || !dados.mensagemErro) {
-        alert("Preencha todos os campos obrigatórios!");
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/regras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dados)
-        });
-        const resultado = await response.json();
-        
-        if (response.ok && resultado.sucesso) {
-            alert(resultado.mensagem || "Operação realizada com sucesso!");
-            fecharModal('modalNovaRegra');
-            carregarRegrasCliente();
-        } else {
-            alert(`Erro: ${resultado.erro}`);
-        }
-    } catch (e) { alert("Erro de comunicação com o servidor."); }
-}
-
-async function excluirRegra(idRegra) {
-    if(!confirm("Tem a certeza que deseja cancelar e excluir esta regra?")) return;
-    
-    try {
-        const response = await fetch('/api/regras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao_req: 'excluir', id: idRegra })
-        });
-        const resultado = await response.json();
-        if (response.ok && resultado.sucesso) {
-            carregarRegrasCliente();
-        } else {
-            alert(`Erro: ${resultado.erro}`);
-        }
-    } catch (e) { alert("Erro de comunicação."); }
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-    if (sessao) {
-        usuarioLogado = sessao;
-        const nomeEl = document.getElementById('nome-empresa-painel');
-        const saldoEl = document.getElementById('saldo-tokens-painel');
-        if(nomeEl) nomeEl.innerText = sessao.nome || "Empresa";
-        if(saldoEl) saldoEl.innerText = sessao.tokensRestantes || 0;
-        carregarRegrasCliente();
-    }
-});
+                                <tr><th>Total de Diárias:</th> <td><strong style="color: red;">R$ ${valorDiarias.
