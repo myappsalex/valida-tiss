@@ -76,3 +76,33 @@ model RegraCliente {
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
 }
 //Redeploy
+
+// --- TABELAS DE DOMÍNIO TUSS E GLOSAS (Versão 2.0.0) ---
+
+model DominioTUSS {
+  id              String   @id @default(uuid())
+  codigoTabela    String   // Ex: 18, 19, 20, 22, 63
+  codigoTermo     String   // O código do procedimento ou material
+  termo           String   // A descrição técnica (Ex: Tomografia de Crânio)
+  registroAnvisa  String?  // Exclusivo para OPME e Materiais (Tabela 19)
+  vigenciaInicio  DateTime?
+  vigenciaFim     DateTime?
+  ativo           Boolean  @default(true)
+
+  @@index([codigoTabela, codigoTermo])
+}
+
+model TabelaGlosasANS {
+  codigoGlosa     String   @id // Ex: 1001, 1102, 1203, 1311
+  descricao       String   // Ex: Código incompatível com a tabela
+  tipo            String   // Administrativa, Técnica, etc.
+}
+
+model HistoricoAutorizacoes {
+  id              String   @id @default(uuid())
+  senha           String   @unique
+  carteiraBen     String
+  dataValidade    DateTime
+  status          String   // APROVADA, NEGADA, PARCIAL
+  prestadorId     String
+}
