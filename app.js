@@ -224,7 +224,7 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
         }
     }
 
-    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
+// 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
     if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
         regrasAtivasCliente.forEach(regra => {
             if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
@@ -243,7 +243,11 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
 
                 // B) Código do Procedimento
                 if (regra.campoValidado === 'codigoProcedimento') {
-                    let itens = [...buscarVariasTags(guia, "procedimentoExecutado"), ...buscarVariasTags(guia, "despesa")];
+                    // CONVERSÃO PARA ARRAY ADICIONADA AQUI
+                    let procs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
+                    let desps = Array.from(buscarVariasTags(guia, "despesa") || []);
+                    let itens = procs.concat(desps);
+                    
                     itens.forEach(item => {
                         let cod = extrairTexto(item, "codigoProcedimento");
                         if (cod !== "Não informado") {
@@ -253,9 +257,12 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // C) Quantidade Faturada (Evita glosa por excesso de material/medicamento)
+                // C) Quantidade Faturada
                 if (regra.campoValidado === 'quantidadeDespesa') {
-                    let itens = [...buscarVariasTags(guia, "procedimentoExecutado"), ...buscarVariasTags(guia, "despesa")];
+                    let procs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
+                    let desps = Array.from(buscarVariasTags(guia, "despesa") || []);
+                    let itens = procs.concat(desps);
+                    
                     itens.forEach(item => {
                         let qtdStr = extrairTexto(item, "quantidadeExecutada");
                         if (qtdStr !== "Não informado") {
@@ -267,9 +274,9 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // D) Grau de Participação (Cruzar equipes médicas)
+                // D) Grau de Participação
                 if (regra.campoValidado === 'grauParticipacao') {
-                    let itens = buscarVariasTags(guia, "procedimentoExecutado");
+                    let itens = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
                     itens.forEach(item => {
                         let grau = extrairTexto(item, "grauParticipacao");
                         if (grau === "Não informado") grau = extrairTexto(item, "grauPart");
@@ -280,9 +287,9 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                     });
                 }
 
-                // E) Tipo de Despesa TISS (Ex: 05-Diárias, 08-OPME)
+                // E) Tipo de Despesa TISS
                 if (regra.campoValidado === 'tipoDespesa') {
-                    let despesas = buscarVariasTags(guia, "despesa");
+                    let despesas = Array.from(buscarVariasTags(guia, "despesa") || []);
                     despesas.forEach(desp => {
                         let tipo = extrairTexto(desp, "codigoDespesa");
                         if (tipo !== "Não informado") {
@@ -307,7 +314,6 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     }
 
     return { badges: badgesHTML, alertas: validacoesHTML };
-}
 
 // --- CHAMADA REAL DE IA LIGADA AO PYTHON ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
