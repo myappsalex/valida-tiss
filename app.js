@@ -348,7 +348,6 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
     return { badges: badgesHTML, alertas: validacoesHTML };
 } // Aqui fecha a função validarRegrasNegocio corretamente
 
-    return { badges: badgesHTML, alertas: validacoesHTML };
 
 // --- CHAMADA REAL DE IA LIGADA AO PYTHON ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
