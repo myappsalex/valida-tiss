@@ -224,7 +224,40 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
         }
     }
 
-// 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
+// --- MOTOR DE REGRAS DE NEGÓCIO ---
+function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
+    let badgesHTML = '';
+    let validacoesHTML = '';
+
+    // 1. REGRAS PADRÃO DO SISTEMA
+    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
+        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
+        if (partesData.length === 3) {
+            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
+            const hoje = new Date();
+            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
+            if (diffDias > 60) validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade (> 60 dias).</div>`;
+        }
+    }
+
+    if (tipoGuia === 'guiaConsulta') {
+        if (extrairTexto(guia, "indicacaoAcidente") === "Não informado") validacoesHTML += `<div class="erro-box">❌ Campo 'Indicação de Acidente' ausente.</div>`;
+    } else if (tipoGuia === 'guiaSP-SADT') {
+        const carater = extrairTexto(guia, "caraterAtendimento");
+        if (carater === "2" || carater === "U") {
+            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
+        } else if (carater === "1" || carater === "E") {
+            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
+        }
+    } else if (tipoGuia === 'guiaResumoInternacao') {
+        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
+        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
+            badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
+            validacoesHTML += `<div class="alerta-box">⚠️ Óbito identificado. Gatilho de bloqueio acionado.</div>`;
+        }
+    }
+
+    // 2. NOVAS REGRAS CUSTOMIZADAS DO CLIENTE (ERP Avançado)
     if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
         regrasAtivasCliente.forEach(regra => {
             if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
@@ -243,7 +276,6 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
 
                 // B) Código do Procedimento
                 if (regra.campoValidado === 'codigoProcedimento') {
-                    // CONVERSÃO PARA ARRAY ADICIONADA AQUI
                     let procs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
                     let desps = Array.from(buscarVariasTags(guia, "despesa") || []);
                     let itens = procs.concat(desps);
@@ -311,8 +343,10 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                 }
             }
         });
-    }
-}
+    } // Aqui fecha a verificação de regras customizadas
+
+    return { badges: badgesHTML, alertas: validacoesHTML };
+} // Aqui fecha a função validarRegrasNegocio corretamente
 
     return { badges: badgesHTML, alertas: validacoesHTML };
 
