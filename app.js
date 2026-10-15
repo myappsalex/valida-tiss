@@ -44,7 +44,6 @@ function enviarPedidoPub() {
 }
 
 function fecharModal(idModal) { 
-    // Se nenhum ID for passado, tenta fechar o modalPremium (retrocompatibilidade)
     const alvo = idModal || 'modalPremium';
     const modal = document.getElementById(alvo);
     if (modal) {
@@ -92,14 +91,12 @@ async function efetuarLogin() {
     } catch (error) { alert("Erro ao comunicar com o servidor."); }
 }
 
-
 function atualizarTopoSite() {
     if(!usuarioLogado) return;
     
     const elStatus = document.getElementById('user-status');
     const btnTop = document.getElementById('btn-login-top');
     
-    // TRAVÃO DE SEGURANÇA: Só executa se estiver numa página que tenha o topo (ex: index.html)
     if (elStatus && btnTop) {
         if (usuarioLogado.tipo === "INTERNO") {
             elStatus.innerText = `👤 ${usuarioLogado.nome} | Perfil: ${usuarioLogado.perfil}`;
@@ -121,7 +118,6 @@ function efetuarLogout() {
     window.location.href = "index.html";
 }
 
-// Verifica a sessão ao carregar a página index.html
 window.onload = () => {
     const sessaoSalva = sessionStorage.getItem('sessaoTISS');
     if (sessaoSalva) {
@@ -189,40 +185,6 @@ function obterNomeDespesaTISS(codigo) {
     const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" };
     return dominios[codigo] || "Outra Despesa";
 }
-
-// --- MOTOR DE REGRAS DE NEGÓCIO ---
-
-function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
-    let badgesHTML = '';
-    let validacoesHTML = '';
-
-    // 1. REGRAS PADRÃO DO SISTEMA
-    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
-        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
-        if (partesData.length === 3) {
-            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
-            const hoje = new Date();
-            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
-            if (diffDias > 60) validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade (> 60 dias).</div>`;
-        }
-    }
-
-    if (tipoGuia === 'guiaConsulta') {
-        if (extrairTexto(guia, "indicacaoAcidente") === "Não informado") validacoesHTML += `<div class="erro-box">❌ Campo 'Indicação de Acidente' ausente.</div>`;
-    } else if (tipoGuia === 'guiaSP-SADT') {
-        const carater = extrairTexto(guia, "caraterAtendimento");
-        if (carater === "2" || carater === "U") {
-            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`;
-        } else if (carater === "1" || carater === "E") {
-            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`;
-        }
-    } else if (tipoGuia === 'guiaResumoInternacao') {
-        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
-        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
-            badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
-            validacoesHTML += `<div class="alerta-box">⚠️ Óbito identificado. Gatilho de bloqueio acionado.</div>`;
-        }
-    }
 
 // --- MOTOR DE REGRAS DE NEGÓCIO ---
 function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
@@ -343,11 +305,10 @@ function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
                 }
             }
         });
-    } // Aqui fecha a verificação de regras customizadas
+    }
 
     return { badges: badgesHTML, alertas: validacoesHTML };
-} // Aqui fecha a função validarRegrasNegocio corretamente
-
+}
 
 // --- CHAMADA REAL DE IA LIGADA AO PYTHON ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
@@ -361,7 +322,6 @@ async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
         return;
     }
 
-    // UX: Trava os botões e mostra carregamento (mantendo a sua lógica anterior)
     const btnClicado = document.getElementById(`btn-ia-${provedor}-${idUnico}`);
     const divResultado = document.getElementById(`resultado-ia-${idUnico}`);
     const nomesProvedores = { 'gemini': '✨ Gemini', 'chatgpt': '✨ ChatGPT', 'deepseek': '✨ DeepSeek' };
@@ -380,7 +340,6 @@ async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
     try {
         const itensDestaGuia = dadosParaExportacao.filter(item => item.numeroGuia === numeroGuia);
 
-        // Comunicação Real com o seu backend Python (que desconta o Prisma)
         const response = await fetch('/api/auditoria', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -388,26 +347,22 @@ async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
                 guia: numeroGuia, 
                 itens: itensDestaGuia, 
                 provedor: provedor,
-                email: usuarioLogado.email // A CHAVE PARA DESCONTAR O SALDO
+                email: usuarioLogado.email 
             })
         });
 
         const data = await response.json();
 
         if (response.ok) {
-            // Atualiza o saldo local na tela imediatamente após o sucesso
             usuarioLogado.tokensRestantes -= 1;
             document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
 
-            // Formata e exibe a resposta da IA
             let textoFormatado = '';
             try {
-                // Tenta formatar se o Python retornou o JSON certinho
                 const iaJson = JSON.parse(data.analise.replace(/```json/g, '').replace(/```/g, ''));
                 textoFormatado = `<strong>Status:</strong> ${iaJson.status === 'ALERTA' ? '<span style="color:red">⚠️ ALERTA</span>' : '<span style="color:green">✅ OK</span>'}<br><br>`;
                 textoFormatado += `<strong>Achados da Auditoria:</strong><br>• ${iaJson.achados.join('<br>• ')}`;
             } catch(e) {
-                // Fallback caso a IA não retorne JSON estrito
                 textoFormatado = data.analise.replace(/\n/g, '<br>');
             }
             
@@ -469,7 +424,6 @@ async function processarXML() {
         }
 
         try {
-			// --- PUXAR REGRAS CUSTOMIZADAS ANTES DE LER O LOTE ---
 			if (usuarioLogado && usuarioLogado.tipo === "CLIENTE") {
 				try {
 					const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
@@ -728,15 +682,6 @@ function exportarExcel() {
     link.click();
 }
 
-// --- MOTOR DE ROTAÇÃO DE PUBLICIDADE ---
-/*
-const filaAnuncios = [
-    { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal do faturista", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e)" },
-    { titulo: "🎓 Especialização em Auditoria TISS", texto: "Aprenda a evitar glosas. Clique e conheça.", link: "https://google.com", cor: "linear-gradient(-45deg, #23a6d5, #23d5ab)" },
-    { titulo: "🏥 ERP Saúde Plus", texto: "Gestão hospitalar sem dores de cabeça. Teste grátis.", link: "https://apple.com", cor: "linear-gradient(-45deg, #6f42c1, #a166ab)" }
-];
-*/
-
 // --- MOTOR DE ROTAÇÃO DE PUBLICIDADE DINÂMICA ---
 let filaAnuncios = [];
 let anuncioAtual = 0;
@@ -747,16 +692,14 @@ async function iniciarRotacaoPublicidade() {
     if (bannersCabecalho.length === 0 && bannersRodape.length === 0) return;
 
     try {
-        // Tenta buscar as campanhas ativas e dentro da validade no banco de dados
         const response = await fetch('/api/campanhas');
         if (response.ok) {
             filaAnuncios = await response.json();
         }
     } catch (e) {
-        console.log("A carregar anúncios locais (API de campanhas não disponível).");
+        console.log("A carregar anúncios locais (API não disponível).");
     }
 
-    // Se o banco retornar vazio, usa os banners padrão do sistema
     if (filaAnuncios.length === 0) {
         filaAnuncios = [
             { titulo: "🚀 O seu software médico visto por milhares!", texto: "Anuncie no portal", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5)", local: "TODOS" },
@@ -770,7 +713,6 @@ async function iniciarRotacaoPublicidade() {
         anuncioAtual = (anuncioAtual + 1) % filaAnuncios.length;
         const ad = filaAnuncios[anuncioAtual];
         
-        // Atualiza os banners com os dados dinâmicos (Título, Link, Cor e Localização)
         const htmlConteudo = `<h3 style="margin: 0; color: white;">${ad.titulo}</h3><span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>`;
         const acaoClique = () => { ad.link === "modal" ? abrirModal('modalPublicidade') : window.open(ad.link, '_blank'); };
 
@@ -780,38 +722,7 @@ async function iniciarRotacaoPublicidade() {
         if (ad.local === "RODAPE" || ad.local === "TODOS") {
             bannersRodape.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; });
         }
-    }, 6000); // Rotação a cada 6 segundos
-}
-
-async function efetuarLoginAdmin() {
-    const email = document.getElementById('admin-email').value;
-    const senha = document.getElementById('admin-senha').value;
-    
-    if (!email || !senha) { alert("Preencha as credenciais administrativas."); return; }
-
-    try {
-        const response = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'login', email: email, senha: senha })
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) {
-            // Verifica se é realmente um admin
-            if(!data.usuario.email.includes("admin")) {
-                alert("Este utilizador não tem privilégios de administrador.");
-                return;
-            }
-            data.usuario.perfil = "ADMIN";
-            sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario));
-            window.location.href = "admin.html"; // Redireciona com segurança
-        } else {
-            alert(`Falha no acesso: ${data.erro}`);
-        }
-    } catch (error) {
-        alert("Erro de conexão com o servidor.");
-    }
+    }, 6000); 
 }
 
 // --- LOGIN SEGURO ADMINISTRATIVO ---
@@ -830,7 +741,7 @@ async function efetuarLoginAdmin() {
         
         if (response.ok && data.sucesso) {
             sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario));
-            window.location.href = "admin.html"; // Redireciona com segurança
+            window.location.href = "admin.html"; 
         } else {
             alert(`Falha no acesso restrito: ${data.erro}`);
         }
@@ -839,7 +750,6 @@ async function efetuarLoginAdmin() {
 
 // --- CADASTRO DE USUÁRIOS (SÓ RODA NO ADMIN.HTML) ---
 async function cadastrarUsuarioInterno() {
-    // Dupla checagem: Front-end garante que quem clica é Admin
     if (!usuarioLogado || usuarioLogado.perfil !== "ADMIN") {
         alert("Sem permissão para cadastrar utilizadores internos.");
         return;
@@ -861,7 +771,7 @@ async function cadastrarUsuarioInterno() {
         const data = await response.json();
         if (response.ok && data.sucesso) {
             alert(data.mensagem);
-            fecharModais(); // Fecha o modal do admin.html
+            fecharModais(); 
         } else {
             alert(`Erro: ${data.erro}`);
         }
@@ -871,7 +781,7 @@ async function cadastrarUsuarioInterno() {
 // --- GESTÃO DE ACESSOS (IAM) ---
 function abrirModalGestaoAcessos() {
     abrirModal('modalGestaoAcessos');
-    carregarListaUsuarios(); // Carrega automaticamente ao abrir
+    carregarListaUsuarios(); 
 }
 
 async function carregarListaUsuarios() {
@@ -891,7 +801,6 @@ async function carregarListaUsuarios() {
             }
             
             data.forEach(user => {
-                // Lógica visual de cores para perfis ou status
                 const perfilStatus = tipo === 'INTERNO' ? user.perfil : user.statusConta;
                 const corBadge = (perfilStatus === 'ATIVO' || perfilStatus === 'ADMIN') ? '#28a745' : (perfilStatus === 'BLOQUEADO' ? '#dc3545' : '#f39c12');
                 
@@ -916,7 +825,6 @@ async function carregarListaUsuarios() {
     }
 }
 
-// O "Motor" que envia os pedidos para o Python
 async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
     try {
         const response = await fetch('/api/gestao_usuarios', {
@@ -928,7 +836,7 @@ async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
         
         if (response.ok && data.sucesso) {
             alert(data.mensagem);
-            carregarListaUsuarios(); // Recarrega a tabela para mostrar a alteração
+            carregarListaUsuarios(); 
         } else {
             alert(`Erro do Servidor: ${data.erro}`);
         }
@@ -937,21 +845,18 @@ async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
     }
 }
 
-// 1. Botão Resetar Senha
 function resetarSenha(id, tipo, email) {
     if(confirm(`Confirma a redefinição de senha para ${email}?\nA nova senha provisória será: Mudar@123`)) {
         executarAcaoIAM('resetar', id, tipo);
     }
 }
 
-// 2. Botão Bloquear
 function bloquearAcesso(id, tipo) {
     if(confirm("Deseja realmente bloquear este utilizador? Ele perderá imediatamente o acesso ao sistema.")) {
         executarAcaoIAM('bloquear', id, tipo);
     }
 }
 
-// 3. Botão Editar (Abre um Prompt rápido de edição de status)
 function editarAcesso(id, tipo, statusAtual) {
     const instrucao = tipo === 'INTERNO' 
         ? "Digite o novo PERFIL (ADMIN, OPERACAO, PUBLICIDADE, GESTAO):" 
@@ -959,7 +864,6 @@ function editarAcesso(id, tipo, statusAtual) {
         
     const novoValor = prompt(instrucao, statusAtual);
     
-    // Se o gestor clicou em OK e alterou o texto
     if (novoValor && novoValor.trim() !== "" && novoValor.toUpperCase() !== statusAtual) {
         executarAcaoIAM('editar', id, tipo, novoValor);
     }
@@ -968,12 +872,13 @@ function editarAcesso(id, tipo, statusAtual) {
 // --- DASHBOARD DO CLIENTE: REGRAS CUSTOMIZADAS ---
 function abrirModalNovaRegra() {
     document.getElementById('titulo-modal-regra').innerText = "Criar Gatilho de Validação";
-    document.getElementById('regra-id').value = ""; // Limpa o ID
+    document.getElementById('regra-id').value = ""; 
     document.getElementById('regra-nome').value = "";
     document.getElementById('regra-valor').value = "";
     document.getElementById('regra-mensagem').value = "";
     abrirModal('modalNovaRegra');
 }
+
 function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mensagem) {
     document.getElementById('titulo-modal-regra').innerText = "✏️ Editar Regra";
     document.getElementById('regra-id').value = id;
@@ -988,10 +893,7 @@ function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mens
 }
 
 async function carregarRegrasCliente() {
-    if (!usuarioLogado) {
-        console.warn("Usuário não está logado no momento da chamada.");
-        return; 
-    }
+    if (!usuarioLogado) return; 
     
     const tbody = document.getElementById('lista-regras-body');
     if(!tbody) return;
@@ -999,7 +901,6 @@ async function carregarRegrasCliente() {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A comunicar com o servidor...</td></tr>';
     
     try {
-        console.log("A procurar regras para o Cliente ID:", usuarioLogado.id);
         const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
         const data = await response.json();
         
@@ -1012,7 +913,6 @@ async function carregarRegrasCliente() {
             
             data.forEach(r => {
                 const corBadge = r.acao === 'BLOQUEIO' ? '#dc3545' : '#f39c12';
-                // Proteção extra caso algum campo venha vazio do banco
                 const nomeSeguro = r.nomeRegra ? r.nomeRegra.replace(/'/g,"") : "Regra";
                 const msgSegura = r.mensagemErro ? r.mensagemErro.replace(/'/g,"") : "";
                 const argsEdit = `'${r.id}', '${nomeSeguro}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${msgSegura}'`;
@@ -1031,11 +931,9 @@ async function carregarRegrasCliente() {
                 `;
             });
         } else {
-            // O SERVIDOR RESPONDEU, MAS COM ERRO (Ex: 500, 400)
             tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro da API:</strong> ${data.erro || 'Motivo desconhecido.'}</td></tr>`;
         }
     } catch (e) {
-        // O JAVASCRIPT OU A REDE CRASHOU (Ex: Timeout, Variável Indefinida)
         console.error("Erro Crítico no JS:", e);
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#dc3545;"><strong>Erro Crítico:</strong> ${e.message}</td></tr>`;
     }
@@ -1043,7 +941,7 @@ async function carregarRegrasCliente() {
 
 async function salvarRegra() {
     const dados = {
-        id: document.getElementById('regra-id').value, // Se tiver ID, é edição
+        id: document.getElementById('regra-id').value, 
         acao_req: document.getElementById('regra-id').value ? 'editar' : 'criar',
         clienteId: usuarioLogado.id,
         nomeRegra: document.getElementById('regra-nome').value,
@@ -1078,7 +976,6 @@ async function salvarRegra() {
     } catch (e) { alert("Erro de comunicação com o servidor."); }
 }
 
-
 async function excluirRegra(idRegra) {
     if(!confirm("Tem a certeza que deseja cancelar e excluir esta regra?")) return;
     
@@ -1098,12 +995,13 @@ async function excluirRegra(idRegra) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-            const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-            if (sessao) {
-                usuarioLogado = sessao; // Preenche a variável global na hora
-                document.getElementById('nome-empresa-painel').innerText = sessao.nome || "Empresa";
-                document.getElementById('saldo-tokens-painel').innerText = sessao.tokensRestantes || 0;
-                carregarRegrasCliente();
-            }
-        });
-		
+    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+    if (sessao) {
+        usuarioLogado = sessao;
+        const nomeEl = document.getElementById('nome-empresa-painel');
+        const saldoEl = document.getElementById('saldo-tokens-painel');
+        if(nomeEl) nomeEl.innerText = sessao.nome || "Empresa";
+        if(saldoEl) saldoEl.innerText = sessao.tokensRestantes || 0;
+        carregarRegrasCliente();
+    }
+});
