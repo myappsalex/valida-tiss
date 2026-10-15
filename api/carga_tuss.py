@@ -38,8 +38,8 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             # Limpa os dados antigos desta tabela específica antes de inserir os novos (Atualização Full)
-            db.dominio_tuss.delete_many(where={"codigoTabela": tabela})
-            criados = db.dominio_tuss.create_many(data=registros)
+            db.dominiotuss.delete_many(where={"codigoTabela": tabela})
+            criados = db.dominiotuss.create_many(data=registros)
             
             self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados.count} termos atualizados na Tabela {tabela}.'})
             
