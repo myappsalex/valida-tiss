@@ -28,8 +28,17 @@ function reiniciarWizard() {
 function abrirModal(idModal) { document.getElementById(idModal).style.display = 'flex'; }
 function fecharModais() { document.querySelectorAll('.modal-overlay').forEach(modal => modal.style.display = 'none'); }
 function solicitarCompra(tipo, pacote) { alert(`Redirecionando para o Gateway de Pagamento...\nItem: ${pacote}`); fecharModais(); }
-function enviarPedidoPub() { const empresa = document.getElementById('pub-empresa').value; if(!empresa) { alert("Preencha o nome da empresa."); return; } alert(`Pedido de publicidade para ${empresa} enviado ao administrador!`); fecharModais(); }
-function fecharModal(idModal) { const alvo = idModal || 'modalPremium'; const modal = document.getElementById(alvo); if (modal) { modal.style.display = 'none'; } }
+function enviarPedidoPub() { 
+    const empresa = document.getElementById('pub-empresa').value; 
+    if(!empresa) { alert("Preencha o nome da empresa."); return; } 
+    alert(`Pedido de publicidade para ${empresa} enviado ao administrador!`); 
+    fecharModais(); 
+}
+function fecharModal(idModal) { 
+    const alvo = idModal || 'modalPremium'; 
+    const modal = document.getElementById(alvo); 
+    if (modal) { modal.style.display = 'none'; } 
+}
 function redirecionarCheckout() { alert("Redirecionando para página de pagamento..."); }
 
 // --- AUTENTICAÇÃO (SaaS) ---
@@ -431,7 +440,7 @@ async function processarXML() {
                             let cod = extrairTexto(guia, "codigoPrestadorNaOperadora");
                             if(cod === "Não informado") cod = extrairTexto(guia, "cnpjContratado");
                             const nome = extrairTexto(guia, "nomeContratado") || extrairTexto(guia, "nomeContratadoExecutante");
-                            if(nome !== "Não informado") dadosExecutanteGuia = `(${cod})${nome}`;
+                            if(nome !== "Não informado") dadosExecutanteGuia = `(${cod}) ${nome}`;
                         }
 
                         const nomeExibicaoGuia = tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
@@ -477,7 +486,7 @@ async function processarXML() {
                                     profHTML = `
                                         <details style="background: #fdfdfd; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
                                             <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold; font-size: 11px;">Ver Equipe</summary>
-                                            <div style="margin-top: 5px; font-size: 11px; color: #333;"><strong>Nome:</strong> ${nomeProf}<br><strong>Grau Part.:</strong>${grauPart}</div>
+                                            <div style="margin-top: 5px; font-size: 11px; color: #333;"><strong>Nome:</strong> ${nomeProf}<br><strong>Grau Part.:</strong> ${grauPart}</div>
                                         </details>
                                     `;
                                 }
@@ -487,8 +496,8 @@ async function processarXML() {
                                 valorTotalLote += valorProc;
                                 
                                 // CAMPOS EDITÁVEIS (QUANTIDADE E VALOR) QUE MODIFICAM O XML
-                                let inputQtd = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO',${p}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
-                                let inputVlTotal = `<input type="number" step="0.01" value="${valorTotalProc}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO',${p}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputQtd = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputVlTotal = `<input type="number" step="0.01" value="${valorTotalProc}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
 
                                 tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>R$ ${vlUnit}</td><td>R$ ${inputVlTotal}</td></tr>`;
                                 
@@ -534,10 +543,10 @@ async function processarXML() {
                                 }
                                 
                                 // CAMPOS EDITÁVEIS QUE MODIFICAM O XML
-                                let inputQtdD = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA',${o}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
-                                let inputVlTotalD = `<input type="number" step="0.01" value="${valorTotalDesp}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA',${o}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputQtdD = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA', ${o}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                let inputVlTotalD = `<input type="number" step="0.01" value="${valorTotalDesp}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA', ${o}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
 
-                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} -${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlTotalD}</td></tr>`;
+                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlTotalD}</td></tr>`;
                                 dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalDesp.replace('.', ',') });
                             }
                             tabelaOutrasDespesasHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Despesas: R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</div></div></details>`;
@@ -546,7 +555,7 @@ async function processarXML() {
                         guiasHTML += `
                         <details style="margin-bottom: 10px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
                             <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; display: flex; justify-content: space-between;">
-                                <span>📄 ${numeroGuia} | ${nomeBeneficiario}${regrasAuditoria.badges}</span>
+                                <span>📄 ${numeroGuia} | ${nomeBeneficiario} ${regrasAuditoria.badges}</span>
                                 <span style="color: #0056b3;">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
                             </summary>
                             <div style="padding: 15px;">
@@ -554,9 +563,10 @@ async function processarXML() {
                                 <h4 style="margin: 0 0 10px 0; color: #333;">O que está a ser cobrado:</h4>
                                 <table class="tabela-dados" style="margin-top: 0;">
                                     <tr><th>Executante</th><td>${dadosExecutanteGuia}</td></tr>
-                                    <tr><th>Guia / Data</th><td>${nomeExibicaoGuia} -${dataAtendimento}</td></tr>
+                                    <tr><th>Guia / Data</th><td>${nomeExibicaoGuia} - ${dataAtendimento}</td></tr>
                                 </table>
-                                ${tabelaProcedimentosHTML}${tabelaOutrasDespesasHTML}
+                                ${tabelaProcedimentosHTML}
+                                ${tabelaOutrasDespesasHTML}
                                 <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
                                     <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'gemini')" style="background-color: #1a73e8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com Gemini</button>
                                     <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'chatgpt')" style="background-color: #10a37f; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com ChatGPT</button>
@@ -570,7 +580,7 @@ async function processarXML() {
                 const htmlSucesso = `
                     <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
                         <h4 style="margin: 0 0 10px 0; color: #333;">Resumo Financeiro do Lote</h4>
-                        <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> \vert{} <strong>Operadora:</strong>${operadoraID}</p>
+                        <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> | <strong>Operadora:</strong> ${operadoraID}</p>
                         <p style="margin: 5px 0;"><strong>Total de Guias:</strong> <span style="color: blue; font-weight: bold;">${totalGuias}</span></p>
                         <p style="margin: 5px 0; font-size: 16px;"><strong>Valor Total a Pagar:</strong> <span style="color: red; font-weight: bold;">R$ ${valorTotalLote.toFixed(2).replace('.', ',')}</span></p>
                         
@@ -581,4 +591,141 @@ async function processarXML() {
                              <summary style="cursor: pointer; color: #0056b3; font-weight: bold;">Ver Detalhamento por Tipo de Despesa</summary>
                              <table class="tabela-dados" style="margin-top: 10px;">
                                 <tr><th>Total de Procedimentos:</th> <td><strong style="color: red;">R$ ${valorTotalProcedimentosItem.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Diárias:</th> <td><strong style="color: red;">R$ ${valorDiarias.
+                                <tr><th>Total de Diárias:</th> <td><strong style="color: red;">R$ ${valorDiarias.toFixed(2).replace('.',',')}</strong></td></tr> 
+                                <tr><th>Total de Taxas e Alugueis:</th> <td><strong style="color: red;">R$ ${valorTaxasAlugueis.toFixed(2).replace('.',',')}</strong></td></tr>
+                                <tr><th>Total de Materiais:</th> <td><strong style="color: red;">R$ ${valorMateriais.toFixed(2).replace('.',',')}</strong></td></tr> 
+                                <tr><th>Total de Medicamentos:</th> <td><strong style="color: red;">R$ ${valorMedicamentos.toFixed(2).replace('.',',')}</strong></td></tr>
+                                <tr><th>Total de Gasoterapia:</th> <td><strong style="color: red;">R$ ${valorGasoterapia.toFixed(2).replace('.',',')}</strong></td></tr>
+                                <tr><th>Total de OPME:</th> <td><strong style="color: red;">R$ ${valorOPME.toFixed(2).replace('.',',')}</strong></td></tr>
+                             </table>
+                        </details>
+                    </div>					
+                    <h4 style="color: #333; margin-bottom: 10px;">Análise Individual das Guias</h4>
+                    ${guiasHTML || "<p>Nenhuma guia detalhada encontrada.</p>"}
+                `;
+                
+                document.getElementById('resultado').innerHTML = htmlSucesso;
+                document.getElementById('btnExportar').style.display = 'inline-block';
+                alterarPasso(3);
+                
+            } else {
+                document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>❌ Erro XSD:</strong> ${data.erros.join('<br>')}</div>`;
+                alterarPasso(3);
+            }
+        } catch (error) {
+            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro de Conexão:</strong> ${error.message}</div>`;
+            alterarPasso(3);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function exportarExcel() {
+    if (dadosParaExportacao.length === 0) return;
+    let csvContent = "\uFEFF"; 
+    csvContent += "Tipo de Guia;Número da Guia;Nome do Beneficiário;Data Atendimento;Tabela;Código Item;Descrição do Item;Tipo Despesa;Quantidade;Valor Unitário;Valor Total\r\n";
+    dadosParaExportacao.forEach(l => { csvContent += `${l.tipoGuia};${l.numeroGuia};${l.beneficiario};${l.data};${l.tabela};${l.codigoItem};${l.descricaoItem.replace(/;/g, ",")};${l.tipoDespesa};${l.qtdItem};${l.valorUnitario};${l.valorItem}\r\n`; });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Relatorio_TISS_Completo.csv");
+    link.click();
+}
+
+// --- FUNÇÕES DE ADMINISTRAÇÃO E REGRAS ---
+let filaAnuncios = []; 
+let anuncioAtual = 0;
+async function iniciarRotacaoPublicidade() {
+    const bannersCabecalho = document.querySelectorAll('.ad-banner-animated');
+    const bannersRodape = document.querySelectorAll('.ad-banner-animated-rodape');
+    if (bannersCabecalho.length === 0 && bannersRodape.length === 0) return;
+    try { 
+        const response = await fetch('/api/campanhas'); 
+        if (response.ok) { filaAnuncios = await response.json(); } 
+    } catch (e) { console.log("A carregar anúncios locais."); }
+    if (filaAnuncios.length === 0) { 
+        filaAnuncios = [ { titulo: "🚀 Software Médico", texto: "Anuncie no portal", link: "modal", cor: "linear-gradient(-45deg, #ee7752, #e73c7e)", local: "TODOS" } ]; 
+    }
+    setInterval(() => {
+        if(filaAnuncios.length === 0) return;
+        anuncioAtual = (anuncioAtual + 1) % filaAnuncios.length; 
+        const ad = filaAnuncios[anuncioAtual];
+        const htmlConteudo = `<h3 style="margin: 0; color: white;">${ad.titulo}</h3><span class="pulse-text" style="color: #333; margin-top: 5px;">${ad.texto}</span>`;
+        const acaoClique = () => { ad.link === "modal" ? abrirModal('modalPublicidade') : window.open(ad.link, '_blank'); };
+        if (ad.local === "CABECALHO" || ad.local === "TODOS") { bannersCabecalho.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; }); }
+        if (ad.local === "RODAPE" || ad.local === "TODOS") { bannersRodape.forEach(b => { b.style.background = ad.cor; b.innerHTML = htmlConteudo; b.onclick = acaoClique; }); }
+    }, 6000); 
+}
+
+async function efetuarLoginAdmin() {
+    const email = document.getElementById('admin-email').value; const senha = document.getElementById('admin-senha').value;
+    if (!email || !senha) { alert("Preencha as credenciais."); return; }
+    try {
+        const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'login_admin', email: email, senha: senha }) });
+        const data = await response.json();
+        if (response.ok && data.sucesso) { sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario)); window.location.href = "admin.html"; } 
+        else { alert(`Falha: ${data.erro}`); }
+    } catch (error) { alert("Erro de conexão."); }
+}
+
+function abrirModalNovaRegra() { document.getElementById('titulo-modal-regra').innerText = "Criar Gatilho"; document.getElementById('regra-id').value = ""; abrirModal('modalNovaRegra'); }
+function abrirModalEdicao(id, nome, tipoGuia, campo, condicao, valor, acao, mensagem) {
+    document.getElementById('titulo-modal-regra').innerText = "✏️ Editar"; document.getElementById('regra-id').value = id;
+    document.getElementById('regra-nome').value = nome; document.getElementById('regra-tipo').value = tipoGuia;
+    document.getElementById('regra-campo').value = campo; document.getElementById('regra-condicao').value = condicao;
+    document.getElementById('regra-valor').value = valor; document.getElementById('regra-acao').value = acao;
+    document.getElementById('regra-mensagem').value = mensagem; abrirModal('modalNovaRegra');
+}
+
+async function carregarRegrasCliente() {
+    if (!usuarioLogado) return; 
+    const tbody = document.getElementById('lista-regras-body'); if(!tbody) return;
+    try {
+        const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`); const data = await response.json();
+        if (response.ok) {
+            tbody.innerHTML = '';
+            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">Nenhuma regra.</td></tr>'; return; }
+            data.forEach(r => {
+                const argsEdit = `'${r.id}', '${r.nomeRegra.replace(/'/g,"")}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${r.mensagemErro.replace(/'/g,"")}'`;
+                tbody.innerHTML += `<tr><td><strong>${r.nomeRegra}</strong></td><td>${r.tipoGuia}</td><td>${r.condicao} <strong>${r.valorEsperado}</strong></td><td>${r.acao}</td><td><button onclick="abrirModalEdicao(${argsEdit})">Editar</button> <button onclick="excluirRegra('${r.id}')">Excluir</button></td></tr>`;
+            });
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function salvarRegra() {
+    const dados = { 
+        id: document.getElementById('regra-id').value, 
+        acao_req: document.getElementById('regra-id').value ? 'editar' : 'criar', 
+        clienteId: usuarioLogado.id, 
+        nomeRegra: document.getElementById('regra-nome').value, 
+        tipoGuia: document.getElementById('regra-tipo').value, 
+        campoValidado: document.getElementById('regra-campo').value, 
+        condicao: document.getElementById('regra-condicao').value, 
+        valorEsperado: document.getElementById('regra-valor').value, 
+        acao: document.getElementById('regra-acao').value, 
+        mensagemErro: document.getElementById('regra-mensagem').value 
+    };
+    if(!dados.nomeRegra || !dados.valorEsperado) return;
+    try { 
+        const response = await fetch('/api/regras', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) }); 
+        if(response.ok) { fecharModal('modalNovaRegra'); carregarRegrasCliente(); } 
+    } catch(e){}
+}
+
+async function excluirRegra(idRegra) {
+    if(!confirm("Tem a certeza?")) return;
+    try { 
+        const response = await fetch('/api/regras', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao_req: 'excluir', id: idRegra }) }); 
+        if(response.ok) carregarRegrasCliente(); 
+    } catch(e){}
+}
+
+window.addEventListener('DOMContentLoaded', () => { 
+    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS')); 
+    if (sessao) { usuarioLogado = sessao; carregarRegrasCliente(); } 
+});
+
+// AVISO DE SUCESSO - DEVE SER A ÚLTIMA LINHA DO ARQUIVO!
+console.log("App.js carregado com sucesso!");
