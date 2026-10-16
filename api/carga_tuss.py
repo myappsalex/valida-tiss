@@ -41,7 +41,7 @@ class handler(BaseHTTPRequestHandler):
             db.dominiotuss.delete_many(where={"codigoTabela": tabela})
             criados = db.dominiotuss.create_many(data=registros)
             
-            self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados.count} termos atualizados na Tabela {tabela}.'})
+            self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados} termos atualizados na Tabela {tabela}.'})
             
         except Exception as e:
             # Captura todas as propriedades que o Prisma reconhece e devolve no erro
