@@ -3,27 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Master Admin - Portal TISS</title>
+	<link rel="stylesheet" href="css/style.css">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .dashboard { background: white; padding: 30px; border-radius: 8px; max-width: 1200px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
-        .action-bar { display: flex; gap: 15px; margin-bottom: 20px; }
-        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
-        .btn-primary { background: #0056b3; }
-        .btn-success { background: #28a745; }
-        .btn-warning { background: #f39c12; }
-        .btn-danger { background: #dc3545; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 30px;}
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-        th { background: #f8f9fa; }
         
-        /* Modais */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 450px; }
-        .modal-content h3 { margin-top: 0; color: #0056b3; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
-        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
     </style>
     <!-- AUTH GUARD: Proteção de Rota -->
     <script>
@@ -138,84 +120,11 @@
 
 <!-- CSS para o Loader Dinâmico (Gauge/Spinner) -->
 <style>
-    .gauge-loader {
-        width: 20px;
-        height: 20px;
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #0056b3;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        display: inline-block;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
 </style>
 
 <script>
-// Feedback imediato assim que o utilizador escolhe o ficheiro (mesmo antes de clicar no botão)
-function verificarArquivoSelecionado() {
-    const fileInput = document.getElementById('arquivo-csv-tuss');
-    const divResultado = document.getElementById('resultado-carga');
-    
-    if (fileInput.files.length > 0) {
-        const fileName = fileInput.files[0].name;
-        const fileSize = (fileInput.files[0].size / 1024).toFixed(1); // Tamanho em KB
-        divResultado.innerHTML = `<span style="color: #17a2b8;">📁 Arquivo preparado: <strong>${fileName}</strong> (${fileSize} KB). Pronto para upload.</span>`;
-    } else {
-        divResultado.innerHTML = "";
-    }
-}
 
-async function processarCargaTUSS() {
-    const tabela = document.getElementById('tabela-tuss-select').value;
-    const fileInput = document.getElementById('arquivo-csv-tuss');
-    const divResultado = document.getElementById('resultado-carga');
-    const btnUpload = document.getElementById('btn-upload-tuss');
-    
-    if (fileInput.files.length === 0) {
-        divResultado.innerHTML = '<span style="color: red;">❌ Por favor, selecione um ficheiro CSV primeiro.</span>';
-        return;
-    }
-
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    
-    // Bloqueia o botão e mostra o Gauge/Spinner de carregamento
-    btnUpload.disabled = true;
-    btnUpload.style.opacity = "0.7";
-    btnUpload.innerHTML = '<div class="gauge-loader"></div> <span>Processando...</span>';
-    divResultado.innerHTML = '<div class="gauge-loader"></div> <span style="color: #0056b3;">Lendo arquivo e enviando para a base de dados. Este processo pode demorar alguns segundos...</span>';
-
-    // O FileReader é assíncrono, não vai travar a interface visual
-    reader.onload = async function(e) {
-        const conteudoCSV = e.target.result;
-        
-        try {
-            const response = await fetch('/api/carga_tuss', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tabela: tabela, csv_data: conteudoCSV })
-            });
-            const data = await response.json();
-            
-            if (response.ok && data.sucesso) {
-                divResultado.innerHTML = `<span style="color: green;">✅ Sucesso! ${data.mensagem}</span>`;
-                fileInput.value = ""; // Limpa o campo
-            } else {
-                divResultado.innerHTML = `<span style="color: red;">❌ Erro na importação: ${data.erro}</span>`;
-            }
-        } catch (error) {
-            divResultado.innerHTML = `<span style="color: red;">❌ Erro de comunicação com o servidor. A API demorou muito a responder ou falhou.</span>`;
-        } finally {
-            // Devolve o botão ao estado original
-            btnUpload.disabled = false;
-            btnUpload.style.opacity = "1";
-            btnUpload.innerHTML = '<span>Fazer Upload</span>';
-        }
-    };
-    
-    // Inicia a leitura do arquivo em background
-    reader.readAsText(file, 'UTF-8');
-}
 </script>
 
         <h3>Gestão de Contratos de IA</h3>
@@ -319,7 +228,6 @@ async function processarCargaTUSS() {
         function efetuarLogout() { sessionStorage.removeItem('sessaoTISS'); window.location.href = "index.html"; }
     </script>
 	<!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
-    <script src="app.js"></script>
 	<!-- Modal: Gestão de Identidade e Acessos -->
     <div id="modalGestaoAcessos" class="modal-overlay">
         <div class="modal-content" style="width: 850px; max-width: 95%;">
@@ -354,5 +262,11 @@ async function processarCargaTUSS() {
             </div>
         </div>
     </div>
+	
+	 <!-- Scripts Modularizados no final do body -->
+    <script src="js/modulos/ui.js"></script>
+    <script src="js/modulos/auth.js"></script>
+    <script src="js/modulos/admin.js"></script>
+	
 </body>
 </html>

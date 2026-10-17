@@ -4,79 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Validador TISS SaaS - Portal do Faturista</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; color: #333; }
-        .container { max-width: 950px; margin: 20px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        
-        /* Espaços Publicitários (Monetização) */
-        .ad-banner { background-color: #e9ecef; border: 1px dashed #adb5bd; color: #6c757d; text-align: center; padding: 15px; margin: 15px auto; max-width: 728px; border-radius: 8px; font-size: 13px; }
-        
-        /* Sistema Wizard */
-        .wizard-step { display: none; }
-        .wizard-step.active { display: block; animation: fadeIn 0.5s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* UX de Upload e Botões */
-        .upload-area { border: 2px dashed #0056b3; padding: 40px 20px; text-align: center; border-radius: 12px; background-color: #f8fbff; cursor: pointer; display: block; transition: 0.3s; }
-        .upload-area:hover { background-color: #eef5ff; border-color: #004494; }
-        .upload-area input { display: none; }
-        .btn-primary { background-color: #0056b3; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.3s; }
-        .btn-primary:hover { background-color: #004494; }
-        .btn-success { background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
-        
-        /* Tabelas e Alertas (Seu layout original mantido) */
-        .tabela-dados { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; background-color: white; }
-        .tabela-dados th, .tabela-dados td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .tabela-dados th { background-color: #f4f7f6; color: #333; }
-        
-        /* Badges de Regras de Negócio */
-        .badge { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; margin-left: 10px; color: white; display: inline-block; }
-        .bg-urgencia { background-color: #dc3545; }
-        .bg-obito { background-color: #000000; }
-        .bg-eletivo { background-color: #28a745; }
-        .alerta-box { background-color: #fff3cd; color: #856404; padding: 10px; border-left: 4px solid #ffeeba; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
-        .erro-box { background-color: #f8d7da; color: #721c24; padding: 10px; border-left: 4px solid #f5c6cb; margin-bottom: 10px; font-size: 12px; border-radius: 4px;}
-        
-        /* Spinner */
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #0056b3; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Modal Paywall (Upsell IA) */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 450px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .btn-premium { background: linear-gradient(90deg, #6f42c1, #a166ab); color: white; padding: 12px 24px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 15px; font-size: 16px; }
-        .close-modal { margin-top: 15px; cursor: pointer; color: #888; font-size: 12px; text-decoration: underline; background: none; border: none; }
-
-		/* --- Banners Animados (CSS3) --- */
-        .ad-banner-animated {
-            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-            background-size: 400% 400%;
-            animation: gradientBG 10s ease infinite;
-            color: white; text-align: center; padding: 20px; margin: 15px auto; 
-            max-width: 728px; border-radius: 8px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s;
-        }
-		
-		/* --- Banners Animados (CSS3) --- */
-        .ad-banner-animated-rodape {
-            background: linear-gradient(-45deg, #eef552, #e54c7f, #23c6d2, #15d5cb);
-            background-size: 400% 400%;
-            animation: gradientBG 10s ease infinite;
-            color: white; text-align: center; padding: 20px; margin: 15px auto; 
-            max-width: 728px; border-radius: 8px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s;
-        }
-		
-        .ad-banner-animated:hover { transform: scale(1.02); }
-        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-        .pulse-text { animation: pulse 1.5s infinite; display: inline-block; background: white; color: #e73c7e; padding: 5px 15px; border-radius: 20px; margin-top: 10px;}
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-        
-        /* Preços de Tokens */
-        .pricing-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin: 10px 0; cursor: pointer; transition: 0.3s; }
-        .pricing-card:hover { border-color: #6f42c1; background: #f8f5ff; }
-		
-    </style>
+	<link rel="stylesheet" href="css/style.css">
+    
 </head>
 
 <!-- Barra de Autenticação no Topo -->
@@ -227,5 +156,17 @@
             <button class="close-modal" onclick="fecharModais()">Cancelar</button>
         </div>
     </div>
+	
+	 <!-- Scripts Modularizados no final do body -->
+    <script src="js/modulos/ui.js"></script>
+    <script src="js/modulos/auth.js"></script>
+    <script src="js/modulos/validador.js"></script>
+    <script>
+        // Inicialização
+        window.onload = () => {
+            console.log("ValidaTISS 2.0.0 Inicializado");
+        };
+    </script>
+	
 </body>
 </html>
