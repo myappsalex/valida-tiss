@@ -156,7 +156,17 @@
             <button class="close-modal" onclick="fecharModais()">Cancelar</button>
         </div>
     </div>
-	
+	<!-- MODAL: DETALHE DA GLOSA POR ITEM -->
+	<div id="modalGlosaItem" class="modal-overlay" style="z-index: 2000;">
+		<div class="modal-content" style="width: 450px; text-align: center;">
+			<h3 style="color: #dc3545; margin-top: 0;"><i class="fa-solid fa-triangle-exclamation"></i> Detalhe da Glosa / Regra</h3>
+			<div id="texto-glosa-item" style="font-size: 14px; color: #333; margin: 20px 0; padding: 15px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 6px; text-align: left;">
+				<!-- O texto da glosa será injetado aqui -->
+			</div>
+			<button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalGlosaItem')">Estou Ciente</button>
+		</div>
+	</div>
+
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>
