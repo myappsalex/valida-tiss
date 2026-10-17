@@ -1,15 +1,6 @@
 // js/modulos/validador.js
 let xmlDocAtual = null;
 
-async function processarXML(file) {
-    // Lógica de leitura e parse do XML
-}
-
-function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
-    // Lógica TISS 2.0.0
-}
-
-
 // --- NAVEGAÇÃO DO WIZARD ---
 function alterarPasso(passo) {
     document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
@@ -64,170 +55,9 @@ function filtrarTabelaTISS(inputObj, tableId, colIndex) {
     }
 }
 
-// 2. Atualiza o XML real em memória quando o analista altera um input
-function atualizarNodeXML(numeroGuia, tipoItem, indexItem, tagAlvo, novoValor) {
-    if(!xmlDocAtual) return;
-    const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
-    let guiaNode = null;
-    
-    for(let tipo of tiposGuias) {
-        let guias = buscarVariasTags(xmlDocAtual, tipo);
-        for(let i=0; i<guias.length; i++) {
-            if(extrairTexto(guias[i], "numeroGuiaPrestador") === numeroGuia) {
-                guiaNode = guias[i]; break;
-            }
-        }
-        if(guiaNode) break;
-    }
-    
-    if(!guiaNode) return;
-
-    let tagColecao = tipoItem === 'PROCEDIMENTO' ? "procedimentoExecutado" : "despesa";
-    let itens = buscarVariasTags(guiaNode, tagColecao);
-    if(itens[indexItem]) {
-        let alvo = buscarTagUnica(itens[indexItem], tagAlvo);
-        if(alvo) {
-            alvo.textContent = novoValor;
-            console.log(`XML Modificado: Guia ${numeroGuia} | ${tagAlvo} -> ${novoValor}`);
-        }
-    }
-}
-
-// 3. Exportador do XML corrigido
-function exportarXMLCorrigido() {
-    if (!xmlDocAtual) { alert("Nenhum ficheiro XML processado."); return; }
-    
-    const serializer = new XMLSerializer();
-    let xmlString = serializer.serializeToString(xmlDocAtual);
-
-    // Garante o cabeçalho correto do TISS
-    if (!xmlString.startsWith("<?xml")) {
-        xmlString = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xmlString;
-    }
-
-    const blob = new Blob([xmlString], { type: 'text/xml;charset=iso-8859-1;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "Lote_Corrigido_ValidaTISS.xml");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
 
 
-// --- MOTOR DE REGRAS DE NEGÓCIO TISS 2.0.0 ---
-function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
-    let badgesHTML = '';
-    let validacoesHTML = '';
 
-    // 1. VALIDAÇÕES GLOBAIS DE DATA (GLOSA 1203)
-    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
-        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
-        if (partesData.length === 3) {
-            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
-            const hoje = new Date();
-            
-            // Regra TISS: Data de atendimento não pode ser futura
-            if (dataAtend > hoje) {
-                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1203]</strong> Data de atendimento posterior à data de processamento.</div>`;
-            }
-            
-            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
-            if (diffDias > 60 && dataAtend <= hoje) {
-                validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade contratual (> 60 dias).</div>`;
-            }
-        }
-    }
-
-    // 2. REGRAS POR TIPO DE GUIA (ESTRUTURAIS TISS)
-    if (tipoGuia === 'guiaConsulta') {
-        const indAcidente = extrairTexto(guia, "indicacaoAcidente");
-        if (indAcidente === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Campo 'Indicação de Acidente' ausente ou inválido no XSD.</div>`;
-        }
-        
-        // Regra: Consulta só pode ter quantidade 1 e tabela 22
-        let procs = buscarVariasTags(guia, "procedimentoExecutado");
-        if (procs.length > 0) {
-            const qtd = parseFloat(extrairTexto(procs[0], "quantidadeExecutada"));
-            const tabela = extrairTexto(procs[0], "codigoTabela");
-            if (qtd > 1) validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1004]</strong> Quantidade cobrada difere da permitida para Consulta (Máx: 1).</div>`;
-            if (tabela !== "22") validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1102]</strong> Código de tabela inválido para consulta. Exigido Tabela 22.</div>`;
-        }
-
-    } else if (tipoGuia === 'guiaSP-SADT') {
-        const carater = extrairTexto(guia, "caraterAtendimento");
-        const temAutorizacao = buscarTagUnica(guia, "dadosAutorizacao") !== null;
-
-        if (carater === "2" || carater === "U") { 
-            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`; 
-        } else if (carater === "1" || carater === "E") { 
-            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`; 
-            // Regra: Eletivo geralmente exige autorização prévia
-            if (!temAutorizacao) {
-                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1311]</strong> Guia SP/SADT Eletiva exige preenchimento de Dados de Autorização Prévia.</div>`;
-            }
-        }
-
-    } else if (tipoGuia === 'guiaResumoInternacao') {
-        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
-        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
-            badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
-            validacoesHTML += `<div class="alerta-box">⚠️ <strong>[Regra de Negócio]</strong> Óbito identificado. Conta enviada para Auditoria Médica Concorrente.</div>`;
-        }
-
-        const dataInicio = extrairTexto(guia, "dataInicioFaturamento");
-        const dataFim = extrairTexto(guia, "dataFimFaturamento");
-        if (dataInicio === "Não informado" || dataFim === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Período de faturamento ausente (Exigência XSD).</div>`;
-        }
-
-    } else if (tipoGuia === 'guiaHonorarioIndividual') {
-        // Regra TISS: Honorário OBRIGATORIAMENTE vinculado a uma Internação
-        const guiaMae = extrairTexto(guia, "guiaSolicitacaoInternacao");
-        if (guiaMae === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1014]</strong> Guia de Honorário órfã. Obrigatório informar a Guia de Solicitação de Internação (guia mãe).</div>`;
-        }
-    }
-
-    // 3. REGRAS POR TIPO DE DESPESA E TABELAS TUSS
-    let despesas = Array.from(buscarVariasTags(guia, "despesa") || []);
-    let profs = Array.from(buscarVariasTags(guia, "procedimentoExecutado") || []);
-    
-    // Validar Técnicas e Vias de acesso em procedimentos
-    profs.forEach(p => {
-        let tecnica = extrairTexto(p, "tecnicaUtilizada");
-        let via = extrairTexto(p, "viaAcesso");
-        // Em internações, cirurgias exigem estas tags preenchidas para cálculo de honorários
-        if ((tipoGuia === 'guiaResumoInternacao' || tipoGuia === 'guiaHonorarioIndividual') && (tecnica === "Não informado" || via === "Não informado")) {
-            validacoesHTML += `<div class="alerta-box">⚠️ Procedimento sem Via de Acesso ou Técnica. Possível glosa no recálculo de honorários.</div>`;
-        }
-    });
-
-    despesas.forEach(desp => {
-        let tabela = extrairTexto(desp, "codigoTabela");
-        let tipoDespesaCod = extrairTexto(desp, "codigoDespesa"); 
-        
-        // Cruzamento Tipo de Despesa vs Tabela TUSS esperada
-        if (tipoDespesaCod === '02' && tabela !== "20" && tabela !== "00") { // Medicamentos
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1102]</strong> Medicamento faturado fora da Tabela TUSS 20 (ou tabela própria 00).</div>`;
-        }
-        if (tipoDespesaCod === '08' && tabela !== "19" && tabela !== "00") { // OPME
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1102]</strong> OPME faturado fora da Tabela TUSS 19 (ou tabela própria 00).</div>`;
-        }
-        if (tipoDespesaCod === '05' && tabela !== "63" && tabela !== "00") { // Diárias
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1102]</strong> Diária faturada fora da Tabela TUSS 63.</div>`;
-        }
-    });
-
-    // 4. REGRAS CUSTOMIZADAS DO CLIENTE (MANTIDAS INTACTAS)
-    if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
-        // ... (O SEU CÓDIGO ATUAL DO LAÇO 'regrasAtivasCliente.forEach' FICA AQUI) ...
-    }
-
-    return { badges: badgesHTML, alertas: validacoesHTML };
-}
 
 // --- CHAMADA REAL DE IA ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
@@ -282,7 +112,8 @@ async function processarXML() {
         const parserError = buscarTagUnica(xmlDoc, "parsererror");
         if (parserError) {
             document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro:</strong> O arquivo não é um XML válido.</div>`;
-            alterarPasso(3); return;
+            if (typeof alterarPasso === 'function') alterarPasso(3); 
+            return;
         }
 
         // Armazena em memória para permitir a exportação do XML Corrigido
@@ -311,12 +142,12 @@ async function processarXML() {
         }
 
         try {
-			if (usuarioLogado && usuarioLogado.tipo === "CLIENTE") {
-				try {
-					const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
-					if (resRegras.ok) regrasAtivasCliente = await resRegras.json();
-				} catch (e) { console.log("Erro ao carregar regras"); }
-			}
+            if (usuarioLogado && usuarioLogado.tipo === "CLIENTE") {
+                try {
+                    const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
+                    if (resRegras.ok) regrasAtivasCliente = await resRegras.json();
+                } catch (e) { console.log("Erro ao carregar regras"); }
+            }
             const response = await fetch('/api/validador', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -365,6 +196,7 @@ async function processarXML() {
                         let tabelaProcedimentosHTML = '';
                         let tabelaOutrasDespesasHTML = '';
 
+                        // ---------------- TABELA DE PROCEDIMENTOS ----------------
                         if (procedimentos.length > 0) {
                             tabelaProcedimentosHTML = `
                                 <details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
@@ -372,14 +204,13 @@ async function processarXML() {
                                         💵 Procedimentos Executados (${procedimentos.length})								
                                     </summary>
                                     <div style="padding: 10px;">
-                                        <!-- FILTROS APLICADOS PARA O ANALISTA -->
                                         <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
                                             <input type="text" placeholder="🔍 Filtrar Código..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 1)">
                                             <input type="text" placeholder="🔍 Filtrar Grau Part..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 3)">
                                         </div>
                                         <table class="tabela-dados" id="tb-proc-${numeroGuia}">
                                             <tr style="background-color: #f0f0f0;">
-                                                <th>Tabela</th><th>Código</th><th>Descrição</th><th>Profissional</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th>
+                                                <th>Tabela</th><th>Código</th><th>Descrição</th><th>Profissional</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th><th style="text-align:center;">Glosa</th>
                                             </tr>
                             `;
                             for(let p = 0; p < procedimentos.length; p++) {
@@ -387,10 +218,16 @@ async function processarXML() {
                                 const tabela = extrairTexto(proc, "codigoTabela");
                                 const codigo = extrairTexto(proc, "codigoProcedimento");
                                 const descricao = extrairTexto(proc, "descricaoProcedimento");
-                                const qtd = extrairTexto(proc, "quantidadeExecutada");
-                                const vlUnit = extrairTexto(proc, "valorUnitario");
-                                const valorTotalProc = extrairTexto(proc, "valorTotal");
                                 
+                                // Extração e Cálculo Matemático
+                                let qtdStr = extrairTexto(proc, "quantidadeExecutada");
+                                let vlUnitStr = extrairTexto(proc, "valorUnitario");
+                                let vlTotStr = extrairTexto(proc, "valorTotal");
+                                
+                                let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
+                                let vlUnit = vlUnitStr !== "Não informado" ? parseFloat(vlUnitStr) : 0;
+                                let vlTot = vlTotStr !== "Não informado" ? parseFloat(vlTotStr) : (qtd * vlUnit);
+
                                 let grauPart = extrairTexto(proc, "grauParticipacao");
                                 if (grauPart === "Não informado") grauPart = extrairTexto(proc, "grauPart"); 
                                 let nomeProf = extrairTexto(proc, "nomeProfissional");
@@ -406,21 +243,31 @@ async function processarXML() {
                                     `;
                                 }
 
-                                let valorProc = 0;
-                                if (valorTotalProc !== "Não informado"){ valorProc = parseFloat(valorTotalProc); valorTotalProcedimentos += valorProc; valorGuia += valorProc; valorTotalProcedimentosItem += valorProc; } 				
-                                valorTotalLote += valorProc;
+                                valorTotalProcedimentos += vlTot;
+                                valorGuia += vlTot;
+                                valorTotalProcedimentosItem += vlTot;
+                                valorTotalLote += vlTot;
                                 
-                                // CAMPOS EDITÁVEIS (QUANTIDADE E VALOR) QUE MODIFICAM O XML
-                                let inputQtd = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
-                                let inputVlTotal = `<input type="number" step="0.01" value="${valorTotalProc}" onchange="atualizarNodeXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                // Validação Item e Glosa (Blink)
+                                let glosasItem = validarItemTISS(proc, 'PROCEDIMENTO', tipo);
+                                let htmlGlosa = glosasItem.length > 0 
+                                    ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
+                                    : `<span style="color:#28a745;">✅</span>`;
 
-                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>${vlUnit}</td><td>${inputVlTotal}</td></tr>`;
+                                // Campos Editáveis Invertidos
+                                let idBase = `proc-${numeroGuia}-${p}`;
+                                let inputQtd = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
+                                let inputVlUnit = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
+                                let inputVlTot = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-proc-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
+
+                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>R$ ${inputVlUnit}</td><td>R$ ${inputVlTot}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
                                 
-                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos", profissional: nomeProf, grauParticipacao: grauPart, qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalProc.replace('.', ',') });
+                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos", profissional: nomeProf, grauParticipacao: grauPart, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
                             }
-                            tabelaProcedimentosHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Procedimentos: R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</div></div></details>`;
+                            tabelaProcedimentosHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;" id="sum-proc-${numeroGuia}">R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</div></div></details>`;
                         }
 
+                        // ---------------- TABELA DE OUTRAS DESPESAS ----------------
                         if(despesas.length > 0) {
                             tabelaOutrasDespesasHTML = `
                                 <details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
@@ -428,7 +275,6 @@ async function processarXML() {
                                         📦 Outras Despesas / OPME (${despesas.length})												
                                     </summary>
                                     <div style="padding: 10px;">
-                                        <!-- FILTROS APLICADOS PARA O ANALISTA -->
                                         <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
                                             <input type="text" placeholder="🔍 Filtrar Tipo (Ex: 08)..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 0)">
                                             <input type="text" placeholder="🔍 Filtrar Tabela..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 1)">
@@ -436,7 +282,7 @@ async function processarXML() {
                                         </div>
                                         <table class="tabela-dados" id="tb-desp-${numeroGuia}">
                                             <tr style="background-color: #f0f0f0;">
-                                                <th>Tipo</th><th>Tabela</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>V. Total</th>
+                                                <th>Tipo</th><th>Tabela</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th><th style="text-align:center;">Glosa</th>
                                             </tr>
                             `;
                             for(let o = 0; o < despesas.length; o++) {
@@ -444,34 +290,54 @@ async function processarXML() {
                                 const tabela = extrairTexto(desp, "codigoTabela");
                                 const codigo = extrairTexto(desp, "codigoProcedimento");
                                 const descricao = extrairTexto(desp, "descricaoProcedimento");
-                                const qtd = extrairTexto(desp, "quantidadeExecutada");
-                                const vlUnit = extrairTexto(desp, "valorUnitario");
-                                const valorTotalDesp = extrairTexto(desp, "valorTotal");
                                 const tipoDespesaCod = extrairTexto(desp, "codigoDespesa"); 
                                 const tipoDespesaNome = obterNomeDespesaTISS(tipoDespesaCod);
                                 
-                                let vlDespesa = 0;
-                                if (valorTotalDesp !== "Não informado"){
-                                    vlDespesa = parseFloat(valorTotalDesp); valorGuia += vlDespesa;																				
-                                    if(tipoDespesaCod === '01') valorGasoterapia += vlDespesa; else if(tipoDespesaCod === '02') valorMedicamentos += vlDespesa; else if(tipoDespesaCod === '03') valorMateriais += vlDespesa; else if(tipoDespesaCod === '05') valorDiarias += vlDespesa; else if(tipoDespesaCod === '07') valorTaxasAlugueis += vlDespesa; else if(tipoDespesaCod === '08') valorOPME += vlDespesa;
-                                    valorTotalOutrasDespesas += vlDespesa; valorTotalLote += vlDespesa;
-                                }
-                                
-                                // CAMPOS EDITÁVEIS QUE MODIFICAM O XML
-                                let inputQtdD = `<input type="number" step="0.01" value="${qtd}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA', ${o}, 'quantidadeExecutada', this.value)" style="width: 60px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
-                                let inputVlTotalD = `<input type="number" step="0.01" value="${valorTotalDesp}" onchange="atualizarNodeXML('${numeroGuia}', 'DESPESA', ${o}, 'valorTotal', this.value)" style="width: 80px; padding: 2px; border: 1px solid #ccc; border-radius: 4px;">`;
+                                // Extração e Cálculo Matemático (Agora com Valor Unitário)
+                                let qtdStr = extrairTexto(desp, "quantidadeExecutada");
+                                let vlUnitStr = extrairTexto(desp, "valorUnitario");
+                                let vlTotStr = extrairTexto(desp, "valorTotal");
 
-                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlTotalD}</td></tr>`;
-                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit.replace('.',','), valorItem: valorTotalDesp.replace('.', ',') });
+                                let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
+                                let vlTot = vlTotStr !== "Não informado" ? parseFloat(vlTotStr) : 0;
+                                // Caso o XML omita Vl Unitário, o JS calcula: Total / Qtd
+                                let vlUnit = vlUnitStr !== "Não informado" ? parseFloat(vlUnitStr) : (qtd > 0 ? (vlTot / qtd) : 0);
+                                
+                                valorGuia += vlTot;																				
+                                if(tipoDespesaCod === '01') valorGasoterapia += vlTot;
+                                else if(tipoDespesaCod === '02') valorMedicamentos += vlTot;
+                                else if(tipoDespesaCod === '03') valorMateriais += vlTot;
+                                else if(tipoDespesaCod === '05') valorDiarias += vlTot;
+                                else if(tipoDespesaCod === '07') valorTaxasAlugueis += vlTot;
+                                else if(tipoDespesaCod === '08') valorOPME += vlTot;
+                                
+                                valorTotalOutrasDespesas += vlTot;
+                                valorTotalLote += vlTot;
+
+                                // Validação Item e Glosa (Blink)
+                                let glosasItem = validarItemTISS(desp, 'DESPESA', tipo);
+                                let htmlGlosa = glosasItem.length > 0 
+                                    ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
+                                    : `<span style="color:#28a745;">✅</span>`;
+
+                                // Campos Editáveis Invertidos
+                                let idBase = `desp-${numeroGuia}-${o}`;
+                                let inputQtdD = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
+                                let inputVlUnitD = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
+                                let inputVlTotD = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-desp-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
+
+                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlUnitD}</td><td>R$ ${inputVlTotD}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
+                                
+                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
                             }
-                            tabelaOutrasDespesasHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;">Total Despesas: R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</div></div></details>`;
+                            tabelaOutrasDespesasHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;" id="sum-desp-${numeroGuia}">R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</div></div></details>`;
                         }
 
                         guiasHTML += `
                         <details style="margin-bottom: 10px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
                             <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; display: flex; justify-content: space-between;">
                                 <span>📄 ${numeroGuia} | ${nomeBeneficiario} ${regrasAuditoria.badges}</span>
-                                <span style="color: #0056b3;">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
+                                <span style="color: #0056b3;" id="sum-guia-${numeroGuia}">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
                             </summary>
                             <div style="padding: 15px;">
                                 ${regrasAuditoria.alertas}
@@ -521,18 +387,161 @@ async function processarXML() {
                 
                 document.getElementById('resultado').innerHTML = htmlSucesso;
                 document.getElementById('btnExportar').style.display = 'inline-block';
-                alterarPasso(3);
+                if (typeof alterarPasso === 'function') alterarPasso(3);
                 
             } else {
                 document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>❌ Erro XSD:</strong> ${data.erros.join('<br>')}</div>`;
-                alterarPasso(3);
+                if (typeof alterarPasso === 'function') alterarPasso(3);
             }
         } catch (error) {
             document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro de Conexão:</strong> ${error.message}</div>`;
-            alterarPasso(3);
+            if (typeof alterarPasso === 'function') alterarPasso(3);
         }
     };
     reader.readAsText(file);
+}
+// --- VALIDAÇÃO POR ITEM (GLOSAS DETALHADAS) ---
+function validarItemTISS(itemNode, tipoItem, tipoGuia) {
+    let erros = [];
+    let qtdStr = extrairTexto(itemNode, "quantidadeExecutada");
+    let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
+    let tabela = extrairTexto(itemNode, "codigoTabela");
+    let cod = extrairTexto(itemNode, "codigoProcedimento");
+
+    // ANS Estruturais
+    if (tipoGuia === 'guiaConsulta' && tipoItem === 'PROCEDIMENTO') {
+        if (qtd > 1) erros.push("<strong>[Glosa 1004]</strong> Quantidade superior ao permitido para Consulta (Máx: 1).");
+        if (tabela !== "22") erros.push("<strong>[Glosa 1102]</strong> Código de tabela inválido. Exigido Tabela 22.");
+    }
+    if (tipoItem === 'DESPESA') {
+        let tipoDesp = extrairTexto(itemNode, "codigoDespesa");
+        if (tipoDesp === '02' && tabela !== "20" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> Medicamento fora da Tabela 20.");
+        if (tipoDesp === '08' && tabela !== "19" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> OPME fora da Tabela 19.");
+        if (tipoDesp === '05' && tabela !== "63" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> Diária fora da Tabela 63.");
+    }
+
+    // Regras de Negócio do Cliente (Cross-Check)
+    if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
+        regrasAtivasCliente.forEach(regra => {
+            if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
+                let disparar = false;
+                if (regra.campoValidado === 'codigoProcedimento' && (regra.condicao === 'IGUAL' && cod === regra.valorEsperado || regra.condicao === 'CONTEM' && cod.includes(regra.valorEsperado))) disparar = true;
+                if (regra.campoValidado === 'quantidadeDespesa' && (regra.condicao === 'MAIOR_QUE' && qtd > parseFloat(regra.valorEsperado) || regra.condicao === 'IGUAL' && qtd === parseFloat(regra.valorEsperado))) disparar = true;
+                if (regra.campoValidado === 'tipoDespesa' && tipoItem === 'DESPESA') {
+                    let tDesp = extrairTexto(itemNode, "codigoDespesa");
+                    if (regra.condicao === 'IGUAL' && tDesp === regra.valorEsperado || regra.condicao === 'CONTEM' && tDesp.includes(regra.valorEsperado)) disparar = true;
+                }
+                
+                if (disparar) {
+                    let prefixo = regra.acao === 'BLOQUEIO' ? '❌ [Bloqueio Cliente]' : '⚠️ [Alerta Cliente]';
+                    erros.push(`<strong>${prefixo}:</strong> ${regra.mensagemErro}`);
+                }
+            }
+        });
+    }
+    return erros;
+}
+
+// --- CÁLCULO E ATUALIZAÇÃO DOM/XML EM TEMPO REAL ---
+function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem, campoEditado) {
+    // 1. Encontra os inputs irmãos baseados no ID (que tem a estrutura: qtd-NUMGUIA-IDX)
+    const baseId = inputElem.id.split('-').slice(1).join('-');
+    const inQtd = document.getElementById(`qtd-${baseId}`);
+    const inVlUnit = document.getElementById(`unit-${baseId}`);
+    const inVlTot = document.getElementById(`tot-${baseId}`);
+
+    let qtd = parseFloat(inQtd.value) || 0;
+    let vlUnit = parseFloat(inVlUnit.value) || 0;
+    let novoVlTot = (qtd * vlUnit).toFixed(2);
+    
+    // 2. Atualiza o Total no Ecrã (Readonly)
+    inVlTot.value = novoVlTot;
+
+    // 3. Atualiza o XML Original na Memória
+    if(!xmlDocAtual) return;
+    const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
+    let guiaNode = null;
+    for(let tipo of tiposGuias) {
+        let guias = Array.from(buscarVariasTags(xmlDocAtual, tipo));
+        guiaNode = guias.find(g => extrairTexto(g, "numeroGuiaPrestador") === numeroGuia);
+        if(guiaNode) break;
+    }
+    if(!guiaNode) return;
+
+    let tagColecao = tipoItem === 'PROCEDIMENTO' ? "procedimentoExecutado" : "despesa";
+    let itens = buscarVariasTags(guiaNode, tagColecao);
+    if(itens[indexItem]) {
+        let itemNode = itens[indexItem];
+        let tQtd = buscarTagUnica(itemNode, "quantidadeExecutada"); if(tQtd) tQtd.textContent = qtd;
+        let tUnit = buscarTagUnica(itemNode, "valorUnitario"); if(tUnit) tUnit.textContent = vlUnit;
+        let tTot = buscarTagUnica(itemNode, "valorTotal"); if(tTot) tTot.textContent = novoVlTot;
+    }
+
+    // 4. Recalcula os Totais Gerais da Guia Visuais
+    recalcularTotaisGuiaVisuais(numeroGuia);
+}
+
+function recalcularTotaisGuiaVisuais(numeroGuia) {
+    let totalProc = 0; let totalDesp = 0;
+    document.querySelectorAll(`.vltot-proc-${numeroGuia}`).forEach(el => totalProc += parseFloat(el.value) || 0);
+    document.querySelectorAll(`.vltot-desp-${numeroGuia}`).forEach(el => totalDesp += parseFloat(el.value) || 0);
+    
+    let totalGuia = totalProc + totalDesp;
+    
+    const elTProc = document.getElementById(`sum-proc-${numeroGuia}`);
+    if(elTProc) elTProc.innerText = `R$ ${totalProc.toFixed(2).replace('.', ',')}`;
+    
+    const elTDesp = document.getElementById(`sum-desp-${numeroGuia}`);
+    if(elTDesp) elTDesp.innerText = `R$ ${totalDesp.toFixed(2).replace('.', ',')}`;
+    
+    const elTGuia = document.getElementById(`sum-guia-${numeroGuia}`);
+    if(elTGuia) elTGuia.innerText = `R$ ${totalGuia.toFixed(2).replace('.', ',')}`;
+}
+
+// --- MONETIZAÇÃO E EXPORTAÇÃO (FREEMIUM) ---
+async function exportarXMLCorrigido() {
+    if (!xmlDocAtual) { alert("Nenhum ficheiro XML processado."); return; }
+    
+    // Controlo de Monetização / Autenticação
+    if (!usuarioLogado) {
+        alert("🔒 A funcionalidade de correção e exportação do ficheiro sem glosas requer uma conta ativa.");
+        abrirModal('modalAuth'); // Abre o modal do auth.js
+        return;
+    }
+
+    // Simulador de Limites de Plano
+    let limiteDegustacao = usuarioLogado.exportacoesRestantes ?? 3; // 3 gratuitas por padrão
+    let isPremium = usuarioLogado.plano === 'PREMIUM';
+
+    if (!isPremium) {
+        if (limiteDegustacao <= 0) {
+            alert("⚠️ Atingiu o limite do plano Freemium. Adquira o Plano Premium Mensal para correções ilimitadas.");
+            abrirModal('modalLojaTokens'); // Paywall
+            return;
+        } else {
+            let confirma = confirm(`Restam-lhe ${limiteDegustacao} exportações gratuitas. Deseja utilizar uma agora?`);
+            if(!confirma) return;
+            // Simulando desconto no backend
+            usuarioLogado.exportacoesRestantes = limiteDegustacao - 1;
+            sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
+        }
+    }
+
+    // Geração do ficheiro
+    const serializer = new XMLSerializer();
+    let xmlString = serializer.serializeToString(xmlDocAtual);
+    if (!xmlString.startsWith("<?xml")) {
+        xmlString = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xmlString;
+    }
+
+    const blob = new Blob([xmlString], { type: 'text/xml;charset=iso-8859-1;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Lote_Corrigido_${usuarioLogado.nome}.xml`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function exportarExcel() {

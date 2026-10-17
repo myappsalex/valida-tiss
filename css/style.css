@@ -170,3 +170,25 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin:
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
         .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }	
+
+/* --- Glosas Visuais na Tabela --- */
+@keyframes blink-glosa { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+.blink-glosa { 
+    animation: blink-glosa 1.5s infinite; 
+    cursor: pointer; 
+    color: #dc3545; 
+    font-size: 16px; 
+    transition: 0.3s;
+}
+.blink-glosa:hover { color: #a71d2a; }
+
+/* Campos Bloqueados (Valor Total Automático) */
+.input-readonly {
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    color: #495057;
+    cursor: not-allowed;
+}
+.input-calc {
+    width: 70px; padding: 4px; border: 1px solid #0056b3; border-radius: 4px;
+}		

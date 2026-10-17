@@ -44,3 +44,8 @@ function solicitarCompra(tipo, pacote) {
 function redirecionarCheckout() { 
     alert("Redirecionando para página de pagamento..."); 
 }
+
+function mostrarGlosaModal(textoCodificado) {
+    document.getElementById('texto-glosa-item').innerHTML = decodeURIComponent(textoCodificado);
+    abrirModal('modalGlosaItem');
+}
