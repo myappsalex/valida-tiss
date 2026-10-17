@@ -293,7 +293,7 @@ async function processarXML() {
                                 let inputVlUnit = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
                                 let inputVlTot = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-proc-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
 
-                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>R$ ${inputVlUnit}</td><td>R$ ${inputVlTot}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
+                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>${inputVlUnit}</td><td>${inputVlTot}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
                                 
                                 dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos", profissional: nomeProf, grauParticipacao: grauPart, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
                             }
@@ -355,7 +355,7 @@ async function processarXML() {
                                 let inputVlUnitD = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
                                 let inputVlTotD = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-desp-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
 
-                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>R$ ${inputVlUnitD}</td><td>R$ ${inputVlTotD}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
+                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>${inputVlUnitD}</td><td>${inputVlTotD}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
                                 
                                 dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
                             }

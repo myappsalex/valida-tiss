@@ -307,3 +307,62 @@ async function carregarRegrasClienteAdmin(clienteId) {
     } catch (e) { tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro de conexão.</td></tr>'; }
 }
 
+// --- GESTÃO DE ASSINATURAS SAAS ---
+let clientesAssinaturaCache = [];
+
+async function abrirModalAssinaturas() {
+    abrirModal('modalAssinaturas');
+    document.getElementById('area-edicao-assinatura').style.display = 'none';
+    const select = document.getElementById('select-cliente-assinatura');
+    select.innerHTML = '<option value="">⏳ A carregar clientes...</option>';
+    
+    try {
+        const response = await fetch(`/api/gestao_usuarios?tipo=CLIENTE`);
+        clientesAssinaturaCache = await response.json();
+        
+        if (response.ok && clientesAssinaturaCache.length > 0) {
+            select.innerHTML = '<option value="">-- Selecione um Cliente --</option>';
+            clientesAssinaturaCache.forEach(c => { 
+                select.innerHTML += `<option value="${c.id}">${c.nome} (${c.plano || 'FREEMIUM'})</option>`; 
+            });
+        } else {
+            select.innerHTML = '<option value="">Nenhum cliente encontrado.</option>';
+        }
+    } catch(e) { select.innerHTML = '<option value="">Erro de conexão.</option>'; }
+}
+
+function carregarDadosAssinaturaCliente(clienteId) {
+    if (!clienteId) {
+        document.getElementById('area-edicao-assinatura').style.display = 'none';
+        return;
+    }
+    const cliente = clientesAssinaturaCache.find(c => c.id === clienteId);
+    if (cliente) {
+        document.getElementById('area-edicao-assinatura').style.display = 'block';
+        document.getElementById('edit-plano-cliente').value = cliente.plano || 'FREEMIUM';
+        document.getElementById('edit-status-pagamento').value = cliente.statusPagamento || 'ATIVO';
+    }
+}
+
+async function salvarAssinaturaCliente() {
+    const clienteId = document.getElementById('select-cliente-assinatura').value;
+    const novoPlano = document.getElementById('edit-plano-cliente').value;
+    const novoStatus = document.getElementById('edit-status-pagamento').value;
+    
+    if (!clienteId) return;
+
+    try {
+        const response = await fetch('/api/assinatura', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: clienteId, plano: novoPlano, statusPagamento: novoStatus })
+        });
+        const data = await response.json();
+        if (response.ok && data.sucesso) {
+            alert("Assinatura atualizada com sucesso!");
+            fecharModal('modalAssinaturas');
+        } else {
+            alert(`Erro ao atualizar: ${data.erro}`);
+        }
+    } catch(e) { alert("Erro de comunicação com o servidor."); }
+}

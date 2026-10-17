@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Meu Painel - ValidaTISS</title>
-    <style>
-        
-    </style>
+    <!-- Importação do CSS Centralizado -->
+    <link rel="stylesheet" href="css/style.css">
     <script>
         const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
         if (!sessao || sessao.tipo === "INTERNO") {
