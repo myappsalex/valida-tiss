@@ -98,6 +98,92 @@ async function iniciarRotacaoPublicidade() {
     }, 6000); 
 }
 
+// --- GESTÃO DE ACESSOS (IAM) ---
+async function carregarListaUsuarios() {
+    const tipo = document.getElementById('filtro-tipo-usuario').value;
+    const tbody = document.getElementById('lista-usuarios-body');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">⏳ A pesquisar na base de dados...</td></tr>';
+    
+    try {
+        const response = await fetch(`/api/gestao_usuarios?tipo=${tipo}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum registo encontrado.</td></tr>';
+                return;
+            }
+            data.forEach(user => {
+                const perfilStatus = tipo === 'INTERNO' ? user.perfil : user.statusConta;
+                const corBadge = (perfilStatus === 'ATIVO' || perfilStatus === 'ADMIN') ? '#28a745' : (perfilStatus === 'BLOQUEADO' ? '#dc3545' : '#f39c12');
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${user.nome}</strong></td>
+                        <td>${user.email}</td>
+                        <td><span style="background: ${corBadge}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">${perfilStatus}</span></td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;" onclick="editarAcesso('${user.id}', '${tipo}', '${perfilStatus}')">✏️ Editar</button>
+                            <button class="btn btn-warning" style="padding: 4px 8px; font-size: 11px; color: #333;" onclick="resetarSenha('${user.id}', '${tipo}', '${user.email}')">🔑 Reset Senha</button>
+                            <button class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;" onclick="bloquearAcesso('${user.id}', '${tipo}')">🚫 Bloquear</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: red;">Erro: ${data.erro}</td></tr>`;
+        }
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Erro de comunicação com o servidor.</td></tr>';
+    }
+}
+
+async function executarAcaoIAM(acao, id, tipo, novoDado = null) {
+    try {
+        const response = await fetch('/api/gestao_usuarios', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: acao, id: id, tipo: tipo, novo_dado: novoDado })
+        });
+        const data = await response.json();
+        if (response.ok && data.sucesso) {
+            alert(data.mensagem); carregarListaUsuarios(); 
+        } else { alert(`Erro do Servidor: ${data.erro}`); }
+    } catch(e) { alert("Erro de comunicação."); }
+}
+
+function resetarSenha(id, tipo, email) {
+    if(confirm(`Confirma a redefinição de senha para ${email}?\nA nova senha provisória será: Mudar@123`)) { executarAcaoIAM('resetar', id, tipo); }
+}
+
+function bloquearAcesso(id, tipo) {
+    if(confirm("Deseja realmente bloquear este utilizador?")) { executarAcaoIAM('bloquear', id, tipo); }
+}
+
+function editarAcesso(id, tipo, statusAtual) {
+    const instrucao = tipo === 'INTERNO' ? "Novo PERFIL (ADMIN, OPERACAO, PUBLICIDADE, GESTAO):" : "Novo STATUS (ATIVO, PENDENTE, BLOQUEADO):";
+    const novoValor = prompt(instrucao, statusAtual);
+    if (novoValor && novoValor.trim() !== "" && novoValor.toUpperCase() !== statusAtual) { executarAcaoIAM('editar', id, tipo, novoValor); }
+}
+
+async function cadastrarUsuarioInterno() {
+    const nome = document.getElementById('cad-nome-interno').value;
+    const perfil = document.getElementById('cad-perfil-interno').value;
+    const email = document.getElementById('cad-email-interno').value;
+    const senha = document.getElementById('cad-senha-interno').value;
+
+    if (!nome || !email || !senha) { alert("Preencha todos os campos."); return; }
+
+    try {
+        const response = await fetch('/api/auth', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'registro_admin', nome: nome, email: email, senha: senha, perfil: perfil })
+        });
+        const data = await response.json();
+        if (response.ok && data.sucesso) { alert(data.mensagem); fecharModais(); } 
+        else { alert(`Erro: ${data.erro}`); }
+    } catch (error) { alert("Erro ao cadastrar usuário."); }
+}
 
 // --- CORREÇÃO DA GESTÃO IAM ---
 function abrirModalGestaoAcessos() {

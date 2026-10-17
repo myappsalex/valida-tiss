@@ -1,5 +1,9 @@
 // js/modulos/ui.js
 
+ //       function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
+ //       function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+ //       function efetuarLogout() { sessionStorage.removeItem('sessaoTISS'); window.location.href = "index.html"; }
+		
 // --- GESTÃO DE MODAIS ---
 function abrirModal(idModal) { 
     const modal = document.getElementById(idModal);

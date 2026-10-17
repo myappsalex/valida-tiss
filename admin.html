@@ -223,9 +223,7 @@
     </div>
 
     <script>
-        function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
-        function efetuarLogout() { sessionStorage.removeItem('sessaoTISS'); window.location.href = "index.html"; }
+
     </script>
 	<!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
 	<!-- Modal: Gestão de Identidade e Acessos -->
@@ -262,6 +260,17 @@
             </div>
         </div>
     </div>
+	
+	<!-- MODAL: ESCOLHER AÇÃO TUSS -->
+	<div id="modalAcaoTUSS" class="modal-overlay">
+		<div class="modal-content" style="width: 400px; text-align: center;">
+        <h3 style="margin-top: 0; color: #0056b3;">Gestão de Domínios TUSS</h3>
+        <p style="color: #666; font-size: 14px;">O que deseja fazer?</p>
+        <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalImportacaoTUSS')">📥 Importar CSV (Carga em Lote)</button>
+        <button class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalConsultaTUSS')">🔍 Consultar e Editar Registos</button>
+        <button class="btn" style="width: 100%; background: #eee; color: #333;" onclick="fecharModal('modalAcaoTUSS')">Cancelar</button>
+	</div>
+</div>
 	
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
