@@ -2,23 +2,10 @@
 let xmlDocAtual = null;
 
 // --- NAVEGAÇÃO DO WIZARD ---
-function alterarPasso(passo) {
-    document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
-    document.getElementById(`step-${passo}`).classList.add('active');
-}
-
 function iniciarProcessamento() {
     if (document.getElementById('xmlInput').files.length === 0) return;
-    alterarPasso(2);
+    if (typeof alterarPasso === 'function') alterarPasso(2);
     setTimeout(processarXML, 500);
-}
-
-function reiniciarWizard() {
-    document.getElementById('xmlInput').value = '';
-    document.getElementById('resultado').innerHTML = '';
-    document.getElementById('btnExportar').style.display = 'none';
-    xmlDocAtual = null;
-    alterarPasso(1);
 }
 
 // --- FUNÇÕES DE APOIO (TISS) ---
@@ -34,8 +21,6 @@ function extrairTexto(node, nomeTag, valorPadrao = "Não informado") { const ele
 function obterNomeDespesaTISS(codigo) { const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" }; return dominios[codigo] || "Outra Despesa"; }
 
 // --- NOVAS FUNÇÕES: FILTROS E EDIÇÃO XML (AUDITORIA) ---
-
-// 1. Filtro dinâmico nas tabelas
 function filtrarTabelaTISS(inputObj, tableId, colIndex) {
     const filter = inputObj.value.toUpperCase();
     const table = document.getElementById(tableId);
@@ -55,9 +40,64 @@ function filtrarTabelaTISS(inputObj, tableId, colIndex) {
     }
 }
 
+// --- MOTOR DE REGRAS DE NEGÓCIO TISS 2.0.0 (CABEÇALHOS) ---
+function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
+    let badgesHTML = '';
+    let validacoesHTML = '';
 
+    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
+        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
+        if (partesData.length === 3) {
+            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
+            const hoje = new Date();
+            
+            if (dataAtend > hoje) {
+                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1203]</strong> Data de atendimento posterior à data de processamento.</div>`;
+            }
+            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
+            if (diffDias > 60 && dataAtend <= hoje) {
+                validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade contratual (> 60 dias).</div>`;
+            }
+        }
+    }
 
+    if (tipoGuia === 'guiaConsulta') {
+        const indAcidente = extrairTexto(guia, "indicacaoAcidente");
+        if (indAcidente === "Não informado") {
+            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Campo 'Indicação de Acidente' ausente ou inválido no XSD.</div>`;
+        }
+    } else if (tipoGuia === 'guiaSP-SADT') {
+        const carater = extrairTexto(guia, "caraterAtendimento");
+        const temAutorizacao = buscarTagUnica(guia, "dadosAutorizacao") !== null;
 
+        if (carater === "2" || carater === "U") { 
+            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`; 
+        } else if (carater === "1" || carater === "E") { 
+            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`; 
+            if (!temAutorizacao) {
+                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1311]</strong> Guia SP/SADT Eletiva exige preenchimento de Dados de Autorização Prévia.</div>`;
+            }
+        }
+    } else if (tipoGuia === 'guiaResumoInternacao') {
+        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
+        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
+            badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
+            validacoesHTML += `<div class="alerta-box">⚠️ <strong>[Regra de Negócio]</strong> Óbito identificado. Conta enviada para Auditoria Médica Concorrente.</div>`;
+        }
+        const dataInicio = extrairTexto(guia, "dataInicioFaturamento");
+        const dataFim = extrairTexto(guia, "dataFimFaturamento");
+        if (dataInicio === "Não informado" || dataFim === "Não informado") {
+            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Período de faturamento ausente (Exigência XSD).</div>`;
+        }
+    } else if (tipoGuia === 'guiaHonorarioIndividual') {
+        const guiaMae = extrairTexto(guia, "guiaSolicitacaoInternacao");
+        if (guiaMae === "Não informado") {
+            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1014]</strong> Guia de Honorário órfã. Obrigatório informar a Guia de Solicitação de Internação (guia mãe).</div>`;
+        }
+    }
+
+    return { badges: badgesHTML, alertas: validacoesHTML };
+}
 
 // --- CHAMADA REAL DE IA ---
 async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
@@ -116,7 +156,6 @@ async function processarXML() {
             return;
         }
 
-        // Armazena em memória para permitir a exportação do XML Corrigido
         xmlDocAtual = xmlDoc;
 
         let versaoTiss = "Versão não encontrada";
@@ -174,9 +213,6 @@ async function processarXML() {
                         let dataAtendimento = extrairTexto(guia, "dataAtendimento");
                         if (dataAtendimento === "Não informado") dataAtendimento = extrairTexto(guia, "dataExecucao");
                         
-                        let valorGuiaStr = extrairTexto(guia, "valorTotalGuia");
-                        if (valorGuiaStr === "Não informado") valorGuiaStr = extrairTexto(guia, "valorTotalGeral");
-                        
                         let valorGuia = 0; let valorTotalProcedimentos = 0; let valorTotalOutrasDespesas = 0;
                         const regrasAuditoria = validarRegrasNegocio(guia, tipo, dataAtendimento);
 
@@ -219,7 +255,6 @@ async function processarXML() {
                                 const codigo = extrairTexto(proc, "codigoProcedimento");
                                 const descricao = extrairTexto(proc, "descricaoProcedimento");
                                 
-                                // Extração e Cálculo Matemático
                                 let qtdStr = extrairTexto(proc, "quantidadeExecutada");
                                 let vlUnitStr = extrairTexto(proc, "valorUnitario");
                                 let vlTotStr = extrairTexto(proc, "valorTotal");
@@ -248,13 +283,11 @@ async function processarXML() {
                                 valorTotalProcedimentosItem += vlTot;
                                 valorTotalLote += vlTot;
                                 
-                                // Validação Item e Glosa (Blink)
                                 let glosasItem = validarItemTISS(proc, 'PROCEDIMENTO', tipo);
                                 let htmlGlosa = glosasItem.length > 0 
                                     ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
                                     : `<span style="color:#28a745;">✅</span>`;
 
-                                // Campos Editáveis Invertidos
                                 let idBase = `proc-${numeroGuia}-${p}`;
                                 let inputQtd = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
                                 let inputVlUnit = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
@@ -293,14 +326,12 @@ async function processarXML() {
                                 const tipoDespesaCod = extrairTexto(desp, "codigoDespesa"); 
                                 const tipoDespesaNome = obterNomeDespesaTISS(tipoDespesaCod);
                                 
-                                // Extração e Cálculo Matemático (Agora com Valor Unitário)
                                 let qtdStr = extrairTexto(desp, "quantidadeExecutada");
                                 let vlUnitStr = extrairTexto(desp, "valorUnitario");
                                 let vlTotStr = extrairTexto(desp, "valorTotal");
 
                                 let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
                                 let vlTot = vlTotStr !== "Não informado" ? parseFloat(vlTotStr) : 0;
-                                // Caso o XML omita Vl Unitário, o JS calcula: Total / Qtd
                                 let vlUnit = vlUnitStr !== "Não informado" ? parseFloat(vlUnitStr) : (qtd > 0 ? (vlTot / qtd) : 0);
                                 
                                 valorGuia += vlTot;																				
@@ -314,13 +345,11 @@ async function processarXML() {
                                 valorTotalOutrasDespesas += vlTot;
                                 valorTotalLote += vlTot;
 
-                                // Validação Item e Glosa (Blink)
                                 let glosasItem = validarItemTISS(desp, 'DESPESA', tipo);
                                 let htmlGlosa = glosasItem.length > 0 
                                     ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
                                     : `<span style="color:#28a745;">✅</span>`;
 
-                                // Campos Editáveis Invertidos
                                 let idBase = `desp-${numeroGuia}-${o}`;
                                 let inputQtdD = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
                                 let inputVlUnitD = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
@@ -363,7 +392,7 @@ async function processarXML() {
                         <h4 style="margin: 0 0 10px 0; color: #333;">Resumo Financeiro do Lote</h4>
                         <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> | <strong>Operadora:</strong> ${operadoraID}</p>
                         <p style="margin: 5px 0;"><strong>Total de Guias:</strong> <span style="color: blue; font-weight: bold;">${totalGuias}</span></p>
-                        <p style="margin: 5px 0; font-size: 16px;"><strong>Valor Total a Pagar:</strong> <span style="color: red; font-weight: bold;">R$ ${valorTotalLote.toFixed(2).replace('.', ',')}</span></p>
+                        <p style="margin: 5px 0; font-size: 16px;"><strong>Valor Total a Pagar:</strong> <span style="color: red; font-weight: bold;">R$ <span id="sum-lote">${valorTotalLote.toFixed(2).replace('.', ',')}</span></span></p>
                         
                         <!-- BOTÃO DE EXPORTAÇÃO DO XML -->
                         <button onclick="exportarXMLCorrigido()" class="btn btn-success" style="margin-top: 15px; width: 100%; font-size: 14px; padding: 12px;">💾 Descarregar XML Corrigido (Livre de Glosas)</button>
@@ -400,6 +429,7 @@ async function processarXML() {
     };
     reader.readAsText(file);
 }
+
 // --- VALIDAÇÃO POR ITEM (GLOSAS DETALHADAS) ---
 function validarItemTISS(itemNode, tipoItem, tipoGuia) {
     let erros = [];
@@ -408,7 +438,6 @@ function validarItemTISS(itemNode, tipoItem, tipoGuia) {
     let tabela = extrairTexto(itemNode, "codigoTabela");
     let cod = extrairTexto(itemNode, "codigoProcedimento");
 
-    // ANS Estruturais
     if (tipoGuia === 'guiaConsulta' && tipoItem === 'PROCEDIMENTO') {
         if (qtd > 1) erros.push("<strong>[Glosa 1004]</strong> Quantidade superior ao permitido para Consulta (Máx: 1).");
         if (tabela !== "22") erros.push("<strong>[Glosa 1102]</strong> Código de tabela inválido. Exigido Tabela 22.");
@@ -420,7 +449,6 @@ function validarItemTISS(itemNode, tipoItem, tipoGuia) {
         if (tipoDesp === '05' && tabela !== "63" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> Diária fora da Tabela 63.");
     }
 
-    // Regras de Negócio do Cliente (Cross-Check)
     if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
         regrasAtivasCliente.forEach(regra => {
             if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
@@ -443,8 +471,7 @@ function validarItemTISS(itemNode, tipoItem, tipoGuia) {
 }
 
 // --- CÁLCULO E ATUALIZAÇÃO DOM/XML EM TEMPO REAL ---
-function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem, campoEditado) {
-    // 1. Encontra os inputs irmãos baseados no ID (que tem a estrutura: qtd-NUMGUIA-IDX)
+function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem) {
     const baseId = inputElem.id.split('-').slice(1).join('-');
     const inQtd = document.getElementById(`qtd-${baseId}`);
     const inVlUnit = document.getElementById(`unit-${baseId}`);
@@ -454,10 +481,8 @@ function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem, campoEdita
     let vlUnit = parseFloat(inVlUnit.value) || 0;
     let novoVlTot = (qtd * vlUnit).toFixed(2);
     
-    // 2. Atualiza o Total no Ecrã (Readonly)
     inVlTot.value = novoVlTot;
 
-    // 3. Atualiza o XML Original na Memória
     if(!xmlDocAtual) return;
     const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
     let guiaNode = null;
@@ -477,7 +502,6 @@ function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem, campoEdita
         let tTot = buscarTagUnica(itemNode, "valorTotal"); if(tTot) tTot.textContent = novoVlTot;
     }
 
-    // 4. Recalcula os Totais Gerais da Guia Visuais
     recalcularTotaisGuiaVisuais(numeroGuia);
 }
 
@@ -496,38 +520,39 @@ function recalcularTotaisGuiaVisuais(numeroGuia) {
     
     const elTGuia = document.getElementById(`sum-guia-${numeroGuia}`);
     if(elTGuia) elTGuia.innerText = `R$ ${totalGuia.toFixed(2).replace('.', ',')}`;
+
+    let totalLote = 0;
+    document.querySelectorAll('.input-readonly').forEach(el => totalLote += parseFloat(el.value) || 0);
+    const elTLote = document.getElementById('sum-lote');
+    if(elTLote) elTLote.innerText = totalLote.toFixed(2).replace('.', ',');
 }
 
 // --- MONETIZAÇÃO E EXPORTAÇÃO (FREEMIUM) ---
 async function exportarXMLCorrigido() {
     if (!xmlDocAtual) { alert("Nenhum ficheiro XML processado."); return; }
     
-    // Controlo de Monetização / Autenticação
     if (!usuarioLogado) {
         alert("🔒 A funcionalidade de correção e exportação do ficheiro sem glosas requer uma conta ativa.");
-        abrirModal('modalAuth'); // Abre o modal do auth.js
+        abrirModal('modalAuth'); 
         return;
     }
 
-    // Simulador de Limites de Plano
-    let limiteDegustacao = usuarioLogado.exportacoesRestantes ?? 3; // 3 gratuitas por padrão
+    let limiteDegustacao = usuarioLogado.exportacoesRestantes ?? 3; 
     let isPremium = usuarioLogado.plano === 'PREMIUM';
 
     if (!isPremium) {
         if (limiteDegustacao <= 0) {
             alert("⚠️ Atingiu o limite do plano Freemium. Adquira o Plano Premium Mensal para correções ilimitadas.");
-            abrirModal('modalLojaTokens'); // Paywall
+            abrirModal('modalLojaTokens'); 
             return;
         } else {
             let confirma = confirm(`Restam-lhe ${limiteDegustacao} exportações gratuitas. Deseja utilizar uma agora?`);
             if(!confirma) return;
-            // Simulando desconto no backend
             usuarioLogado.exportacoesRestantes = limiteDegustacao - 1;
             sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
         }
     }
 
-    // Geração do ficheiro
     const serializer = new XMLSerializer();
     let xmlString = serializer.serializeToString(xmlDocAtual);
     if (!xmlString.startsWith("<?xml")) {
@@ -555,11 +580,4 @@ function exportarExcel() {
     link.setAttribute("href", url);
     link.setAttribute("download", "Relatorio_TISS_Completo.csv");
     link.click();
-}
-
-
-function iniciarProcessamento() {
-    if (document.getElementById('xmlInput').files.length === 0) return;
-    if (typeof alterarPasso === 'function') alterarPasso(2);
-    setTimeout(processarXML, 500);
 }
