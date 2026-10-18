@@ -338,28 +338,69 @@
     </div>
 </div>
 
-<!-- ADMIN: Lista de Pedidos de Publicidade do Cliente -->
+<!-- Modal Gestão Publicidade ADMIN -->
 <div id="modalGestaoAdsAdmin" class="modal-overlay">
     <div class="modal-content" style="width: 800px; max-height: 90vh;">
-        <h3 style="color: #f39c12; margin-top: 0;">📢 Gestão de Publicidade do Cliente</h3>
-        <p style="font-size: 13px; color: #666;" id="ads-admin-cliente-nome">Listando campanhas de: ...</p>
+        <h3 style="color: #f39c12; margin-top: 0;">📢 Gestão de Pedidos de Publicidade</h3>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+            <input type="text" id="filtro-ad-cliente" class="form-control" placeholder="Buscar Cliente..." style="flex: 1; min-width: 150px;">
+            <select id="filtro-ad-status" class="form-control" style="flex: 1; min-width: 150px;">
+                <option value="">Status (Todos)</option>
+                <option value="PENDENTE">Pendentes</option>
+                <option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</option>
+                <option value="ATIVO">Ativos</option>
+            </select>
+            <input type="date" id="filtro-ad-data" class="form-control" style="flex: 1;">
+            <button class="btn btn-primary" onclick="pesquisarPedidosAdAdmin()">Pesquisar</button>
+        </div>
         
         <div class="table-responsive">
             <table>
                 <thead>
                     <tr>
-                        <th>Tema/Campanha</th>
+                        <th>Cliente</th>
+                        <th>Tema</th>
                         <th>Status</th>
-                        <th>Orçamento</th>
-                        <th style="min-width: 250px;">Ações</th>
+                        <th style="min-width: 150px;">Ações</th>
                     </tr>
                 </thead>
-                <tbody id="tbody-ads-admin">
-                    <!-- Preenchido via JS -->
+                <tbody id="tbody-gestao-ads-admin">
+                    <!-- JS preenche aqui -->
                 </tbody>
             </table>
         </div>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalGestaoAdsAdmin')">Fechar</button>
+    </div>
+</div>
+
+<!-- Modal Resposta/Avaliação ADMIN -->
+<div id="modalAvaliarAdAdmin" class="modal-overlay" style="z-index: 1050;">
+    <div class="modal-content" style="width: 550px;">
+        <h3 style="color: #0056b3; margin-top: 0;">⚖️ Avaliar / Editar Pedido</h3>
+        <input type="hidden" id="aval-ad-id">
+        
+        <div class="form-group">
+            <label>Tema / Pedido do Cliente</label>
+            <textarea id="aval-ad-tema" class="form-control" rows="2" readonly></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label>Observações / Resposta ao Cliente</label>
+            <textarea id="aval-ad-obs" class="form-control" rows="3" placeholder="Escreva a contraproposta ou detalhes do formato..."></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label>Valor do Orçamento (R$)</label>
+            <input type="number" id="aval-ad-valor" class="form-control" step="0.01">
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+            <button class="btn btn-warning" style="flex: 1;" onclick="enviarRespostaAd()">Enviar Resposta/Orçamento</button>
+            <button class="btn btn-success" style="flex: 1;" onclick="aprovarAtivarAd()">Aprovar/Ativar Exibição</button>
+            <button class="btn btn-danger" style="flex: 1;" onclick="cancelarAdAdmin()">Cancelar Pedido</button>
+        </div>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalAvaliarAdAdmin')">Fechar</button>
     </div>
 </div>
 

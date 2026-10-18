@@ -23,12 +23,19 @@ function atualizarTopoSite() {
         if (usuarioLogado.tipo === "INTERNO") {
             elStatus.innerText = `👤 ${usuarioLogado.nome} | Perfil: ${usuarioLogado.perfil}`;
             elStatus.style.color = "#dc3545"; 
+            btnTop.innerText = "⚙️ Área Master";
+            btnTop.onclick = () => { window.location.href = "admin.html"; };
         } else {
             elStatus.innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
             elStatus.style.color = "#0056b3"; 
+            btnTop.innerText = "📊 Meu Painel";	
+            btnTop.onclick = () => { 
+                // Proteção extra: garante que não abre admin.html acidentalmente
+                if (usuarioLogado.tipo !== "INTERNO") {
+                    window.location.href = "dashboard_cliente.html"; 
+                }
+            };
         }
-        btnTop.innerText = usuarioLogado.tipo === "INTERNO" ? "⚙️ Área Master" : "📊 Meu Painel";	
-        btnTop.onclick = () => { window.location.href = usuarioLogado.tipo === "INTERNO" ? "admin.html" : "dashboard_cliente.html"; };
     }
 }
 

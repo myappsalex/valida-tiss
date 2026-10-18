@@ -50,10 +50,53 @@
             </div>
         </div>
 
-        <!-- Script de Preenchimento Automático do Painel -->
-        <script>
-           
-        </script>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px;">
+    <h3 style="margin: 0; color: #333;">📢 Minhas Campanhas de Publicidade</h3>
+    <button class="btn btn-primary" onclick="abrirModal('modalPublicidade')">+ Nova Campanha</button>
+</div>
+<div class="table-responsive">
+    <table>
+        <thead>
+            <tr>
+                <th>Tema da Campanha</th>
+                <th>Status</th>
+                <th>Mensagem / Orçamento</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="lista-minhas-campanhas">
+            <!-- Simulação visual da resposta do Admin -->
+            <tr>
+                <td>Lançamento ERP Novo</td>
+                <td><span class="badge" style="background:#f39c12;">ORÇAMENTO RECEBIDO</span></td>
+                <td><span style="font-size: 11px; color: #666;">Faremos o banner lateral por R$ 500,00</span></td>
+                <td>
+                    <button class="btn btn-success" style="padding: 5px; font-size:11px;" onclick="abrirPagamentoPIX(1, 500.00)">💲 Pagar PIX</button>
+                    <button class="btn btn-danger" style="padding: 5px; font-size:11px;" onclick="alert('Pedido cancelado')">Cancelar</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- CLIENTE: Pagar Orçamento PIX -->
+<div id="modalPagarAds" class="modal-overlay">
+    <div class="modal-content" style="width: 400px; text-align: center;">
+        <h3 style="color: #28a745; margin-top: 0;">💲 Pagamento via PIX</h3>
+        <p>Valor a pagar: <strong id="pix-valor-display">R$ 0,00</strong></p>
+        
+        <!-- API de Geração de QR Code (Google Chart API para simulação) -->
+        <img id="pix-qrcode-img" src="https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=00020126580014br.gov.bcb.pix...&choe=UTF-8" alt="QR Code PIX" style="margin: 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
+        
+        <p style="font-size: 11px; color: #666;">PIX Copia e Cola:</p>
+        <input type="text" id="pix-copia-cola" value="00020126580014br.gov.bcb.pix0136..." class="form-control" readonly style="margin-bottom: 15px; text-align: center; font-size: 11px;">
+        
+        <button class="btn btn-success" style="width: 100%;" onclick="copiarPix()">Copiar Código PIX</button>
+        <p style="font-size: 11px; color: #dc3545; margin-top: 10px;">Após o pagamento, o administrador ativará a campanha.</p>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalPagarAds')">Fechar</button>
+    </div>
+</div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
             <h3 style="margin: 0; color: #333;">⚙️ As Minhas Regras de Negócio Customizadas</h3>
             <button class="btn btn-success" onclick="abrirModalNovaRegra()">+ Criar Nova Regra</button>
@@ -146,9 +189,34 @@
         </div>
     </div>
 
-    <script>
-       
-    </script>
+ <!-- Modal Acompanhamento Cliente -->
+<div id="modalAcompanharAdCliente" class="modal-overlay">
+    <div class="modal-content" style="width: 550px;">
+        <h3 style="color: #0056b3; margin-top: 0;">📋 Detalhes do Pedido de Publicidade</h3>
+        
+        <div class="form-group">
+            <label>O seu Tema / Pedido</label>
+            <textarea id="acom-cli-tema" class="form-control" rows="2" readonly></textarea>
+        </div>
+        
+        <div class="form-group" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border-left: 4px solid #17a2b8;">
+            <label style="color: #17a2b8;">Observações do Administrador (ValidaTISS)</label>
+            <div id="acom-cli-obs" style="font-size: 13px; min-height: 40px; padding: 5px; background: white; border: 1px solid #ddd; border-radius: 4px;">Aguardando avaliação...</div>
+        </div>
+        
+        <div class="form-group" style="margin-top: 15px;">
+            <label style="color: #28a745; font-size: 14px;">Valor do Orçamento</label>
+            <input type="text" id="acom-cli-valor" class="form-control" style="font-size: 16px; font-weight: bold; color: #28a745;" readonly>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="btn-aprovar-orc" class="btn btn-success" style="flex: 1;" onclick="aprovarOrcamentoPIX()">Aprovar e Pagar PIX</button>
+            <button class="btn btn-danger" style="flex: 1;" onclick="cancelarPedidoCliente()">Cancelar Pedido</button>
+        </div>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
+    </div>
+</div>
+
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>

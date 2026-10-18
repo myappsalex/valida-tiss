@@ -108,41 +108,26 @@
             <button class="close-modal" onclick="fecharModalAuth()">Cancelar</button>
         </div>
     </div>
-	<!-- Modal Venda de Tokens de IA -->
-    <div id="modalLojaTokens" class="modal-overlay">
-        <div class="modal-content">
-            <h3 style="color: #6f42c1;">🛒 Adquirir Tokens de Auditoria IA</h3>
-            <p style="font-size: 13px;">Sem mensalidades. Compre pacotes de análise e use quando precisar.</p>
+    <!-- Modal Venda de Publicidade (Corrigido e Envolvido) -->
+    <div id="modalPublicidade" class="modal-overlay">
+        <div class="modal-content" style="width: 500px;">
+            <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+            <p style="font-size: 13px; color: #666;">Descreva a sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
             
-            <div class="pricing-card" onclick="solicitarCompra('IA', '100 Tokens - R$ 49,90')">
-                <strong>Pacote Starter (100 Análises)</strong><br>
-                <span style="color: #28a745; font-size: 18px;">R$ 49,90</span>
-            </div>
-            <div class="pricing-card" style="border-color: #6f42c1; background: #f8f5ff;" onclick="solicitarCompra('IA', '500 Tokens - R$ 199,90')">
-                <strong>Pacote Pro (500 Análises) - Mais Popular</strong><br>
-                <span style="color: #28a745; font-size: 18px;">R$ 199,90</span>
-            </div>
+            <input type="hidden" id="pub-cliente-id">
+            <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;" readonly>
+            <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px;" readonly>
+            <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
             
-            <button class="close-modal" onclick="fecharModais()">Cancelar</button>
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
+            <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
+            
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+            <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+            
+            <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
         </div>
-    </div>
-
-    <div class="modal-content" style="width: 500px;">
-        <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
-        <p style="font-size: 13px; color: #666;">Descreva a sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
-        
-        <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
-        <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px;">
-        <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
-        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
-        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
-        
-        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
     </div>
 	
 	<!-- Modal Acesso Restrito (Admin) -->

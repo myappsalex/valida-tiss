@@ -98,3 +98,19 @@ async function enviarPedidoPub() {
         processarEnvio(null); // Cliente não enviou arte
     }
 }
+
+// Substitua as chamadas onclick="abrirModal('modalPublicidade')" nos banners por onclick="abrirPedidoPublicidade()"
+function abrirPedidoPublicidade() {
+    if (!usuarioLogado) {
+        alert("Para solicitar um orçamento e acompanhar o pedido, precisa de ter uma conta.");
+        abrirModal('modalAuth');
+        return;
+    }
+    
+    // Preenche automaticamente com os dados do cliente
+    document.getElementById('pub-cliente-id').value = usuarioLogado.id;
+    document.getElementById('pub-empresa').value = usuarioLogado.nome;
+    document.getElementById('pub-email').value = usuarioLogado.email;
+    
+    abrirModal('modalPublicidade');
+}
