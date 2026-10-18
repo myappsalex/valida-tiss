@@ -418,3 +418,68 @@ async function pesquisarContratos() {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erro de comunicação.</td></tr>';
     }
 }
+
+// O botão "Ads" na grelha deve ser: onclick="abrirGestaoAdsAdmin('${c.id}', '${c.nome}')"
+function abrirGestaoAdsAdmin(clienteId, clienteNome) {
+    document.getElementById('ads-admin-cliente-nome').innerText = `Listando campanhas de: ${clienteNome}`;
+    const tbody = document.getElementById('tbody-ads-admin');
+    
+    // Simulação de Dados (A ser substituído por fetch API)
+    const mockAds = [
+        { id: 1, tema: "Lançamento ERP Novo", status: "PENDENTE", valor: 0 },
+        { id: 2, tema: "Pós Graduação", status: "PAGO", valor: 800 }
+    ];
+    
+    tbody.innerHTML = '';
+    if(mockAds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhuma campanha registada.</td></tr>';
+    } else {
+        mockAds.forEach(ad => {
+            let corStatus = ad.status === 'ATIVO' ? '#28a745' : (ad.status === 'PAGO' ? '#17a2b8' : '#f39c12');
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${ad.tema}</strong></td>
+                    <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
+                    <td>R$ ${ad.valor.toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 4px; font-size:11px;" onclick="prepararOrcamentoAd(${ad.id})">Orçar</button>
+                        <button class="btn btn-success" style="padding: 4px; font-size:11px;" onclick="alterarStatusAd(${ad.id}, 'ATIVO')">Aprovar Exibição</button>
+                        <button class="btn btn-danger" style="padding: 4px; font-size:11px;" onclick="alterarStatusAd(${ad.id}, 'CANCELADO')">Cancelar</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+    abrirModal('modalGestaoAdsAdmin');
+}
+
+function prepararOrcamentoAd(id) {
+    document.getElementById('orc-ad-id').value = id;
+    abrirModal('modalEnviarOrcamento');
+}
+
+function salvarOrcamentoAd() {
+    // Integração API para gravar orçamento
+    alert("Orçamento enviado ao cliente!");
+    fecharModal('modalEnviarOrcamento');
+}
+
+function alterarStatusAd(id, novoStatus) {
+    if(confirm(`Deseja alterar esta campanha para ${novoStatus}?`)) {
+        // Integração API para mudar status
+        alert(`Campanha alterada para ${novoStatus}.`);
+    }
+}
+
+ function abrirPagamentoPIX(campanhaId, valor) {
+        document.getElementById('pix-valor-display').innerText = `R$ ${valor.toFixed(2)}`;
+        // Aqui integraremos a API do gateway (Asaas/Stripe) para gerar o Copia-e-Cola real
+        abrirModal('modalPagarAds');
+    }
+    
+    function copiarPix() {
+        const copyText = document.getElementById("pix-copia-cola");
+        copyText.select();
+        document.execCommand("copy");
+        alert("Código PIX copiado!");
+    }

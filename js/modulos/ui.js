@@ -54,10 +54,11 @@ async function enviarPedidoPub() {
     const empresa = document.getElementById('pub-empresa').value;
     const email = document.getElementById('pub-email').value;
     const link = document.getElementById('pub-link').value;
+    const tema = document.getElementById('pub-tema').value;
     const arquivoInput = document.getElementById('pub-arquivo');
 
-    if(!empresa || !email || !link || arquivoInput.files.length === 0) {
-        alert("Preencha todos os campos e anexe o ficheiro do banner.");
+    if(!empresa || !email || !link || !tema) {
+        alert("Preencha todos os campos obrigatórios (Empresa, E-mail, Link e Tema).");
         return;
     }
 
@@ -65,11 +66,35 @@ async function enviarPedidoPub() {
     btn.disabled = true; 
     btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> A enviar...`;
 
-    // No futuro, aqui faremos um formData.append('arquivo', arquivoInput.files[0]) para enviar ao Python
-    setTimeout(() => {
-        alert(`Pedido registado com sucesso!\nA nossa equipa comercial entrará em contacto com ${empresa} através do e-mail ${email} com o orçamento e PIX de ativação.`);
-        fecharModais();
-        btn.disabled = false; 
-        btn.innerText = "Submeter Pedido de Avaliação";
-    }, 1200);
+    const processarEnvio = async (base64String) => {
+        try {
+            // Futura chamada para /api/publicidade
+            /*
+            const response = await fetch('/api/publicidade', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ empresa, email, link, tema, arquivo_base64: base64String })
+            });
+            */
+            setTimeout(() => {
+                alert(`Pedido registado com sucesso!\nA nossa equipa comercial avaliará o seu pedido e enviará um orçamento.`);
+                fecharModais();
+                btn.disabled = false; 
+                btn.innerText = "Solicitar Orçamento";
+            }, 1200);
+        } catch (error) {
+            alert("Erro ao enviar pedido.");
+            btn.disabled = false; btn.innerText = "Solicitar Orçamento";
+        }
+    };
+
+    if (arquivoInput.files.length > 0) {
+        const file = arquivoInput.files[0];
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            processarEnvio(reader.result); // Passa a string Base64
+        };
+        reader.readAsDataURL(file);
+    } else {
+        processarEnvio(null); // Cliente não enviou arte
+    }
 }

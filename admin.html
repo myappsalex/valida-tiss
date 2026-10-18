@@ -338,18 +338,46 @@
     </div>
 </div>
 
-<!-- ADMIN: Avaliar Pedido e Definir Preço -->
-<div id="modalOrcamentoAds" class="modal-overlay">
-    <div class="modal-content" style="width: 450px;">
-        <h3 style="color: #f39c12; margin-top: 0;">⚖️ Avaliar Pedido de Publicidade</h3>
-        <div id="detalhes-pedido-ad" style="font-size: 13px; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 6px;"></div>
+<!-- ADMIN: Lista de Pedidos de Publicidade do Cliente -->
+<div id="modalGestaoAdsAdmin" class="modal-overlay">
+    <div class="modal-content" style="width: 800px; max-height: 90vh;">
+        <h3 style="color: #f39c12; margin-top: 0;">📢 Gestão de Publicidade do Cliente</h3>
+        <p style="font-size: 13px; color: #666;" id="ads-admin-cliente-nome">Listando campanhas de: ...</p>
         
-        <div class="form-group">
-            <label>Valor do Orçamento (R$)</label>
-            <input type="number" id="orcamento-valor" class="form-control" placeholder="Ex: 500.00">
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tema/Campanha</th>
+                        <th>Status</th>
+                        <th>Orçamento</th>
+                        <th style="min-width: 250px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-ads-admin">
+                    <!-- Preenchido via JS -->
+                </tbody>
+            </table>
         </div>
-        <button class="btn btn-warning" style="width: 100%;" onclick="alert('Orçamento enviado para o cliente!')">Enviar Orçamento</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalOrcamentoAds')">Fechar</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalGestaoAdsAdmin')">Fechar</button>
+    </div>
+</div>
+
+<!-- ADMIN: Sub-Modal para Enviar Orçamento -->
+<div id="modalEnviarOrcamento" class="modal-overlay" style="z-index: 1050;">
+    <div class="modal-content" style="width: 450px;">
+        <h3 style="color: #0056b3; margin-top: 0;">💲 Enviar Orçamento</h3>
+        <input type="hidden" id="orc-ad-id">
+        <div class="form-group">
+            <label>Valor Proposto (R$)</label>
+            <input type="number" id="orc-valor" class="form-control" placeholder="Ex: 500.00">
+        </div>
+        <div class="form-group">
+            <label>Mensagem para o Cliente (Propostas e Ajustes)</label>
+            <textarea id="orc-mensagem" class="form-control" rows="4" placeholder="Ex: Faremos o banner animado para o rodapé por R$ 500/mês..."></textarea>
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="salvarOrcamentoAd()">Enviar Proposta</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalEnviarOrcamento')">Cancelar</button>
     </div>
 </div>
 
