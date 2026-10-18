@@ -366,3 +366,55 @@ async function salvarAssinaturaCliente() {
         }
     } catch(e) { alert("Erro de comunicação com o servidor."); }
 }
+
+async function pesquisarContratos() {
+    const nome = document.getElementById('filtro-cli-nome').value;
+    const email = document.getElementById('filtro-cli-email').value;
+    const status = document.getElementById('filtro-cli-status').value;
+    const tbody = document.getElementById('tbody-contratos');
+
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;"><div class="gauge-loader"></div> A pesquisar...</td></tr>';
+    
+    try {
+        // Exemplo de chamada construindo a querystring
+        let url = `/api/gestao_usuarios?tipo=CLIENTE`;
+        if (nome) url += `&nome=${encodeURIComponent(nome)}`;
+        if (email) url += `&email=${encodeURIComponent(email)}`;
+        if (status) url += `&status=${status}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok) {
+            tbody.innerHTML = '';
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum contrato encontrado.</td></tr>';
+                return;
+            }
+
+            data.forEach(c => {
+                const badgeStatus = c.statusPagamento === 'ATIVO' ? '<span class="badge" style="background:#28a745;">ATIVO</span>' : '<span class="badge" style="background:#dc3545;">INADIMPLENTE</span>';
+                const plano = c.plano || 'FREEMIUM';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${c.nome}</strong></td>
+                        <td>${c.email}</td>
+                        <td>${badgeStatus}</td>
+                        <td><strong>${plano}</strong></td>
+                        <td><span style="color:#0056b3; font-weight:bold;">${c.tokensRestantes || 0}</span></td>
+                        <td>
+                            <!-- Modais a serem criados/vinculados -->
+                            <button class="btn" style="background:#17a2b8; color:white; font-size:11px; padding:6px;" title="Editar Dados">✏️ Dados</button>
+                            <button class="btn" style="background:#28a745; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalTokens')" title="Adicionar Tokens">💰 Tokens</button>
+                            <button class="btn" style="background:#6f42c1; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalAssinaturas')" title="Situação Financeira">💲 Assinatura</button>
+                            <button class="btn" style="background:#f39c12; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalOrcamentoAds')" title="Gestão de Ads">📢 Ads</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erro de comunicação.</td></tr>';
+    }
+}
