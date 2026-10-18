@@ -59,11 +59,13 @@
         </div>
     </div>
 
-    <!-- Rodapé Publicitário -->
-    <div class="ad-banner-animated-rodape" onclick="abrirModal('modalPublicidade')">
-        <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
-        <span class="pulse-text">Clique aqui e anuncie no portal</span>
-    </div>
+	  <!-- Banner Publicitário Vertical (Sempre Visível) -->
+	<div class="ad-banner-vertical" onclick="abrirModal('modalPublicidade')">
+		<h4>Anuncie Aqui</h4>
+		<p>O seu software visto por quem decide.</p>
+		<div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+		<span class="btn-ad">Ver Formatos</span>
+	</div>
 
 
     <!-- Modal Paywall (Aviso de Funcionalidade Premium IA) -->
@@ -126,21 +128,23 @@
         </div>
     </div>
 
-    <!-- Modal Venda de Publicidade -->
-    <div id="modalPublicidade" class="modal-overlay">
-        <div class="modal-content">
-            <h3 style="color: #0056b3;">📢 Anuncie no Portal do Faturista</h3>
-            <p style="font-size: 13px;">Mais de 10.000 guias validadas diariamente. Fale com o seu público-alvo (Hospitais, Clínicas e Auditores).</p>
-            <input type="text" id="pub-empresa" placeholder="Nome da Empresa" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
-            <input type="email" id="pub-email" placeholder="E-mail de Contato" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
-            <select id="pub-local" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd;">
-                <option>Banner Cabeçalho (728x90) - R$ 500/mês</option>
-                <option>Banner Rodapé (728x90) - R$ 300/mês</option>
-            </select>
-            <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
-            <button class="close-modal" onclick="fecharModais()">Cancelar</button>
-        </div>
-    </div>
+	<!-- Modal Venda de Publicidade (Atualizado) -->
+	<div id="modalPublicidade" class="modal-overlay">
+		<div class="modal-content" style="width: 450px;">
+			<h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+			<p style="font-size: 13px; color: #666;">Envie a sua arte (160x600 px) e o link de destino. O seu banner ficará visível em todo o sistema após aprovação.</p>
+			
+			<input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
+			<input type="email" id="pub-email" placeholder="E-mail para Orçamento" class="form-control" style="margin-bottom: 10px;">
+			<input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
+			
+			<label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Anexar Banner (JPG/PNG):</label>
+			<input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+			
+			<button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Submeter Pedido de Avaliação</button>
+			<button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
+		</div>
+	</div>
 	
 	<!-- Modal Acesso Restrito (Admin) -->
     <div id="modalAdminAuth" class="modal-overlay">

@@ -2,11 +2,9 @@
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Master Admin - Portal TISS</title>
-	<link rel="stylesheet" href="css/style.css">
-    <style>
-        
-    </style>
+    <link rel="stylesheet" href="css/style.css">
     <!-- AUTH GUARD: Proteção de Rota -->
     <script>
         const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
@@ -129,14 +127,16 @@
 </script>
 
         <h3>Gestão de Contratos de IA</h3>
-        <table>
-            <tr><th>Cliente</th><th>Email</th><th>Tokens Restantes</th><th>Status</th><th>Ações</th></tr>
-            <tr>
-                <td>Hospital Santa Maria</td><td>faturamento@hsm.com</td><td>845</td>
-                <td><span style="color: green; font-weight: bold;">Ativo</span></td>
-                <td><button class="btn btn-success" style="padding: 5px;" onclick="abrirModal('modalTokens')">Add Tokens</button></td>
-            </tr>
-        </table>
+        <div class="table-responsive">
+            <table>
+                <tr><th>Cliente</th><th>Email</th><th>Tokens Restantes</th><th>Status</th><th>Ações</th></tr>
+                <tr>
+                    <td>Hospital Santa Maria</td><td>faturamento@hsm.com</td><td>845</td>
+                    <td><span style="color: green; font-weight: bold;">Ativo</span></td>
+                    <td><button class="btn btn-success" style="padding: 5px;" onclick="abrirModal('modalTokens')">Add Tokens</button></td>
+                </tr>
+            </table>
+        </div>
     </div>
 
     <!-- Modal: Cadastro de Utilizadores Internos -->
@@ -243,7 +243,7 @@
                 </select>
             </div>
 
-            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;">
                 <table>
                     <thead>
                         <tr>
@@ -254,7 +254,6 @@
                         </tr>
                     </thead>
                     <tbody id="lista-usuarios-body">
-                        <!-- O JS vai injetar os dados aqui -->
                         <tr><td colspan="4" style="text-align: center;">Selecione o tipo de utilizador...</td></tr>
                     </tbody>
                 </table>

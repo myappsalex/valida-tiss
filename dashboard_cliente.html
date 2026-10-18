@@ -2,6 +2,7 @@
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Meu Painel - ValidaTISS</title>
     <!-- Importação do CSS Centralizado -->
     <link rel="stylesheet" href="css/style.css">
@@ -18,7 +19,7 @@
         <div class="header">
             <div>
                 <h2 style="margin: 0;">📊 Meu Painel - <span id="nome-empresa-painel">Empresa</span></h2>
-                <p style="margin: 5px 0 0 0; color: #666;">Saldo Atual: <strong id="saldo-tokens-painel" style="color: #0056b3; font-size: 18px;">0</strong> Tokens IA</p>
+                <!--<p style="margin: 5px 0 0 0; color: #666;">Saldo Atual: <strong id="saldo-tokens-painel" style="color: #0056b3; font-size: 18px;">0</strong> Tokens IA</p>-->
             </div>
             <div>
                 <button class="btn btn-primary" onclick="window.location.href='index.html'">Voltar ao Validador</button>
@@ -59,20 +60,22 @@
         </div>
         <p style="font-size: 13px; color: #666;">Crie gatilhos para que o validador bloqueie ou alerte guias que saiam do padrão do seu contrato antes do envio.</p>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Nome da Regra</th>
-                    <th>Alvo e Campo</th>
-                    <th>Condição</th>
-                    <th>Ação do Sistema</th>
-                    <th>Opções</th>
-                </tr>
-            </thead>
-            <tbody id="lista-regras-body">
-                <tr><td colspan="5" style="text-align: center;">A carregar regras...</td></tr>
-            </tbody>
-        </table>
+		<div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome da Regra</th>
+                        <th>Alvo e Campo</th>
+                        <th>Condição</th>
+                        <th>Ação do Sistema</th>
+                        <th>Opções</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-regras-body">
+                    <tr><td colspan="5" style="text-align: center;">A carregar regras...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- MODAL: NOVA/EDITAR REGRA -->

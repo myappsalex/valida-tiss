@@ -49,3 +49,27 @@ function mostrarGlosaModal(textoCodificado) {
     document.getElementById('texto-glosa-item').innerHTML = decodeURIComponent(textoCodificado);
     abrirModal('modalGlosaItem');
 }
+
+async function enviarPedidoPub() {
+    const empresa = document.getElementById('pub-empresa').value;
+    const email = document.getElementById('pub-email').value;
+    const link = document.getElementById('pub-link').value;
+    const arquivoInput = document.getElementById('pub-arquivo');
+
+    if(!empresa || !email || !link || arquivoInput.files.length === 0) {
+        alert("Preencha todos os campos e anexe o ficheiro do banner.");
+        return;
+    }
+
+    const btn = document.getElementById('btn-pub-submit');
+    btn.disabled = true; 
+    btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> A enviar...`;
+
+    // No futuro, aqui faremos um formData.append('arquivo', arquivoInput.files[0]) para enviar ao Python
+    setTimeout(() => {
+        alert(`Pedido registado com sucesso!\nA nossa equipa comercial entrará em contacto com ${empresa} através do e-mail ${email} com o orçamento e PIX de ativação.`);
+        fecharModais();
+        btn.disabled = false; 
+        btn.innerText = "Submeter Pedido de Avaliação";
+    }, 1200);
+}

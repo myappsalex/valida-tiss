@@ -192,3 +192,61 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; margin:
 .input-calc {
     width: 70px; padding: 4px; border: 1px solid #0056b3; border-radius: 4px;
 }		
+
+/* --- Banner Vertical Fixo (Skyscraper 160x600) --- */
+.ad-banner-vertical {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 160px;
+    background: linear-gradient(135deg, #0056b3, #004494);
+    color: white;
+    text-align: center;
+    padding: 20px 10px;
+    border-radius: 8px 0 0 8px;
+    box-shadow: -4px 0 15px rgba(0,0,0,0.15);
+    cursor: pointer;
+    z-index: 999;
+    transition: width 0.3s ease;
+    overflow: hidden;
+}
+.ad-banner-vertical:hover {
+    width: 170px;
+}
+.ad-banner-vertical h4 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; }
+.ad-banner-vertical p { font-size: 11px; opacity: 0.9; margin-bottom: 15px; }
+.ad-banner-vertical .btn-ad {
+    background: #ffc107; color: #333; font-weight: bold; font-size: 12px; 
+    padding: 8px; border-radius: 4px; display: block; width: 100%; box-sizing: border-box;
+}
+/* Esconde a classe antiga do rodapé */
+.ad-banner-animated-rodape { display: none !important; }
+
+/* --- RESPONSIVIDADE (Mobile) --- */
+@media screen and (max-width: 768px) {
+    body { padding: 10px; }
+    .container, .dashboard { padding: 15px; }
+    
+    /* Modais */
+    .modal-content { width: 95% !important; padding: 20px 15px; }
+    
+    /* Grelhas (Tabelas) com Scroll Horizontal no Mobile */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 20px;
+    }
+    
+    /* Barras de Ação e Cards */
+    .action-bar { flex-direction: column; width: 100%; }
+    .action-bar .btn { width: 100%; margin-bottom: 5px; }
+    .dashboard .header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    
+    /* Inputs invertidos (Cálculo TISS) */
+    .input-calc { width: 100%; min-width: 60px; box-sizing: border-box; }
+    
+    /* Esconder o Banner Lateral Fixo em ecrãs pequenos */
+    .ad-banner-vertical { display: none !important; }
+}
