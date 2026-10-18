@@ -17,25 +17,11 @@
 	
 <body>
 
-<div id="modalPublicidade" class="modal-overlay">
-    <div class="modal-content" style="width: 500px;">
-        <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
-        <p style="font-size: 13px; color: #666;">Descreva a sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
-        
-        <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
-        <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px;">
-        <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
-        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
-        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
-        
-        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
+    <!-- Banner Cabeçalho (Venda de Publicidade) -->
+    <div class="ad-banner-animated" onclick="abrirModal('modalPublicidade')">
+        <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
+        <span class="pulse-text">Clique aqui e anuncie no portal</span>
     </div>
-</div>
 
     <div class="container">
         <!-- WIZARD PASSO 1: Upload -->
@@ -73,14 +59,13 @@
         </div>
     </div>
 
-	  <!-- Banner Publicitário Vertical (Sempre Visível) -->
-	<div class="ad-banner-vertical" onclick="abrirModal('modalPublicidade')">
-		<h4>Anuncie Aqui</h4>
-		<p>O seu software visto por quem decide.</p>
-		<div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
-		<span class="btn-ad">Ver Formatos</span>
-	</div>
-
+  <!-- Banner Publicitário Vertical (Sempre Visível) -->
+<div class="ad-banner-vertical" onclick="abrirModal('modalPublicidade')">
+    <h4>Anuncie Aqui</h4>
+    <p>O seu software visto por quem decide.</p>
+    <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+    <span class="btn-ad">Ver Formatos</span>
+</div>
 
     <!-- Modal Paywall (Aviso de Funcionalidade Premium IA) -->
     <div id="modalPremium" class="modal-overlay">
@@ -142,23 +127,23 @@
         </div>
     </div>
 
-	<!-- Modal Venda de Publicidade (Atualizado) -->
-	<div id="modalPublicidade" class="modal-overlay">
-		<div class="modal-content" style="width: 450px;">
-			<h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
-			<p style="font-size: 13px; color: #666;">Envie a sua arte (160x600 px) e o link de destino. O seu banner ficará visível em todo o sistema após aprovação.</p>
-			
-			<input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
-			<input type="email" id="pub-email" placeholder="E-mail para Orçamento" class="form-control" style="margin-bottom: 10px;">
-			<input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
-			
-			<label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Anexar Banner (JPG/PNG):</label>
-			<input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
-			
-			<button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Submeter Pedido de Avaliação</button>
-			<button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
-		</div>
-	</div>
+    <div class="modal-content" style="width: 500px;">
+        <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+        <p style="font-size: 13px; color: #666;">Descreva a sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
+        
+        <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
+        <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px;">
+        <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
+        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+        
+        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
+    </div>
 	
 	<!-- Modal Acesso Restrito (Admin) -->
     <div id="modalAdminAuth" class="modal-overlay">
