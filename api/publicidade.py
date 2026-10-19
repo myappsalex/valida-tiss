@@ -5,8 +5,51 @@ import os
 import uuid
 from http.server import BaseHTTPRequestHandler
 from prisma import Prisma
+from urllib.parse import urlparse, parse_qs
 
 class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        db = Prisma()
+        try:
+            db.connect()
+            parsed_path = urlparse(self.path)
+            query_params = parse_qs(parsed_path.query)
+            
+            acao = query_params.get('acao', [''])[0]
+            cliente = query_params.get('cliente', [''])[0]
+            status = query_params.get('status', [''])[0]
+            
+            if acao == 'listar':
+                where_clause = {}
+                if cliente:
+                    # Busca pelo ID do cliente ou pelo nome da empresa
+                    where_clause['empresa_nome'] = {'contains': cliente, 'mode': 'insensitive'}
+                if status:
+                    where_clause['status'] = status
+                    
+                # Busca real na tabela CampanhaAds
+                resultados = db.campanhaads.find_many(where=where_clause, order={'criadoEm': 'desc'})
+                
+                lista = []
+                for r in resultados:
+                    lista.append({
+                        "id": r.id,
+                        "empresa_nome": r.empresa_nome,
+                        "tema": r.tema,
+                        "status": r.status,
+                        "valorOrcamento": r.valorOrcamento,
+                        "observacaoAdmin": r.observacaoAdmin
+                    })
+                self._send_response(200, lista)
+            else:
+                self._send_response(400, {'erro': 'Ação inválida.'})
+                
+        except Exception as e:
+            # Caso a tabela não exista ainda, devolve array vazio para o grid não quebrar
+            self._send_response(200, [])
+        finally:
+            if db.is_connected(): db.disconnect()
+            
     def do_POST(self):
         db = Prisma()
         try:

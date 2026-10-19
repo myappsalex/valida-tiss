@@ -48,24 +48,28 @@ window.addEventListener('DOMContentLoaded', () => {
     if (sessao) { usuarioLogado = sessao; carregarRegrasCliente(); } 
 });
 
- document.addEventListener('DOMContentLoaded', () => {
-                const s = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-                if(s) {
-                    document.getElementById('nome-empresa-painel').innerText = s.nome;
-                    document.getElementById('saldo-tokens-painel').innerText = s.tokensRestantes || 0;
-                    document.getElementById('dash-tokens').innerText = s.tokensRestantes || 0;
-                    
-                    const plano = s.plano || 'FREEMIUM';
-                    document.getElementById('dash-plano').innerText = plano;
-                    
-                    const statusEl = document.getElementById('dash-status');
-                    const statusPgto = s.statusPagamento || 'ATIVO';
-                    statusEl.innerText = statusPgto;
-                    
-                    if (statusPgto === 'ATIVO') {
-                        statusEl.style.backgroundColor = '#d4edda'; statusEl.style.color = '#155724';
-                    } else {
-                        statusEl.style.backgroundColor = '#f8d7da'; statusEl.style.color = '#721c24';
-                    }
-                }
-            });
+document.addEventListener('DOMContentLoaded', () => {
+    const s = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+    if(s) {
+        const elNome = document.getElementById('nome-empresa-painel');
+        if(elNome) elNome.innerText = s.nome;
+        
+        // Os IDs devem existir no HTML para receberem os dados
+        const elDashTokens = document.getElementById('dash-tokens');
+        if(elDashTokens) elDashTokens.innerText = s.tokensRestantes || 0;
+        
+        const elPlano = document.getElementById('dash-plano');
+        if(elPlano) elPlano.innerText = s.plano || 'FREEMIUM';
+        
+        const statusEl = document.getElementById('dash-status');
+        if(statusEl) {
+            const statusPgto = s.statusPagamento || 'ATIVO';
+            statusEl.innerText = statusPgto;
+            if (statusPgto === 'ATIVO') {
+                statusEl.style.backgroundColor = '#d4edda'; statusEl.style.color = '#155724';
+            } else {
+                statusEl.style.backgroundColor = '#f8d7da'; statusEl.style.color = '#721c24';
+            }
+        }
+    }
+});

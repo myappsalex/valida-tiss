@@ -114,3 +114,20 @@ function abrirPedidoPublicidade() {
     
     abrirModal('modalPublicidade');
 }
+
+// --- FUNÇÕES DE PAGAMENTO PIX ---
+function abrirPagamentoPIX(campanhaId, valor) {
+    const display = document.getElementById('pix-valor-display');
+    if (display) display.innerText = `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
+    
+    // No futuro: chamada fetch('/api/gerar_pix') aqui
+    abrirModal('modalPagarAds');
+}
+
+function copiarPix() {
+    const copyText = document.getElementById("pix-copia-cola");
+    if (!copyText) return;
+    copyText.select();
+    document.execCommand("copy");
+    alert("Código PIX copiado com sucesso!");
+}
