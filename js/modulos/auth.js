@@ -123,7 +123,7 @@ async function solicitarConta() {
     const email = document.getElementById('reg-email').value;
     const senha = document.getElementById('reg-senha').value;
     
-    if (!/(?=.*[!@#$%^&*]).{8,}/.test(senha)) { alert("A palavra-passe deve ter pelo menos 8 caracteres e um caractere especial (!@#$...)."); return; }
+    if (!/(?=.*[!@#$%^&*]).{8,}/.test(senha)) { alert("A senha deve ter pelo menos 8 caracteres e um caractere especial (!@#$...)."); return; }
     if (!nome || !email) { alert("Preencha todos os campos obrigatórios."); return; }
 
     toggleLoadingButton('btn-registro-submit', true, 'Solicitar Conta e Tokens');

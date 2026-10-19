@@ -483,3 +483,113 @@ function alterarStatusAd(id, novoStatus) {
         document.execCommand("copy");
         alert("Código PIX copiado!");
     }
+	
+// --- GESTÃO DINÂMICA DE PUBLICIDADE (LIGAÇÃO PRISMA/BD) ---
+
+// 1. Função chamada pelo botão do Menu Principal
+async function abrirGestaoAdsAdminGeral() {
+    abrirModal('modalGestaoAdsAdmin');
+    // Força a pesquisa logo ao abrir o modal
+    await pesquisarPedidosAdAdmin(); 
+}
+
+// 2. Busca real na Base de Dados (substitui os Mocks)
+async function pesquisarPedidosAdAdmin() {
+    const clienteNome = document.getElementById('filtro-ad-cliente').value;
+    const status = document.getElementById('filtro-ad-status').value;
+    const dataFiltro = document.getElementById('filtro-ad-data').value;
+    const tbody = document.getElementById('tbody-gestao-ads-admin');
+
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;"><div class="gauge-loader"></div> A consultar base de dados...</td></tr>';
+    
+    try {
+        // Montagem da query string para a API Python (Prisma)
+        let url = `/api/publicidade?acao=listar`;
+        if (clienteNome) url += `&cliente=${encodeURIComponent(clienteNome)}`;
+        if (status) url += `&status=${status}`;
+        if (dataFiltro) url += `&data=${dataFiltro}`;
+
+        const response = await fetch(url);
+        const campanhas = await response.json();
+        
+        tbody.innerHTML = '';
+        if (!response.ok || campanhas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666;">Nenhum pedido de publicidade atende a estes filtros.</td></tr>';
+            return;
+        }
+
+        // Popula a Grid com os botões de ação dinâmicos
+        campanhas.forEach(ad => {
+            let corStatus = '#6c757d'; // Padrão
+            if (ad.status === 'ATIVO') corStatus = '#28a745';
+            else if (ad.status === 'AGUARDANDO_PAGAMENTO') corStatus = '#17a2b8';
+            else if (ad.status === 'PENDENTE') corStatus = '#f39c12';
+            else if (ad.status === 'CANCELADO') corStatus = '#dc3545';
+
+            // O botão Avaliar passa os dados do banco para o modal secundário
+            const paramsAvaliar = `'${ad.id}', '${ad.tema.replace(/'/g, "")}', '${(ad.observacaoAdmin || "").replace(/'/g, "")}', ${ad.valorOrcamento || 0}`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${ad.empresa_nome || 'Cliente Desconhecido'}</strong></td>
+                    <td>${ad.tema}</td>
+                    <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 5px; font-size:11px;" onclick="abrirAvaliacaoAd(${paramsAvaliar})">⚖️ Avaliar / Editar</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Falha de conexão com a API de Publicidade.</td></tr>';
+    }
+}
+
+// 3. Abre o Formulário de Avaliação populado com os dados do banco
+function abrirAvaliacaoAd(id, tema, obsAdmin, valorAtual) {
+    document.getElementById('aval-ad-id').value = id;
+    document.getElementById('aval-ad-tema').value = tema;
+    document.getElementById('aval-ad-obs').value = obsAdmin;
+    document.getElementById('aval-ad-valor').value = valorAtual > 0 ? valorAtual.toFixed(2) : "";
+    
+    abrirModal('modalAvaliarAdAdmin');
+}
+
+// 4. Salva a avaliação (UPDATE no Prisma)
+async function salvarAvaliacaoAd(novoStatus) {
+    const id = document.getElementById('aval-ad-id').value;
+    const observacao = document.getElementById('aval-ad-obs').value;
+    const valor = parseFloat(document.getElementById('aval-ad-valor').value) || 0;
+
+    if (novoStatus === 'AGUARDANDO_PAGAMENTO' && valor <= 0) {
+        alert("Para enviar um orçamento, informe um valor maior que zero.");
+        return;
+    }
+
+    try {
+        const payload = {
+            acao: 'avaliar',
+            id: id,
+            status: novoStatus,
+            observacaoAdmin: observacao,
+            valorOrcamento: valor
+        };
+
+        const response = await fetch('/api/publicidade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.sucesso) {
+            alert(`Pedido atualizado para: ${novoStatus}`);
+            fecharModal('modalAvaliarAdAdmin');
+            pesquisarPedidosAdAdmin(); // Atualiza a grid por trás
+        } else {
+            alert(`Erro ao atualizar: ${data.erro}`);
+        }
+    } catch(e) {
+        alert("Erro de comunicação com o servidor.");
+    }
+}
