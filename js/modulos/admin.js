@@ -654,86 +654,88 @@ function alterarStatusAd(id, novoStatus) {
         document.execCommand("copy");
         alert("Código PIX copiado!");
     }
-	
-// --- GESTÃO DINÂMICA DE PUBLICIDADE (LIGAÇÃO PRISMA/BD) ---
 
-// 1. Função chamada pelo botão do Menu Principal
-async function abrirGestaoAdsAdminGeral() {
+// ==========================================
+// --- GESTÃO DE PUBLICIDADE (ADMIN) ---
+// ==========================================
+
+// Abre o modal principal e já carrega a lista
+function abrirGestaoAdsAdminGeral() {
     abrirModal('modalGestaoAdsAdmin');
-    // Força a pesquisa logo ao abrir o modal
-    await pesquisarPedidosAdAdmin(); 
+    pesquisarPedidosAdAdmin();
 }
 
-// 2. Busca real na Base de Dados (substitui os Mocks)
+// Busca os pedidos no banco de dados (Prisma via Python)
 async function pesquisarPedidosAdAdmin() {
-    const clienteNome = document.getElementById('filtro-ad-cliente').value;
-    const status = document.getElementById('filtro-ad-status').value;
-    const dataFiltro = document.getElementById('filtro-ad-data').value;
+    const clienteFiltro = document.getElementById('filtro-ad-cliente').value;
+    const statusFiltro = document.getElementById('filtro-ad-status').value;
     const tbody = document.getElementById('tbody-gestao-ads-admin');
 
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;"><div class="gauge-loader"></div> A consultar base de dados...</td></tr>';
-    
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;"><div class="gauge-loader"></div> Buscando pedidos...</td></tr>';
+
     try {
-        // Montagem da query string para a API Python (Prisma)
         let url = `/api/publicidade?acao=listar`;
-        if (clienteNome) url += `&cliente=${encodeURIComponent(clienteNome)}`;
-        if (status) url += `&status=${status}`;
-        if (dataFiltro) url += `&data=${dataFiltro}`;
+        if (clienteFiltro) url += `&cliente=${encodeURIComponent(clienteFiltro)}`;
+        if (statusFiltro) url += `&status=${statusFiltro}`;
 
         const response = await fetch(url);
-        const campanhas = await response.json();
-        
+        const data = await response.json();
+
         tbody.innerHTML = '';
-        if (!response.ok || campanhas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#666;">Nenhum pedido de publicidade atende a estes filtros.</td></tr>';
+        if (!response.ok || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Nenhum pedido de publicidade encontrado.</td></tr>';
             return;
         }
 
-        // Popula a Grid com os botões de ação dinâmicos
-        campanhas.forEach(ad => {
-            let corStatus = '#6c757d'; // Padrão
+        data.forEach(ad => {
+            let corStatus = '#6c757d'; 
             if (ad.status === 'ATIVO') corStatus = '#28a745';
-            else if (ad.status === 'AGUARDANDO_PAGAMENTO') corStatus = '#17a2b8';
-            else if (ad.status === 'PENDENTE') corStatus = '#f39c12';
+            else if (ad.status === 'AGUARDANDO_PAGAMENTO') corStatus = '#f39c12';
             else if (ad.status === 'CANCELADO') corStatus = '#dc3545';
+            else if (ad.status === 'PENDENTE') corStatus = '#0056b3';
 
-            // O botão Avaliar passa os dados do banco para o modal secundário
-            const paramsAvaliar = `'${ad.id}', '${ad.tema.replace(/'/g, "")}', '${(ad.observacaoAdmin || "").replace(/'/g, "")}', ${ad.valorOrcamento || 0}`;
+            // Trata aspas simples no texto para não quebrar o HTML do botão
+            const temaTratado = (ad.tema || '').replace(/'/g, "\\'");
+            const obsTratada = (ad.observacaoAdmin || '').replace(/'/g, "\\'");
+            
+            const argsAval = `'${ad.id}', '${temaTratado}', '${obsTratada}', ${ad.valorOrcamento || 0}`;
 
             tbody.innerHTML += `
                 <tr>
-                    <td><strong>${ad.empresa_nome || 'Cliente Desconhecido'}</strong></td>
-                    <td>${ad.tema}</td>
+                    <td><strong>${ad.empresa_nome || 'Desconhecido'}</strong></td>
+                    <td><div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${ad.tema}">${ad.tema}</div></td>
                     <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
                     <td>
-                        <button class="btn btn-primary" style="padding: 5px; font-size:11px;" onclick="abrirAvaliacaoAd(${paramsAvaliar})">⚖️ Avaliar / Editar</button>
+                        <button class="btn" style="background:#17a2b8; color:white; padding: 5px; font-size:11px;" onclick="abrirAvaliacaoAdAdmin(${argsAval})">Avaliar / Editar</button>
                     </td>
                 </tr>
             `;
         });
-    } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Falha de conexão com a API de Publicidade.</td></tr>';
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro de comunicação com a API.</td></tr>';
     }
 }
 
-// 3. Abre o Formulário de Avaliação populado com os dados do banco
-function abrirAvaliacaoAd(id, tema, obsAdmin, valorAtual) {
+// Abre o modal secundário para dar o preço e a resposta
+function abrirAvaliacaoAdAdmin(id, tema, obs, valor) {
     document.getElementById('aval-ad-id').value = id;
     document.getElementById('aval-ad-tema').value = tema;
-    document.getElementById('aval-ad-obs').value = obsAdmin;
-    document.getElementById('aval-ad-valor').value = valorAtual > 0 ? valorAtual.toFixed(2) : "";
+    // Se for 'null' do banco, deixa vazio
+    document.getElementById('aval-ad-obs').value = (obs && obs !== 'null') ? obs : "";
+    document.getElementById('aval-ad-valor').value = valor > 0 ? valor : "";
     
     abrirModal('modalAvaliarAdAdmin');
 }
 
-// 4. Salva a avaliação (UPDATE no Prisma)
+// Salva a decisão do Admin (Aprova, Envia Orçamento ou Cancela)
 async function salvarAvaliacaoAd(novoStatus) {
     const id = document.getElementById('aval-ad-id').value;
-    const observacao = document.getElementById('aval-ad-obs').value;
+    const obs = document.getElementById('aval-ad-obs').value;
     const valor = parseFloat(document.getElementById('aval-ad-valor').value) || 0;
 
+    // Trava de segurança: não pode cobrar R$ 0,00 se estiver aguardando pagamento
     if (novoStatus === 'AGUARDANDO_PAGAMENTO' && valor <= 0) {
-        alert("Para enviar um orçamento, informe um valor maior que zero.");
+        alert("Para enviar o orçamento, é necessário informar um valor maior que zero.");
         return;
     }
 
@@ -742,7 +744,7 @@ async function salvarAvaliacaoAd(novoStatus) {
             acao: 'avaliar',
             id: id,
             status: novoStatus,
-            observacaoAdmin: observacao,
+            observacaoAdmin: obs,
             valorOrcamento: valor
         };
 
@@ -751,16 +753,18 @@ async function salvarAvaliacaoAd(novoStatus) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         const data = await response.json();
+
         if (response.ok && data.sucesso) {
-            alert(`Pedido atualizado para: ${novoStatus}`);
+            alert("Avaliação da campanha salva com sucesso!");
             fecharModal('modalAvaliarAdAdmin');
-            pesquisarPedidosAdAdmin(); // Atualiza a grid por trás
+            pesquisarPedidosAdAdmin(); // Atualiza a tabela na mesma hora
         } else {
-            alert(`Erro ao atualizar: ${data.erro}`);
+            alert(`Erro ao salvar: ${data.erro}`);
         }
-    } catch(e) {
+    } catch (e) {
         alert("Erro de comunicação com o servidor.");
     }
 }
+
