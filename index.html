@@ -18,10 +18,19 @@
 <body>
 
     <!-- Banner Cabeçalho (Venda de Publicidade) -->
-    <div class="ad-banner-animated" onclick="abrirModal('modalPublicidade')">
+    <div class="ad-banner-animated" onclick="abrirModal('abrirPedidoPublicidade')">
         <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
         <span class="pulse-text">Clique aqui e anuncie no portal</span>
     </div>
+
+  <!-- Banner Publicitário Vertical (Sempre Visível) -->
+<div class="ad-banner-vertical" onclick="abrirModal('abrirPedidoPublicidade')">
+    <h4>Anuncie Aqui</h4>
+    <p>O seu software visto por quem decide.</p>
+    <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+    <span class="btn-ad">Ver Formatos</span>
+</div>
+
 
     <div class="container">
         <!-- WIZARD PASSO 1: Upload -->
@@ -58,14 +67,6 @@
             <div id="resultado"></div>
         </div>
     </div>
-
-  <!-- Banner Publicitário Vertical (Sempre Visível) -->
-<div class="ad-banner-vertical" onclick="abrirModal('modalPublicidade')">
-    <h4>Anuncie Aqui</h4>
-    <p>O seu software visto por quem decide.</p>
-    <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
-    <span class="btn-ad">Ver Formatos</span>
-</div>
 
     <!-- Modal Paywall (Aviso de Funcionalidade Premium IA) -->
     <div id="modalPremium" class="modal-overlay">
@@ -151,6 +152,17 @@
 				<!-- O texto da glosa será injetado aqui -->
 			</div>
 			<button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalGlosaItem')">Estou Ciente</button>
+		</div>
+	</div>
+	
+	<!-- MODAL: CONVITE DE PUBLICIDADE (NÃO LOGADO) -->
+	<div id="modalBoasVindasPub" class="modal-overlay">
+		<div class="modal-content" style="width: 400px; text-align: center;">
+			<h3 style="color: #0056b3; margin-top: 0;">👋 Bem-vindo ao ValidaTISS!</h3>
+			<p style="font-size: 14px; color: #666;">Para solicitar um orçamento e gerenciar suas campanhas de publicidade de forma segura, você precisa acessar o seu painel.</p>
+			<button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('login');">Já sou cliente (Fazer Login)</button>
+			<button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('registro');">Quero me cadastrar</button>
+			<button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalBoasVindasPub')">Cancelar</button>
 		</div>
 	</div>
 

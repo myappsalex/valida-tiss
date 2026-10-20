@@ -52,7 +52,7 @@
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px;">
     <h3 style="margin: 0; color: #333;">📢 Minhas Campanhas de Publicidade</h3>
-    <button class="btn btn-primary" onclick="abrirModal('modalPublicidade')">+ Nova Campanha</button>
+    <button class="btn btn-primary" onclick="abrirModal('abrirPedidoPublicidade')">+ Nova Campanha</button>
 </div>
 <div class="table-responsive">
     <table>
@@ -214,6 +214,28 @@
             <button class="btn btn-danger" style="flex: 1;" onclick="cancelarPedidoCliente()">Cancelar Pedido</button>
         </div>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
+    </div>
+</div>
+
+<!-- MODAL: FORMULÁRIO DE PEDIDO (CLIENTE) -->
+<div id="modalPublicidade" class="modal-overlay">
+    <div class="modal-content" style="width: 500px;">
+        <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+        <p style="font-size: 13px; color: #666;">Descreva sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
+        
+        <input type="hidden" id="pub-cliente-id">
+        <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px; background: #f4f7f6;" readonly>
+        <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px; background: #f4f7f6;" readonly>
+        <input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
+        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+        
+        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
     </div>
 </div>
 

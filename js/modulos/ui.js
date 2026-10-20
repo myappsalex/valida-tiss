@@ -99,21 +99,45 @@ async function enviarPedidoPub() {
     }
 }
 
-// Substitua as chamadas onclick="abrirModal('modalPublicidade')" nos banners por onclick="abrirPedidoPublicidade()"
+// --- FLUXO DE PEDIDO DE PUBLICIDADE ---
 function abrirPedidoPublicidade() {
-    if (!usuarioLogado) {
-        alert("Para solicitar um orçamento e acompanhar o pedido, precisa de ter uma conta.");
-        abrirModal('modalAuth');
+    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+    
+    // 1. SE NÃO ESTIVER LOGADO -> Pede para logar/cadastrar
+    if (!sessao) {
+        abrirModal('modalBoasVindasPub');
         return;
     }
     
-    // Preenche automaticamente com os dados do cliente
-    document.getElementById('pub-cliente-id').value = usuarioLogado.id;
-    document.getElementById('pub-empresa').value = usuarioLogado.nome;
-    document.getElementById('pub-email').value = usuarioLogado.email;
+    // 2. SE ESTIVER LOGADO MAS ESTIVER NO INDEX -> Redireciona
+    if (!window.location.href.includes('dashboard_cliente.html')) {
+        // Envia uma variável na URL para o dashboard saber que deve abrir o modal
+        window.location.href = 'dashboard_cliente.html?abrirPub=true';
+        return;
+    }
+
+    // 3. SE ESTIVER LOGADO E JÁ NO DASHBOARD -> Preenche e Abre
+    const elClienteId = document.getElementById('pub-cliente-id');
+    const elEmpresa = document.getElementById('pub-empresa');
+    const elEmail = document.getElementById('pub-email');
+    
+    if (elClienteId && elEmpresa && elEmail) {
+        elClienteId.value = sessao.id;
+        elEmpresa.value = sessao.nome;
+        elEmail.value = sessao.email;
+    }
     
     abrirModal('modalPublicidade');
 }
+
+// Interceptador global para abrir o modal automaticamente ao chegar do Index
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('abrirPub') === 'true') {
+        // Pequeno delay para garantir que o HTML do dashboard carregou
+        setTimeout(() => abrirPedidoPublicidade(), 500);
+    }
+});
 
 // --- FUNÇÕES DE PAGAMENTO PIX ---
 function abrirPagamentoPIX(campanhaId, valor) {
