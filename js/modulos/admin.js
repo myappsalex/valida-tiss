@@ -367,16 +367,16 @@ async function salvarAssinaturaCliente() {
     } catch(e) { alert("Erro de comunicação com o servidor."); }
 }
 
+// --- PESQUISA DE CLIENTES (GRID PRINCIPAL) ---
 async function pesquisarContratos() {
     const nome = document.getElementById('filtro-cli-nome').value;
     const email = document.getElementById('filtro-cli-email').value;
     const status = document.getElementById('filtro-cli-status').value;
     const tbody = document.getElementById('tbody-contratos');
 
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;"><div class="gauge-loader"></div> A pesquisar...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;"><div class="gauge-loader"></div> Consultando clientes no banco...</td></tr>';
     
     try {
-        // Exemplo de chamada construindo a querystring
         let url = `/api/gestao_usuarios?tipo=CLIENTE`;
         if (nome) url += `&nome=${encodeURIComponent(nome)}`;
         if (email) url += `&email=${encodeURIComponent(email)}`;
@@ -388,34 +388,123 @@ async function pesquisarContratos() {
         if (response.ok) {
             tbody.innerHTML = '';
             if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum contrato encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum contrato encontrado com esses filtros.</td></tr>';
                 return;
             }
 
             data.forEach(c => {
-                const badgeStatus = c.statusPagamento === 'ATIVO' ? '<span class="badge" style="background:#28a745;">ATIVO</span>' : '<span class="badge" style="background:#dc3545;">INADIMPLENTE</span>';
-                const plano = c.plano || 'FREEMIUM';
+                // Mapeamento dos campos do banco de dados (Prisma) para exibição
+                let statusExibicao = c.statusConta === 'CANCELADO' ? 'CANCELADO' : (c.statusPagamento || 'ATIVO');
+                let corStatus = statusExibicao === 'ATIVO' ? '#28a745' : '#dc3545';
+                const badgeStatus = `<span class="badge" style="background:${corStatus};">${statusExibicao}</span>`;
                 
+                const plano = c.plano || 'FREEMIUM';
+                const tokens = c.tokensRestantes || 0;
+                
+                // Variáveis formatadas para evitar quebra de aspas no HTML
+                const argsDados = `'${c.id}', '${c.nome.replace(/'/g, "\\'")}', '${c.email}', '${c.statusConta || 'ATIVO'}'`;
+                const argsAds = `'${c.id}', '${c.nome.replace(/'/g, "\\'")}', '${c.email}'`;
+
                 tbody.innerHTML += `
                     <tr>
                         <td><strong>${c.nome}</strong></td>
                         <td>${c.email}</td>
                         <td>${badgeStatus}</td>
                         <td><strong>${plano}</strong></td>
-                        <td><span style="color:#0056b3; font-weight:bold;">${c.tokensRestantes || 0}</span></td>
+                        <td><span style="color:#0056b3; font-weight:bold; font-size: 16px;">${tokens}</span></td>
                         <td>
-                            <!-- Modais a serem criados/vinculados -->
-                            <button class="btn" style="background:#17a2b8; color:white; font-size:11px; padding:6px;" title="Editar Dados">✏️ Dados</button>
+                            <button class="btn" style="background:#17a2b8; color:white; font-size:11px; padding:6px;" onclick="abrirDadosCliente(${argsDados})" title="Editar Dados e Cancelamento">✏️ Dados</button>
                             <button class="btn" style="background:#28a745; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalTokens')" title="Adicionar Tokens">💰 Tokens</button>
                             <button class="btn" style="background:#6f42c1; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalAssinaturas')" title="Situação Financeira">💲 Assinatura</button>
-                            <button class="btn" style="background:#f39c12; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalOrcamentoAds')" title="Gestão de Ads">📢 Ads</button>
+                            <button class="btn" style="background:#f39c12; color:white; font-size:11px; padding:6px;" onclick="abrirNovaCampanhaAdmin(${argsAds})" title="Novo Pedido de Ads para o Cliente">📢 Ads</button>
                         </td>
                     </tr>
                 `;
             });
         }
     } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erro de comunicação.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erro de comunicação com a API.</td></tr>';
+    }
+}
+
+// --- FUNÇÕES DE AÇÃO RÁPIDA (BOTÕES DO GRID) ---
+
+// Chama o formulário de publicidade, mas em nome do cliente
+function abrirNovaCampanhaAdmin(id, nome, email) {
+    document.getElementById('pub-cliente-id').value = id;
+    document.getElementById('pub-empresa').value = nome;
+    document.getElementById('pub-email').value = email;
+    
+    // Limpa campos que poderiam estar sujos de outra edição
+    document.getElementById('pub-tema').value = "";
+    document.getElementById('pub-link').value = "";
+    
+    abrirModal('modalPublicidade');
+}
+
+// Abre edição de Dados e Controle de Cancelamento
+function abrirDadosCliente(id, nome, email, statusConta) {
+    document.getElementById('dados-cli-id').value = id;
+    document.getElementById('dados-cli-nome').value = nome;
+    document.getElementById('dados-cli-email').value = email;
+    
+    const chkCancelar = document.getElementById('chk-cancelar-conta');
+    const divData = document.getElementById('div-data-cancelamento');
+    const inputData = document.getElementById('dados-cli-data-cancelamento');
+    
+    if (statusConta === 'CANCELADO') {
+        chkCancelar.checked = true;
+        divData.style.display = 'block';
+    } else {
+        chkCancelar.checked = false;
+        divData.style.display = 'none';
+        inputData.value = '';
+    }
+    
+    abrirModal('modalDadosCliente');
+}
+
+function toggleDataCancelamento() {
+    const chk = document.getElementById('chk-cancelar-conta').checked;
+    document.getElementById('div-data-cancelamento').style.display = chk ? 'block' : 'none';
+}
+
+async function salvarDadosCliente() {
+    const id = document.getElementById('dados-cli-id').value;
+    const nome = document.getElementById('dados-cli-nome').value;
+    const cancelar = document.getElementById('chk-cancelar-conta').checked;
+    const dataCancelamento = document.getElementById('dados-cli-data-cancelamento').value;
+    
+    let statusConta = cancelar ? 'CANCELADO' : 'ATIVO';
+
+    if (cancelar && !dataCancelamento) {
+        alert("Para cancelar a conta, você precisa informar a Data Efetiva do Cancelamento.");
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/gestao_usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                acao: 'editar_dados',
+                id: id,
+                nome: nome,
+                statusConta: statusConta,
+                dataCancelamento: dataCancelamento
+            })
+        });
+        const data = await response.json();
+        
+        if(response.ok && data.sucesso) {
+            alert("Dados do cliente atualizados com sucesso!");
+            fecharModal('modalDadosCliente');
+            pesquisarContratos(); // Atualiza a Grid para refletir o status
+        } else {
+            alert(`Erro do banco de dados: ${data.erro}`);
+        }
+    } catch(e) {
+        alert("Erro ao comunicar com o servidor.");
     }
 }
 

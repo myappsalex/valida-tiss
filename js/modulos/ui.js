@@ -51,6 +51,8 @@ function mostrarGlosaModal(textoCodificado) {
 }
 
 async function enviarPedidoPub() {
+    // Pega o ID oculto (preenchido pelo sistema quando logado ou quando o Admin clica no Grid)
+    const clienteId = document.getElementById('pub-cliente-id').value;
     const empresa = document.getElementById('pub-empresa').value;
     const email = document.getElementById('pub-email').value;
     const link = document.getElementById('pub-link').value;
@@ -64,38 +66,52 @@ async function enviarPedidoPub() {
 
     const btn = document.getElementById('btn-pub-submit');
     btn.disabled = true; 
-    btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> A enviar...`;
+    btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> Enviando...`;
 
     const processarEnvio = async (base64String) => {
         try {
-            // Futura chamada para /api/publicidade
-            /*
+            // Chamada REAL para a API Python gravar no Prisma (Tabela CampanhaAds)
             const response = await fetch('/api/publicidade', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ empresa, email, link, tema, arquivo_base64: base64String })
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    acao: 'criar',
+                    usuarioId: clienteId, // Vincula o pedido ao cliente correto
+                    empresa_nome: empresa, 
+                    email_contato: email, 
+                    link_destino: link, 
+                    tema: tema, 
+                    arquivo_base64: base64String 
+                })
             });
-            */
-            setTimeout(() => {
-                alert(`Pedido registado com sucesso!\nA nossa equipa comercial avaliará o seu pedido e enviará um orçamento.`);
+            
+            const data = await response.json();
+            
+            if (response.ok && data.sucesso) {
+                alert(`Pedido registrado com sucesso!\nA equipe comercial avaliará a campanha e enviará um orçamento em breve.`);
                 fecharModais();
-                btn.disabled = false; 
-                btn.innerText = "Solicitar Orçamento";
-            }, 1200);
+                // Se o admin fez o pedido, atualiza a grid por trás
+                if (typeof pesquisarContratos === "function") pesquisarContratos(); 
+            } else {
+                alert(`Erro ao gravar pedido: ${data.erro}`);
+            }
         } catch (error) {
-            alert("Erro ao enviar pedido.");
-            btn.disabled = false; btn.innerText = "Solicitar Orçamento";
+            alert("Erro de conexão com o servidor. O pedido não foi salvo.");
+        } finally {
+            btn.disabled = false; 
+            btn.innerText = "Solicitar Orçamento";
         }
     };
 
-    if (arquivoInput.files.length > 0) {
+    if (arquivoInput && arquivoInput.files.length > 0) {
         const file = arquivoInput.files[0];
         const reader = new FileReader();
         reader.onloadend = function() {
-            processarEnvio(reader.result); // Passa a string Base64
+            processarEnvio(reader.result); 
         };
         reader.readAsDataURL(file);
     } else {
-        processarEnvio(null); // Cliente não enviou arte
+        processarEnvio(null); 
     }
 }
 

@@ -412,6 +412,61 @@
     </div>
 </div>
 
+<!-- ADMIN: Formulário de Pedido de Publicidade -->
+<div id="modalPublicidade" class="modal-overlay">
+    <div class="modal-content" style="width: 500px;">
+        <h3 style="color: #0056b3; margin-top: 0;">📢 Registrar Campanha para o Cliente</h3>
+        <p style="font-size: 13px; color: #666;">Crie um pedido de publicidade em nome do cliente selecionado.</p>
+        
+        <input type="hidden" id="pub-cliente-id">
+        <input type="text" id="pub-empresa" class="form-control" style="margin-bottom: 10px; background: #e9ecef;" readonly>
+        <input type="email" id="pub-email" class="form-control" style="margin-bottom: 10px; background: #e9ecef;" readonly>
+        <input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
+        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico..." style="margin-bottom: 15px; resize: none;"></textarea>
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+        
+        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Registrar Pedido</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalPublicidade')">Cancelar</button>
+    </div>
+</div>
+
+<!-- ADMIN: Modal Dados do Cliente (Com Cancelamento) -->
+<div id="modalDadosCliente" class="modal-overlay">
+    <div class="modal-content" style="width: 450px;">
+        <h3 style="color: #17a2b8; margin-top: 0;">✏️ Dados Cadastrais</h3>
+        
+        <input type="hidden" id="dados-cli-id">
+        <div class="form-group">
+            <label>Nome / Razão Social</label>
+            <input type="text" id="dados-cli-nome" class="form-control">
+        </div>
+        <div class="form-group">
+            <label>E-mail de Acesso</label>
+            <input type="email" id="dados-cli-email" class="form-control" readonly style="background: #e9ecef;">
+        </div>
+        
+        <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; margin-top: 20px;">
+            <label style="color: #856404; font-weight: bold; display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="chk-cancelar-conta" onchange="toggleDataCancelamento()">
+                Suspender / Cancelar Acesso
+            </label>
+            
+            <div id="div-data-cancelamento" style="display: none; margin-top: 10px;">
+                <label style="font-size: 12px;">Data Efetiva do Cancelamento:</label>
+                <input type="date" id="dados-cli-data-cancelamento" class="form-control">
+                <p style="font-size: 11px; color: #dc3545; margin-top: 5px;">O cliente não conseguirá fazer login a partir desta data.</p>
+            </div>
+        </div>
+
+        <button class="btn btn-info" style="width: 100%; margin-top: 20px; background: #17a2b8; color: white;" onclick="salvarDadosCliente()">Salvar Alterações</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalDadosCliente')">Fechar</button>
+    </div>
+</div>
+
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>
