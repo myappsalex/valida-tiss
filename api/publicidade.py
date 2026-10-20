@@ -1,7 +1,6 @@
 import json
 import base64
 import os
-import uuid
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from prisma import Prisma
@@ -27,7 +26,8 @@ class handler(BaseHTTPRequestHandler):
                 if status:
                     where_clause['status'] = status
                     
-                resultados = db.campanhaads.find_many(where=where_clause, order={'criadoEm': 'desc'})
+                # Removida a ordenação por 'criadoEm' para evitar quebra caso o campo não exista
+                resultados = db.campanhaads.find_many(where=where_clause)
                 
             # CLIENTE: Lista apenas as suas campanhas
             elif acao == 'listar_minhas':
@@ -35,7 +35,7 @@ class handler(BaseHTTPRequestHandler):
                 if not cliente_id:
                     self._send_response(400, {'erro': 'ID do cliente não informado.'})
                     return
-                resultados = db.campanhaads.find_many(where={'usuarioId': cliente_id}, order={'criadoEm': 'desc'})
+                resultados = db.campanhaads.find_many(where={'usuarioId': cliente_id})
             else:
                 self._send_response(400, {'erro': 'Ação GET inválida.'})
                 return
@@ -44,17 +44,19 @@ class handler(BaseHTTPRequestHandler):
             for r in resultados:
                 lista.append({
                     "id": r.id,
-                    "usuarioId": r.usuarioId,
-                    "empresa_nome": r.empresa_nome,
-                    "tema": r.tema,
-                    "status": r.status,
-                    "valorOrcamento": r.valorOrcamento,
-                    "observacaoAdmin": r.observacaoAdmin
+                    "usuarioId": getattr(r, 'usuarioId', ''),
+                    "empresa_nome": getattr(r, 'empresa_nome', 'Desconhecido'),
+                    "tema": getattr(r, 'tema', ''),
+                    "status": getattr(r, 'status', 'PENDENTE'),
+                    "valorOrcamento": getattr(r, 'valorOrcamento', 0.0),
+                    "observacaoAdmin": getattr(r, 'observacaoAdmin', '')
                 })
             self._send_response(200, lista)
             
         except Exception as e:
-            self._send_response(200, []) # Retorna array vazio em caso de erro (ex: tabela vazia)
+            # Agora o erro real será impresso no terminal para diagnóstico
+            print(f"ERRO NO BACKEND (GET /api/publicidade): {e}") 
+            self._send_response(500, {'erro': str(e)})
         finally:
             if db.is_connected(): db.disconnect()
 
@@ -68,10 +70,8 @@ class handler(BaseHTTPRequestHandler):
             acao = dados.get('acao')
             db.connect()
 
-            # CLIENTE/ADMIN: Cria novo pedido de orçamento
             if acao == 'criar':
                 url_banner = None
-                # Simulação do Cloudflare R2 (o upload real entra aqui posteriormente)
                 if dados.get('arquivo_base64'):
                     url_banner = "upload_pendente"
 
@@ -89,7 +89,6 @@ class handler(BaseHTTPRequestHandler):
                 )
                 self._send_response(200, {'sucesso': True, 'id': nova_campanha.id})
 
-            # ADMIN: Avalia e envia orçamento ou recusa
             elif acao == 'avaliar':
                 db.campanhaads.update(
                     where={"id": dados.get('id')},
@@ -101,7 +100,6 @@ class handler(BaseHTTPRequestHandler):
                 )
                 self._send_response(200, {'sucesso': True})
 
-            # CLIENTE: Aprova e avança para PIX, ou Cancela
             elif acao == 'resposta_cliente':
                 db.campanhaads.update(
                     where={"id": dados.get('id')},
@@ -113,6 +111,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send_response(400, {'sucesso': False, 'erro': 'Ação POST inválida.'})
 
         except Exception as e:
+            print(f"ERRO NO BACKEND (POST /api/publicidade): {e}")
             self._send_response(500, {'sucesso': False, 'erro': str(e)})
         finally:
             if db.is_connected(): db.disconnect()
