@@ -28,7 +28,7 @@
 			<button class="btn btn-primary" onclick="abrirModal('modalAcaoTUSS')">📦 Domínios TISS/TUSS</button>
 			<button class="btn btn-success" onclick="abrirModalRegrasAdmin()">⚙️ Visualizar Regras de Clientes</button>
             <button class="btn btn-primary" onclick="abrirModal('modalFuncionario')">👤 Cadastrar Utilizador Interno</button>
-            <button class="btn btn-success" onclick="abrirModal('modalTokens')">💰 Gerir Tokens de IA</button>
+            <button class="btn btn-success" onclick="abrirModalTokens()">💰 Gerir Tokens de IA</button>
 			<button class="btn btn-warning" onclick="abrirGestaoAdsAdminGeral()">📢 Gerir Publicidade</button>
         </div>
 		
@@ -191,25 +191,32 @@
         </div>
     </div>
 
-    <!-- Modal: Gestão de Tokens -->
-    <div id="modalTokens" class="modal-overlay">
-        <div class="modal-content">
-            <h3>💰 Creditar / Debitar Tokens IA</h3>
-            <div class="form-group">
-                <label>Selecione o Cliente</label>
-                <select class="form-control">
-                    <option>Hospital Santa Maria (CNPJ: 12.345...)</option>
-                    <option>Clínica Radiologia (CNPJ: 98.765...)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Quantidade de Tokens a Adicionar</label>
-                <input type="number" class="form-control" placeholder="Ex: 500">
-            </div>			
-            <button class="btn btn-success" style="width: 100%;" onclick="fecharModal('modalTokens')">Creditar Saldo</button>
-            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalTokens')">Cancelar</button>
+<!-- Modal: Gestão de Tokens -->
+<div id="modalTokens" class="modal-overlay">
+    <div class="modal-content" style="width: 450px;">
+        <h3 style="color: #28a745; margin-top: 0;">💰 Creditar / Debitar Tokens IA</h3>
+        
+        <div class="form-group">
+            <label>Selecione o Cliente</label>
+            <select id="select-cliente-token" class="form-control" onchange="carregarDadosTokenCliente(this.value)">
+                <option value="">Carregando clientes...</option>
+            </select>
         </div>
+        
+        <div id="area-edicao-token" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
+            <p style="font-size: 13px; color: #333; margin-top: 0;">Saldo Atual: <strong id="token-saldo-atual" style="color: #0056b3; font-size: 18px;">0</strong> tokens</p>
+            
+            <div class="form-group">
+                <label>Quantidade a Adicionar</label>
+                <p style="font-size: 11px; color: #666; margin: 0 0 5px 0;">Use número negativo (ex: -100) para debitar.</p>
+                <input type="number" id="token-qtd-add" class="form-control" placeholder="Ex: 500">
+            </div>			
+            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarTokensCliente()">Atualizar Saldo</button>
+        </div>
+        
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalTokens')">Cancelar</button>
     </div>
+</div>
 
     <!-- Modal: Gestão de Publicidade -->
     <div id="modalAds" class="modal-overlay">
@@ -303,7 +310,7 @@
         <div class="form-group">
             <label>Selecione o Cliente</label>
             <select id="select-cliente-assinatura" class="form-control" onchange="carregarDadosAssinaturaCliente(this.value)">
-                <option value="">A carregar clientes...</option>
+                <option value="">Carregando clientes...</option>
             </select>
         </div>
         

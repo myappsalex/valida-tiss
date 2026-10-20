@@ -310,11 +310,14 @@ async function carregarRegrasClienteAdmin(clienteId) {
 // --- GESTÃO DE ASSINATURAS SAAS ---
 let clientesAssinaturaCache = [];
 
-async function abrirModalAssinaturas() {
+// --- GESTÃO DE ASSINATURAS SAAS ---
+let clientesAssinaturaCache = [];
+
+async function abrirModalAssinaturas(preSelectedId = null) {
     abrirModal('modalAssinaturas');
     document.getElementById('area-edicao-assinatura').style.display = 'none';
     const select = document.getElementById('select-cliente-assinatura');
-    select.innerHTML = '<option value="">⏳ A carregar clientes...</option>';
+    select.innerHTML = '<option value="">⏳ Carregando clientes...</option>';
     
     try {
         const response = await fetch(`/api/gestao_usuarios?tipo=CLIENTE`);
@@ -325,10 +328,93 @@ async function abrirModalAssinaturas() {
             clientesAssinaturaCache.forEach(c => { 
                 select.innerHTML += `<option value="${c.id}">${c.nome} (${c.plano || 'FREEMIUM'})</option>`; 
             });
+            
+            // Se foi clicado no grid, já seleciona o cliente no select e mostra os dados
+            if (preSelectedId) {
+                select.value = preSelectedId;
+                carregarDadosAssinaturaCliente(preSelectedId);
+            }
         } else {
             select.innerHTML = '<option value="">Nenhum cliente encontrado.</option>';
         }
     } catch(e) { select.innerHTML = '<option value="">Erro de conexão.</option>'; }
+}
+
+// --- GESTÃO DE TOKENS IA ---
+let clientesTokenCache = [];
+
+async function abrirModalTokens(preSelectedId = null) {
+    abrirModal('modalTokens');
+    document.getElementById('area-edicao-token').style.display = 'none';
+    const select = document.getElementById('select-cliente-token');
+    select.innerHTML = '<option value="">⏳ Carregando clientes...</option>';
+    
+    try {
+        const response = await fetch(`/api/gestao_usuarios?tipo=CLIENTE`);
+        clientesTokenCache = await response.json();
+        
+        if (response.ok && clientesTokenCache.length > 0) {
+            select.innerHTML = '<option value="">-- Selecione um Cliente --</option>';
+            clientesTokenCache.forEach(c => { 
+                select.innerHTML += `<option value="${c.id}">${c.nome}</option>`; 
+            });
+            
+            if (preSelectedId) {
+                select.value = preSelectedId;
+                carregarDadosTokenCliente(preSelectedId);
+            }
+        } else {
+            select.innerHTML = '<option value="">Nenhum cliente encontrado.</option>';
+        }
+    } catch(e) { select.innerHTML = '<option value="">Erro de conexão.</option>'; }
+}
+
+function carregarDadosTokenCliente(clienteId) {
+    document.getElementById('token-qtd-add').value = ''; // Limpa o input
+    if (!clienteId) {
+        document.getElementById('area-edicao-token').style.display = 'none';
+        return;
+    }
+    const cliente = clientesTokenCache.find(c => c.id === clienteId);
+    if (cliente) {
+        document.getElementById('area-edicao-token').style.display = 'block';
+        document.getElementById('token-saldo-atual').innerText = cliente.tokensRestantes || 0;
+    }
+}
+
+async function salvarTokensCliente() {
+    const clienteId = document.getElementById('select-cliente-token').value;
+    const qtdAdd = parseInt(document.getElementById('token-qtd-add').value) || 0;
+    
+    if (!clienteId) return;
+    if (qtdAdd === 0) {
+        alert("Informe uma quantidade válida para adicionar ou remover.");
+        return;
+    }
+
+    try {
+        // Envia para o backend processar a adição/subtração
+        const response = await fetch('/api/gestao_usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                acao: 'atualizar_tokens', 
+                id: clienteId, 
+                quantidade: qtdAdd 
+            })
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.sucesso) {
+            alert("Saldo de tokens atualizado com sucesso!");
+            fecharModal('modalTokens');
+            pesquisarContratos(); // Recarrega a Grid para mostrar o novo saldo
+        } else {
+            alert(`Erro ao atualizar: ${data.erro}`);
+        }
+    } catch(e) { 
+        alert("Erro de comunicação com o servidor."); 
+    }
 }
 
 function carregarDadosAssinaturaCliente(clienteId) {
@@ -414,9 +500,8 @@ async function pesquisarContratos() {
                         <td><span style="color:#0056b3; font-weight:bold; font-size: 16px;">${tokens}</span></td>
                         <td>
                             <button class="btn" style="background:#17a2b8; color:white; font-size:11px; padding:6px;" onclick="abrirDadosCliente(${argsDados})" title="Editar Dados e Cancelamento">✏️ Dados</button>
-                            <button class="btn" style="background:#28a745; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalTokens')" title="Adicionar Tokens">💰 Tokens</button>
-                            <button class="btn" style="background:#6f42c1; color:white; font-size:11px; padding:6px;" onclick="abrirModal('modalAssinaturas')" title="Situação Financeira">💲 Assinatura</button>
-                            <button class="btn" style="background:#f39c12; color:white; font-size:11px; padding:6px;" onclick="abrirNovaCampanhaAdmin(${argsAds})" title="Novo Pedido de Ads para o Cliente">📢 Ads</button>
+                            <button class="btn" style="background:#28a745; color:white; font-size:11px; padding:6px;" onclick="abrirModalTokens('${c.id}')" title="Adicionar Tokens">💰 Tokens</button>
+<button class="btn" style="background:#6f42c1; color:white; font-size:11px; padding:6px;" onclick="abrirModalAssinaturas('${c.id}')" title="Situação Financeira">💲 Assinatura</button><button class="btn" style="background:#f39c12; color:white; font-size:11px; padding:6px;" onclick="abrirNovaCampanhaAdmin(${argsAds})" title="Novo Pedido de Ads para o Cliente">📢 Ads</button>
                         </td>
                     </tr>
                 `;
