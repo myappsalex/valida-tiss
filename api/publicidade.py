@@ -1,11 +1,10 @@
 import json
 import base64
-import boto3
 import os
 import uuid
 from http.server import BaseHTTPRequestHandler
-from prisma import Prisma
 from urllib.parse import urlparse, parse_qs
+from prisma import Prisma
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -16,40 +15,49 @@ class handler(BaseHTTPRequestHandler):
             query_params = parse_qs(parsed_path.query)
             
             acao = query_params.get('acao', [''])[0]
-            cliente = query_params.get('cliente', [''])[0]
-            status = query_params.get('status', [''])[0]
             
+            # ADMIN: Lista todas ou filtra
             if acao == 'listar':
+                cliente = query_params.get('cliente', [''])[0]
+                status = query_params.get('status', [''])[0]
+                
                 where_clause = {}
                 if cliente:
-                    # Busca pelo ID do cliente ou pelo nome da empresa
                     where_clause['empresa_nome'] = {'contains': cliente, 'mode': 'insensitive'}
                 if status:
                     where_clause['status'] = status
                     
-                # Busca real na tabela CampanhaAds
                 resultados = db.campanhaads.find_many(where=where_clause, order={'criadoEm': 'desc'})
                 
-                lista = []
-                for r in resultados:
-                    lista.append({
-                        "id": r.id,
-                        "empresa_nome": r.empresa_nome,
-                        "tema": r.tema,
-                        "status": r.status,
-                        "valorOrcamento": r.valorOrcamento,
-                        "observacaoAdmin": r.observacaoAdmin
-                    })
-                self._send_response(200, lista)
+            # CLIENTE: Lista apenas as suas campanhas
+            elif acao == 'listar_minhas':
+                cliente_id = query_params.get('clienteId', [''])[0]
+                if not cliente_id:
+                    self._send_response(400, {'erro': 'ID do cliente não informado.'})
+                    return
+                resultados = db.campanhaads.find_many(where={'usuarioId': cliente_id}, order={'criadoEm': 'desc'})
             else:
-                self._send_response(400, {'erro': 'Ação inválida.'})
-                
+                self._send_response(400, {'erro': 'Ação GET inválida.'})
+                return
+
+            lista = []
+            for r in resultados:
+                lista.append({
+                    "id": r.id,
+                    "usuarioId": r.usuarioId,
+                    "empresa_nome": r.empresa_nome,
+                    "tema": r.tema,
+                    "status": r.status,
+                    "valorOrcamento": r.valorOrcamento,
+                    "observacaoAdmin": r.observacaoAdmin
+                })
+            self._send_response(200, lista)
+            
         except Exception as e:
-            # Caso a tabela não exista ainda, devolve array vazio para o grid não quebrar
-            self._send_response(200, [])
+            self._send_response(200, []) # Retorna array vazio em caso de erro (ex: tabela vazia)
         finally:
             if db.is_connected(): db.disconnect()
-            
+
     def do_POST(self):
         db = Prisma()
         try:
@@ -57,40 +65,60 @@ class handler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             dados = json.loads(post_data.decode('utf-8'))
             
-            # Inicializar cliente R2
-            s3 = boto3.client('s3',
-                endpoint_url=f"https://{os.getenv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
-                aws_access_key_id=os.getenv('R2_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('R2_SECRET_ACCESS_KEY')
-            )
-            
-            # Processamento da Imagem Opcional
-            url_banner = None
-            if dados.get('arquivo_base64'):
-                extensao = "png" if "image/png" in dados.get('arquivo_base64') else "jpg"
-                imagem_bytes = base64.b64decode(dados['arquivo_base64'].split(',')[1])
-                nome_ficheiro = f"banners/{uuid.uuid4().hex}.{extensao}"
-                
-                s3.put_object(
-                    Bucket=os.getenv('R2_BUCKET_NAME'),
-                    Key=nome_ficheiro,
-                    Body=imagem_bytes,
-                    ContentType=f"image/{extensao}"
-                )
-                url_banner = f"{os.getenv('R2_PUBLIC_URL')}/{nome_ficheiro}"
+            acao = dados.get('acao')
+            db.connect()
 
-            # Aqui você conectaria ao Prisma para gravar na tabela CampanhaAds
-            # db.connect()
-            # db.campanhaads.create(data={"empresa": dados['empresa'], "tema": dados['tema'], "bannerUrl": url_banner, "status": "PENDENTE"})
-            
-            self._send_response(200, {'sucesso': True, 'mensagem': 'Pedido recebido com sucesso!', 'url': url_banner})
+            # CLIENTE/ADMIN: Cria novo pedido de orçamento
+            if acao == 'criar':
+                url_banner = None
+                # Simulação do Cloudflare R2 (o upload real entra aqui posteriormente)
+                if dados.get('arquivo_base64'):
+                    url_banner = "upload_pendente"
+
+                nova_campanha = db.campanhaads.create(
+                    data={
+                        "usuarioId": dados.get('usuarioId'),
+                        "empresa_nome": dados.get('empresa_nome'),
+                        "email_contato": dados.get('email_contato'),
+                        "link_destino": dados.get('link_destino'),
+                        "tema": dados.get('tema'),
+                        "bannerUrl": url_banner,
+                        "status": "PENDENTE",
+                        "valorOrcamento": 0.0
+                    }
+                )
+                self._send_response(200, {'sucesso': True, 'id': nova_campanha.id})
+
+            # ADMIN: Avalia e envia orçamento ou recusa
+            elif acao == 'avaliar':
+                db.campanhaads.update(
+                    where={"id": dados.get('id')},
+                    data={
+                        "status": dados.get('status'),
+                        "observacaoAdmin": dados.get('observacaoAdmin'),
+                        "valorOrcamento": float(dados.get('valorOrcamento') or 0)
+                    }
+                )
+                self._send_response(200, {'sucesso': True})
+
+            # CLIENTE: Aprova e avança para PIX, ou Cancela
+            elif acao == 'resposta_cliente':
+                db.campanhaads.update(
+                    where={"id": dados.get('id')},
+                    data={"status": dados.get('status')}
+                )
+                self._send_response(200, {'sucesso': True})
+
+            else:
+                self._send_response(400, {'sucesso': False, 'erro': 'Ação POST inválida.'})
+
         except Exception as e:
             self._send_response(500, {'sucesso': False, 'erro': str(e)})
+        finally:
+            if db.is_connected(): db.disconnect()
 
     def _send_response(self, status, payload):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode('utf-8'))
-        
- 
