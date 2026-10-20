@@ -51,7 +51,7 @@ function toggleLoadingButton(btnId, isLoading, originalText) {
         btn.disabled = true;
         btn.style.opacity = '0.7';
         // Insere o Gauge adaptado para dentro do botão
-        btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> A processar...`;
+        btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> Em processamento ...`;
     } else {
         btn.disabled = false;
         btn.style.opacity = '1';
