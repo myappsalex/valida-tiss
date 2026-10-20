@@ -310,9 +310,6 @@ async function carregarRegrasClienteAdmin(clienteId) {
 // --- GESTÃO DE ASSINATURAS SAAS ---
 let clientesAssinaturaCache = [];
 
-// --- GESTÃO DE ASSINATURAS SAAS ---
-let clientesAssinaturaCache = [];
-
 async function abrirModalAssinaturas(preSelectedId = null) {
     abrirModal('modalAssinaturas');
     document.getElementById('area-edicao-assinatura').style.display = 'none';
