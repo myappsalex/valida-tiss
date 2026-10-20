@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Os IDs devem existir no HTML para receberem os dados
         const elDashTokens = document.getElementById('dash-tokens');
         if(elDashTokens) elDashTokens.innerText = s.tokensRestantes || 0;
+		carregarMinhasCampanhas();
         
         const elPlano = document.getElementById('dash-plano');
         if(elPlano) elPlano.innerText = s.plano || 'FREEMIUM';
@@ -73,3 +74,97 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// --- GESTÃO DE CAMPANHAS DO LADO DO CLIENTE ---
+async function carregarMinhasCampanhas() {
+    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+    if (!sessao) return;
+
+    const tbody = document.getElementById('lista-minhas-campanhas');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;"><div class="gauge-loader"></div> Buscando suas campanhas...</td></tr>';
+    
+    try {
+        const response = await fetch(`/api/publicidade?acao=listar_minhas&clienteId=${sessao.id}`);
+        const data = await response.json();
+        
+        tbody.innerHTML = '';
+        if (!response.ok || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Você ainda não solicitou nenhuma campanha de publicidade.</td></tr>';
+            return;
+        }
+
+        data.forEach(ad => {
+            let corStatus = '#6c757d'; 
+            if (ad.status === 'ATIVO') corStatus = '#28a745';
+            else if (ad.status === 'AGUARDANDO_PAGAMENTO') corStatus = '#f39c12';
+            else if (ad.status === 'CANCELADO') corStatus = '#dc3545';
+
+            let textoValor = ad.valorOrcamento > 0 ? `R$ ${ad.valorOrcamento.toFixed(2)}` : 'Em análise';
+            let btnAcao = '';
+
+            // Parâmetros para o modal de detalhes do cliente
+            const params = `'${ad.id}', '${ad.tema.replace(/'/g, "\\'")}', '${(ad.observacaoAdmin || "").replace(/'/g, "\\'")}', ${ad.valorOrcamento || 0}, '${ad.status}'`;
+
+            if (ad.status === 'AGUARDANDO_PAGAMENTO') {
+                btnAcao = `<button class="btn btn-success" style="padding: 5px; font-size:11px;" onclick="abrirAcompanhamentoCliente(${params})">Ver Orçamento</button>`;
+            } else {
+                btnAcao = `<button class="btn" style="background:#17a2b8; color:white; padding: 5px; font-size:11px;" onclick="abrirAcompanhamentoCliente(${params})">Detalhes</button>`;
+            }
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${ad.tema}</strong></td>
+                    <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
+                    <td><span style="font-size: 12px; color: #666;">${textoValor}</span></td>
+                    <td>${btnAcao}</td>
+                </tr>
+            `;
+        });
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro ao consultar suas campanhas.</td></tr>';
+    }
+}
+
+function abrirAcompanhamentoCliente(id, tema, obsAdmin, valor, status) {
+    document.getElementById('acom-cli-tema').value = tema;
+    document.getElementById('acom-cli-obs').innerText = obsAdmin || "O administrador ainda não enviou observações.";
+    document.getElementById('acom-cli-valor').value = valor > 0 ? `R$ ${valor.toFixed(2)}` : "Aguardando definição";
+    
+    // Esconde botões de ação se não for status de orçamento aguardando
+    const btnAprovar = document.getElementById('btn-aprovar-orc');
+    const btnCancelar = document.getElementById('btn-cancelar-orc'); // Garanta que seu botão cancelar no HTML tem esse ID
+    
+    if (status === 'AGUARDANDO_PAGAMENTO') {
+        btnAprovar.style.display = 'inline-block';
+        if(btnCancelar) btnCancelar.style.display = 'inline-block';
+        
+        // Configura o botão para acionar o PIX
+        btnAprovar.onclick = function() {
+            responderOrcamentoCliente(id, 'APROVADO_PIX', valor);
+        };
+    } else {
+        btnAprovar.style.display = 'none';
+        if(btnCancelar) btnCancelar.style.display = 'none';
+    }
+    
+    abrirModal('modalAcompanharAdCliente');
+}
+
+async function responderOrcamentoCliente(id, decisao, valor) {
+    // Atualiza status no banco
+    try {
+        const payload = { acao: 'resposta_cliente', id: id, status: decisao === 'APROVADO_PIX' ? 'AGUARDANDO_PAGAMENTO' : 'CANCELADO' };
+        await fetch('/api/publicidade', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        
+        fecharModal('modalAcompanharAdCliente');
+        
+        if (decisao === 'APROVADO_PIX') {
+            abrirPagamentoPIX(id, valor); // Chama a tela do QRCode
+        } else {
+            alert("Pedido cancelado com sucesso.");
+            carregarMinhasCampanhas();
+        }
+    } catch(e) { alert("Erro de conexão."); }
+}
