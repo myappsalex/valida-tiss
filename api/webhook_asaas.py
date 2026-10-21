@@ -1,6 +1,6 @@
 import json
 from http.server import BaseHTTPRequestHandler
-from prisma import Prisma
+from prisma_db import Prisma
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):

@@ -3,7 +3,7 @@ import base64
 import os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from prisma import Prisma
+from prisma_db import Prisma
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):

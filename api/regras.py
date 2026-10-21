@@ -1,6 +1,6 @@
 import json
 from http.server import BaseHTTPRequestHandler
-from prisma import Prisma
+from prisma_db import Prisma
 from urllib.parse import urlparse, parse_qs
 
 class handler(BaseHTTPRequestHandler):
