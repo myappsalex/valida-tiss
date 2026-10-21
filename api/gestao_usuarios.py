@@ -1,15 +1,8 @@
 import json
-import sys
-import os
-import bcrypt
-
-# Força o Python a enxergar a pasta raiz do projeto na Vercel
-pasta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if pasta_raiz not in sys.path:
-    sys.path.append(pasta_raiz)
 from http.server import BaseHTTPRequestHandler
-from prisma_db import Prisma
+from prisma import Prisma
 from urllib.parse import urlparse, parse_qs
+import bcrypt
 
 class handler(BaseHTTPRequestHandler):
     # --- ROTA PARA LISTAR OS UTILIZADORES (O que já tínhamos) ---

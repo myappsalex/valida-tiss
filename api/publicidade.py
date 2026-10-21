@@ -1,14 +1,9 @@
 import json
 import base64
 import os
-import sys
-# Força o Python a enxergar a pasta raiz do projeto na Vercel
-pasta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if pasta_raiz not in sys.path:
-    sys.path.append(pasta_raiz)
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from prisma_db import Prisma
+from prisma import Prisma
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):

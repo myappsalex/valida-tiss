@@ -1,14 +1,9 @@
-from http.server import BaseHTTPRequestHandler
-from openai import OpenAI
-from prisma_db import Prisma
-# Força o Python a enxergar a pasta raiz do projeto na Vercel
-pasta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if pasta_raiz not in sys.path:
-    sys.path.append(pasta_raiz)
 import json
-import requests
-import sys
+from http.server import BaseHTTPRequestHandler
 import os
+import requests
+from openai import OpenAI
+from prisma import Prisma
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
