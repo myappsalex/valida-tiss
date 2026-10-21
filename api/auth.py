@@ -1,7 +1,14 @@
 import json
+import bcrypt
+import sys
+import os
+
+# Força o Python a enxergar a pasta raiz do projeto na Vercel
+pasta_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if pasta_raiz not in sys.path:
+    sys.path.append(pasta_raiz)
 from http.server import BaseHTTPRequestHandler
 from prisma_db import Prisma
-import bcrypt
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
