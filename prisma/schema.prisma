@@ -1,6 +1,6 @@
 generator client {
-  provider             = "prisma-client-py"
-  interface            = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
+  provider = "prisma-client-py"
+  interface = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
 }
 
 datasource db {
@@ -105,4 +105,18 @@ model HistoricoAutorizacoes {
   dataValidade    DateTime
   status          String   // APROVADA, NEGADA, PARCIAL
   prestadorId     String
+}
+
+model CampanhaAds {
+  id              String   @id @default(cuid())
+  usuarioId       String   // FK para o Cliente
+  empresa_nome    String
+  email_contato   String
+  link_destino    String
+  tema            String
+  bannerUrl       String?
+  valorOrcamento  Float?
+  observacaoAdmin String?
+  status          String   @default("PENDENTE") // PENDENTE, AGUARDANDO_PAGAMENTO, ATIVO, CANCELADO
+  criadoEm        DateTime @default(now())
 }
