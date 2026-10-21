@@ -665,7 +665,6 @@ function abrirGestaoAdsAdminGeral() {
     pesquisarPedidosAdAdmin();
 }
 
-// Busca os pedidos no banco de dados (Prisma via Python)
 async function pesquisarPedidosAdAdmin() {
     const clienteFiltro = document.getElementById('filtro-ad-cliente').value;
     const statusFiltro = document.getElementById('filtro-ad-status').value;
@@ -683,7 +682,7 @@ async function pesquisarPedidosAdAdmin() {
 
         tbody.innerHTML = '';
         if (!response.ok || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Nenhum pedido de publicidade encontrado.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nenhum pedido encontrado.</td></tr>';
             return;
         }
 
@@ -694,16 +693,15 @@ async function pesquisarPedidosAdAdmin() {
             else if (ad.status === 'CANCELADO') corStatus = '#dc3545';
             else if (ad.status === 'PENDENTE') corStatus = '#0056b3';
 
-            // Trata aspas simples no texto para não quebrar o HTML do botão
             const temaTratado = (ad.tema || '').replace(/'/g, "\\'");
             const obsTratada = (ad.observacaoAdmin || '').replace(/'/g, "\\'");
             
-            const argsAval = `'${ad.id}', '${temaTratado}', '${obsTratada}', ${ad.valorOrcamento || 0}`;
+            const argsAval = `'${ad.id}', '${temaTratado}', '${obsTratada}', ${ad.valorOrcamento || 0}, '${ad.dataInicio || ''}', '${ad.dataFim || ''}'`;
 
             tbody.innerHTML += `
                 <tr>
                     <td><strong>${ad.empresa_nome || 'Desconhecido'}</strong></td>
-                    <td><div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${ad.tema}">${ad.tema}</div></td>
+                    <td><div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ad.tema}</div></td>
                     <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
                     <td>
                         <button class="btn" style="background:#17a2b8; color:white; padding: 5px; font-size:11px;" onclick="abrirAvaliacaoAdAdmin(${argsAval})">Avaliar / Editar</button>
@@ -712,30 +710,31 @@ async function pesquisarPedidosAdAdmin() {
             `;
         });
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro de comunicação com a API.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro de comunicação.</td></tr>';
     }
 }
 
-// Abre o modal secundário para dar o preço e a resposta
-function abrirAvaliacaoAdAdmin(id, tema, obs, valor) {
+function abrirAvaliacaoAdAdmin(id, tema, obs, valor, dataInicio, dataFim) {
     document.getElementById('aval-ad-id').value = id;
     document.getElementById('aval-ad-tema').value = tema;
-    // Se for 'null' do banco, deixa vazio
     document.getElementById('aval-ad-obs').value = (obs && obs !== 'null') ? obs : "";
     document.getElementById('aval-ad-valor').value = valor > 0 ? valor : "";
+    
+    document.getElementById('aval-ad-inicio').value = dataInicio ? dataInicio.split('T')[0] : "";
+    document.getElementById('aval-ad-fim').value = dataFim ? dataFim.split('T')[0] : "";
     
     abrirModal('modalAvaliarAdAdmin');
 }
 
-// Salva a decisão do Admin (Aprova, Envia Orçamento ou Cancela)
 async function salvarAvaliacaoAd(novoStatus) {
     const id = document.getElementById('aval-ad-id').value;
     const obs = document.getElementById('aval-ad-obs').value;
     const valor = parseFloat(document.getElementById('aval-ad-valor').value) || 0;
+    const dtInicio = document.getElementById('aval-ad-inicio').value;
+    const dtFim = document.getElementById('aval-ad-fim').value;
 
-    // Trava de segurança: não pode cobrar R$ 0,00 se estiver aguardando pagamento
     if (novoStatus === 'AGUARDANDO_PAGAMENTO' && valor <= 0) {
-        alert("Para enviar o orçamento, é necessário informar um valor maior que zero.");
+        alert("Para enviar o orçamento, informe um valor maior que zero.");
         return;
     }
 
@@ -745,7 +744,9 @@ async function salvarAvaliacaoAd(novoStatus) {
             id: id,
             status: novoStatus,
             observacaoAdmin: obs,
-            valorOrcamento: valor
+            valorOrcamento: valor,
+            dataInicio: dtInicio ? new Date(dtInicio + 'T00:00:00Z').toISOString() : null,
+            dataFim: dtFim ? new Date(dtFim + 'T23:59:59Z').toISOString() : null
         };
 
         const response = await fetch('/api/publicidade', {
@@ -755,16 +756,11 @@ async function salvarAvaliacaoAd(novoStatus) {
         });
 
         const data = await response.json();
-
         if (response.ok && data.sucesso) {
-            alert("Avaliação da campanha salva com sucesso!");
+            alert("Avaliação salva com sucesso!");
             fecharModal('modalAvaliarAdAdmin');
-            pesquisarPedidosAdAdmin(); // Atualiza a tabela na mesma hora
-        } else {
-            alert(`Erro ao salvar: ${data.erro}`);
-        }
-    } catch (e) {
-        alert("Erro de comunicação com o servidor.");
-    }
+            pesquisarPedidosAdAdmin(); 
+        } else { alert(`Erro: ${data.erro}`); }
+    } catch (e) { alert("Erro de comunicação com o servidor."); }
 }
 

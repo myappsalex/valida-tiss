@@ -392,7 +392,14 @@
             <label>Valor do Orçamento (R$)</label>
             <input type="number" id="aval-ad-valor" class="form-control" step="0.01">
         </div>
-        
+        <div style="margin-top: 10px;">
+			<label><strong>Data de Início da Exibição:</strong></label>
+			<input type="date" id="aval-ad-inicio" class="form-control" style="width: 100%;">
+		</div>
+		<div style="margin-top: 10px;">
+			<label><strong>Data Fim (Validade):</strong></label>
+			<input type="date" id="aval-ad-fim" class="form-control" style="width: 100%;">
+		</div>
         <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
             <button class="btn btn-warning" style="flex: 1;" onclick="salvarAvaliacaoAd('AGUARDANDO_PAGAMENTO')">Enviar Orçamento</button>
             
