@@ -212,7 +212,6 @@ async function carregarPublicidadesAtivas() {
     }
 }
 
-// --- FUNÇÕES DE CONSULTA E EDIÇÃO DE DOMÍNIOS TUSS ---
 async function pesquisarDominiosTUSS() {
     const cod = document.getElementById('filtro-codigo-tuss').value;
     const termo = document.getElementById('filtro-termo-tuss').value;
@@ -223,30 +222,46 @@ async function pesquisarDominiosTUSS() {
         return;
     }
 
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A pesquisar...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">⏳ A pesquisar...</td></tr>';
     try {
         const res = await fetch(`/api/dominio_tuss?codigo=${cod}&termo=${termo}`);
         const data = await res.json();
         
         if (res.ok) {
             tbody.innerHTML = '';
-            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Sem resultados.</td></tr>'; return; }
+            if(data.length === 0) { 
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Sem resultados.</td></tr>'; 
+                return; 
+            }
             data.forEach(d => {
                 const termoEscapado = d.termo.replace(/'/g, "");
-                const anvisa = d.registroAnvisa || '';
+                
+                // CORREÇÃO: Declaração das variáveis ausentes e tratamento de nulos/undefined
+                const anvisa = d.registroAnvisa || '-';
+                const fabricante = d.fabricante || '-';
+                const modelo = d.apresentacaoModelo || '-';
+                const risco = d.classeRisco || '';
+
+                // CORREÇÃO: O colspan foi ajustado para 6 colunas, conforme o cabeçalho no HTML
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
-                        <td>${d.codigoTabela}</td><td><strong>${d.codigoTermo}</strong></td><td>${d.termo}</td><td>${d.apresentacaoModelo}</td><td>${fabricante}</td><td>${anvisa}</td>
+                        <td>${d.codigoTabela}</td>
+                        <td><strong>${d.codigoTermo}</strong></td>
+                        <td>${d.termo}</td>
+                        <td>${modelo}</td>
+                        <td>${fabricante}</td>
+                        <td>${anvisa}</td>
                         <td>
-                            <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}')">✏️</button>
+                            <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}', '${fabricante}', '${modelo}', '${risco}')">✏️</button>
                             <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
                         </td>
                     </tr>
                 `;
             });		
-			
         }
-    } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Erro de rede.</td></tr>'; }
+    } catch(e) { 
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Erro de rede.</td></tr>'; 
+    }
 }
 
 // Executa a busca assim que a página terminar de carregar

@@ -15,7 +15,8 @@ function verificarArquivoSelecionado() {
 }
 
 async function processarCargaTUSS() {
-    const tabela = document.getElementById('tabela-tuss-select').value;
+    // CORREÇÃO: O ID correto que está no admin.html é 'tabela-importacao'
+    const tabela = document.getElementById('tabela-importacao').value; 
     const fileInput = document.getElementById('arquivo-csv-tuss');
     const divResultado = document.getElementById('resultado-carga');
     const btnUpload = document.getElementById('btn-upload-tuss');
@@ -28,13 +29,11 @@ async function processarCargaTUSS() {
     const file = fileInput.files[0];
     const reader = new FileReader();
     
-    // Bloqueia o botão e mostra o Gauge/Spinner de carregamento
     btnUpload.disabled = true;
     btnUpload.style.opacity = "0.7";
     btnUpload.innerHTML = '<div class="gauge-loader"></div> <span>Processando...</span>';
     divResultado.innerHTML = '<div class="gauge-loader"></div> <span style="color: #0056b3;">Lendo arquivo e enviando para a base de dados. Este processo pode demorar alguns segundos...</span>';
 
-    // O FileReader é assíncrono, não vai travar a interface visual
     reader.onload = async function(e) {
         const conteudoCSV = e.target.result;
         
@@ -48,21 +47,19 @@ async function processarCargaTUSS() {
             
             if (response.ok && data.sucesso) {
                 divResultado.innerHTML = `<span style="color: green;">✅ Sucesso! ${data.mensagem}</span>`;
-                fileInput.value = ""; // Limpa o campo
+                fileInput.value = ""; 
             } else {
                 divResultado.innerHTML = `<span style="color: red;">❌ Erro na importação: ${data.erro}</span>`;
             }
         } catch (error) {
             divResultado.innerHTML = `<span style="color: red;">❌ Erro de comunicação com o servidor. A API demorou muito a responder ou falhou.</span>`;
         } finally {
-            // Devolve o botão ao estado original
             btnUpload.disabled = false;
             btnUpload.style.opacity = "1";
             btnUpload.innerHTML = '<span>Fazer Upload</span>';
         }
     };
     
-    // Inicia a leitura do arquivo em background
     reader.readAsText(file, 'UTF-8');
 }
 
