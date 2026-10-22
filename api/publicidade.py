@@ -86,9 +86,10 @@ class handler(BaseHTTPRequestHandler):
                         "observacaoAdmin": dados.get('observacaoAdmin'),
                         "valorOrcamento": float(dados.get('valorOrcamento') or 0),
                         "dataInicio": dt_inicio,
-                        "dataFim": dt_fim
+                        "dataFim": dt_fim,
+                        "localExibicao": dados.get('localExibicao', 'CABECALHO') # Grava o local escolhido
                     }
-                )
+)
                 self._send_response(200, {'sucesso': True})
 
             elif acao == 'resposta_cliente':
