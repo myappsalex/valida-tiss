@@ -15,7 +15,6 @@ function verificarArquivoSelecionado() {
 }
 
 async function processarCargaTUSS() {
-    // CORREÇÃO: O ID correto que está no admin.html é 'tabela-importacao'
     const tabela = document.getElementById('tabela-importacao').value; 
     const fileInput = document.getElementById('arquivo-csv-tuss');
     const divResultado = document.getElementById('resultado-carga');
@@ -32,27 +31,50 @@ async function processarCargaTUSS() {
     btnUpload.disabled = true;
     btnUpload.style.opacity = "0.7";
     btnUpload.innerHTML = '<div class="gauge-loader"></div> <span>Processando...</span>';
-    divResultado.innerHTML = '<div class="gauge-loader"></div> <span style="color: #0056b3;">Lendo arquivo e enviando para a base de dados. Este processo pode demorar alguns segundos...</span>';
+    divResultado.innerHTML = '<div class="gauge-loader"></div> <span style="color: #0056b3;">Dividindo arquivo e enviando para a base de dados...</span>';
 
     reader.onload = async function(e) {
         const conteudoCSV = e.target.result;
         
+        // Quebra o CSV gigante em linhas
+        const linhas = conteudoCSV.split(/\r?\n/);
+        const cabecalho = linhas[0];
+        const tamanhoLote = 3000; // Envia 3 mil linhas por vez para não estourar os 4.5MB da Vercel
+        let lotesEnviados = 0;
+        let temErro = false;
+
         try {
-            const response = await fetch('/api/carga_tuss', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tabela: tabela, csv_data: conteudoCSV })
-            });
-            const data = await response.json();
+            for (let i = 1; i < linhas.length; i += tamanhoLote) {
+                const lote = linhas.slice(i, i + tamanhoLote);
+                // Ignora linhas vazias no final do ficheiro
+                if (lote.length === 0 || (lote.length === 1 && lote[0].trim() === '')) continue;
+                
+                // Reconstrói o CSV pequeno (Cabeçalho + Lote de linhas)
+                const chunkCSV = cabecalho + '\n' + lote.join('\n');
+                
+                divResultado.innerHTML = `<div class="gauge-loader"></div> <span style="color: #0056b3;">A enviar pacote ${lotesEnviados + 1}...</span>`;
+
+                const response = await fetch('/api/carga_tuss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tabela: tabela, csv_data: chunkCSV })
+                });
+                
+                const data = await response.json();
+                if (!response.ok || !data.sucesso) {
+                    divResultado.innerHTML = `<span style="color: red;">❌ Erro no pacote ${lotesEnviados + 1}: ${data.erro}</span>`;
+                    temErro = true;
+                    break; // Interrompe se o backend rejeitar
+                }
+                lotesEnviados++;
+            }
             
-            if (response.ok && data.sucesso) {
-                divResultado.innerHTML = `<span style="color: green;">✅ Sucesso! ${data.mensagem}</span>`;
+            if (!temErro) {
+                divResultado.innerHTML = `<span style="color: green;">✅ Sucesso! Arquivo processado e enviado em ${lotesEnviados} pacote(s).</span>`;
                 fileInput.value = ""; 
-            } else {
-                divResultado.innerHTML = `<span style="color: red;">❌ Erro na importação: ${data.erro}</span>`;
             }
         } catch (error) {
-            divResultado.innerHTML = `<span style="color: red;">❌ Erro de comunicação com o servidor. A API demorou muito a responder ou falhou.</span>`;
+            divResultado.innerHTML = `<span style="color: red;">❌ Erro de comunicação com o servidor durante o envio dos pacotes.</span>`;
         } finally {
             btnUpload.disabled = false;
             btnUpload.style.opacity = "1";

@@ -212,6 +212,23 @@ async function carregarPublicidadesAtivas() {
     }
 }
 
+// --- ATALHO GLOBAL DO TECLADO (ENTER PARA LOGIN) ---
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const focoAtual = document.activeElement.id;
+        // Se o foco estiver nos campos do modal de cliente
+        if (focoAtual === 'login-senha' || focoAtual === 'login-email') {
+            if (typeof efetuarLogin === 'function') efetuarLogin();
+        } 
+        // Se o foco estiver nos campos do modal de admin
+        else if (focoAtual === 'admin-senha' || focoAtual === 'admin-email') {
+            if (typeof efetuarLoginAdmin === 'function') efetuarLoginAdmin();
+        }
+    }
+});
+
+
+// --- PESQUISA TUSS COM PROTEÇÃO DE BOTÕES ---
 async function pesquisarDominiosTUSS() {
     const cod = document.getElementById('filtro-codigo-tuss').value;
     const termo = document.getElementById('filtro-termo-tuss').value;
@@ -222,7 +239,12 @@ async function pesquisarDominiosTUSS() {
         return;
     }
 
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">⏳ A pesquisar...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">⏳ A pesquisar...</td></tr>';
+    
+    // VERIFICAÇÃO DE SEGURANÇA: Lê a sessão para saber se é Admin
+    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+    const isInterno = sessao && sessao.tipo === "INTERNO";
+
     try {
         const res = await fetch(`/api/dominio_tuss?codigo=${cod}&termo=${termo}`);
         const data = await res.json();
@@ -230,19 +252,25 @@ async function pesquisarDominiosTUSS() {
         if (res.ok) {
             tbody.innerHTML = '';
             if(data.length === 0) { 
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Sem resultados.</td></tr>'; 
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Sem resultados.</td></tr>'; 
                 return; 
             }
             data.forEach(d => {
                 const termoEscapado = d.termo.replace(/'/g, "");
-                
-                // CORREÇÃO: Declaração das variáveis ausentes e tratamento de nulos/undefined
                 const anvisa = d.registroAnvisa || '-';
                 const fabricante = d.fabricante || '-';
                 const modelo = d.apresentacaoModelo || '-';
                 const risco = d.classeRisco || '';
 
-                // CORREÇÃO: O colspan foi ajustado para 6 colunas, conforme o cabeçalho no HTML
+                // CONTROLE DE ACESSO VISUAL AOS BOTÕES
+                let botoesAcao = '-';
+                if (isInterno) {
+                    botoesAcao = `
+                        <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}', '${fabricante}', '${modelo}', '${risco}')">✏️</button>
+                        <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
+                    `;
+                }
+
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td>${d.codigoTabela}</td>
@@ -251,16 +279,13 @@ async function pesquisarDominiosTUSS() {
                         <td>${modelo}</td>
                         <td>${fabricante}</td>
                         <td>${anvisa}</td>
-                        <td>
-                            <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}', '${fabricante}', '${modelo}', '${risco}')">✏️</button>
-                            <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
-                        </td>
+                        <td>${botoesAcao}</td>
                     </tr>
                 `;
             });		
         }
     } catch(e) { 
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Erro de rede.</td></tr>'; 
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Erro de rede.</td></tr>'; 
     }
 }
 
