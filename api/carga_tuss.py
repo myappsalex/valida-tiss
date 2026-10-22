@@ -20,37 +20,31 @@ class handler(BaseHTTPRequestHandler):
                 self._send_response(400, {'sucesso': False, 'erro': 'Tabela ou arquivo CSV não fornecidos.'})
                 return
 
-            # Lê o CSV considerando o ponto e vírgula como separador padrão no Brasil
-            reader = csv.DictReader(io.StringIO(csv_raw), delimiter=';')
-            registros = []
+            # Substituímos DictReader por reader comum para ler por posição (0, 1, 2) ignorando os nomes do cabeçalho
+            reader = csv.reader(io.StringIO(csv_raw), delimiter=';')
+            next(reader, None) # Pula a primeira linha (cabeçalho)
             
+            registros = []
             for row in reader:
-                registros.append({
-                    "codigoTabela": tabela,
-                    "codigoTermo": row.get('codigoTermo', '').strip(),
-                    "termo": row.get('termo', '').strip(),
-                    "registroAnvisa": row.get('registroAnvisa', '').strip() or None,
-                    "ativo": True
-                })
+                if len(row) >= 2: # Garante que a linha tem pelo menos código e termo
+                    registros.append({
+                        "codigoTabela": tabela,
+                        "codigoTermo": row[0].strip(),
+                        "termo": row[1].strip(),
+                        "registroAnvisa": row[2].strip() if len(row) > 2 else None,
+                        "ativo": True
+                    })
             
             if not registros:
-                self._send_response(400, {'sucesso': False, 'erro': 'O arquivo CSV está vazio ou com cabeçalhos inválidos.'})
+                self._send_response(400, {'sucesso': False, 'erro': 'O arquivo CSV está vazio ou inválido.'})
                 return
 
-            # Limpa os dados antigos desta tabela específica antes de inserir os novos (Atualização Full)
             db.dominiotuss.delete_many(where={"codigoTabela": tabela})
             criados = db.dominiotuss.create_many(data=registros)
-            
-            self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados} termos atualizados na Tabela {tabela}.'})
+            self._send_response(200, {'sucesso': True, 'mensagem': f'Carga concluída! {criados} termos importados.'})
             
         except Exception as e:
-            # Captura todas as propriedades que o Prisma reconhece e devolve no erro
-            tabelas_disponiveis = [a for a in dir(db) if not a.startswith('_')]
-            self._send_response(500, {
-                'sucesso': False, 
-                'erro': f"Erro: {str(e)}", 
-                'tabelas_encontradas': tabelas_disponiveis
-            })
+            self._send_response(500, {'sucesso': False, 'erro': f"Erro: {str(e)}"})
         finally:
             if db.is_connected(): db.disconnect()
 

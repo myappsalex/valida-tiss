@@ -70,6 +70,14 @@ class handler(BaseHTTPRequestHandler):
                     db.cliente.update(where={"id": user_id}, data={"statusConta": novo_valor})
                 mensagem = f"Registo atualizado para: {novo_valor}"
                 
+            # 4. AÇÃO: CANCELAMENTO 
+            elif acao == 'cancelar':
+                if tipo == 'INTERNO':
+                    db.usuario.update(where={"id": user_id}, data={"perfil": "CANCELADO"})
+                else:
+                    db.cliente.update(where={"id": user_id}, data={"statusConta": "CANCELADO"})
+                mensagem = "Cadastro cancelado com sucesso."
+                
             else:
                 self._send_response(400, {'sucesso': False, 'erro': 'Comando desconhecido.'})
                 return
