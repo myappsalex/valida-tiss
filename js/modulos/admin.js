@@ -186,59 +186,30 @@ function abrirModalGestaoAcessos() {
     }
 }
 
-// --- FUNÇÕES DE CONSULTA E EDIÇÃO DE DOMÍNIOS TUSS ---
-async function pesquisarDominiosTUSS() {
-    const cod = document.getElementById('filtro-codigo-tuss').value;
-    const termo = document.getElementById('filtro-termo-tuss').value;
-    const tbody = document.getElementById('tbody-dominios');
-    
-    if (!cod && termo.length < 3) {
-        alert("Digite um código ou pelo menos 3 letras da descrição para pesquisar.");
-        return;
-    }
-
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A pesquisar...</td></tr>';
-    try {
-        const res = await fetch(`/api/dominio_tuss?codigo=${cod}&termo=${termo}`);
-        const data = await res.json();
-        
-        if (res.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Sem resultados.</td></tr>'; return; }
-            data.forEach(d => {
-                const termoEscapado = d.termo.replace(/'/g, "");
-                const anvisa = d.registroAnvisa || '';
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td>${d.codigoTabela}</td><td><strong>${d.codigoTermo}</strong></td><td>${d.termo}</td><td>${anvisa}</td>
-                        <td>
-                            <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}')">✏️</button>
-                            <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-    } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Erro de rede.</td></tr>'; }
-}
-
-function prepararEdicaoDominio(id, tabela, cod, termo, anvisa) {
+function prepararEdicaoDominio(id, tabela, codigo, termo, anvisa, fabricante, modelo, risco) {
     document.getElementById('edit-tuss-id').value = id;
     document.getElementById('edit-tuss-tabela').value = tabela;
-    document.getElementById('edit-tuss-codigo').value = cod;
+    document.getElementById('edit-tuss-codigo').value = codigo;
     document.getElementById('edit-tuss-termo').value = termo;
-    document.getElementById('edit-tuss-anvisa').value = anvisa;
-    abrirModal('modalEdicaoDominio');
+    document.getElementById('edit-tuss-anvisa').value = anvisa || '';
+    document.getElementById('edit-tuss-fabricante').value = fabricante || '';
+    document.getElementById('edit-tuss-modelo').value = modelo || '';
+    document.getElementById('edit-tuss-risco').value = risco || '';
+    abrirModal('modalEditarTUSS');
 }
 
 async function salvarEdicaoDominio() {
     const dados = {
-        acao: 'editar', id: document.getElementById('edit-tuss-id').value,
-        codigoTabela: document.getElementById('edit-tuss-tabela').value,
-        codigoTermo: document.getElementById('edit-tuss-codigo').value,
-        termo: document.getElementById('edit-tuss-termo').value,
-        registroAnvisa: document.getElementById('edit-tuss-anvisa').value
-    };
+        acao: 'editar',
+		id: document.getElementById('edit-tuss-id').value,
+		codigoTabela: document.getElementById('edit-tuss-tabela').value,
+		codigoTermo: document.getElementById('edit-tuss-codigo').value,
+		termo: document.getElementById('edit-tuss-termo').value,
+		registroAnvisa: document.getElementById('edit-tuss-anvisa').value,
+		fabricante: document.getElementById('edit-tuss-fabricante').value,
+		apresentacaoModelo: document.getElementById('edit-tuss-modelo').value,
+		classeRisco: document.getElementById('edit-tuss-risco').value
+		};
     try {
         const res = await fetch('/api/dominio_tuss', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(dados) });
         if(res.ok) { alert("Atualizado!"); fecharModal('modalEdicaoDominio'); pesquisarDominiosTUSS(); }

@@ -38,13 +38,12 @@
         <h3 style="margin-top: 0; color: #333;">📥 Importação de Domínios</h3>
         <div class="form-group">
             <label>Tabela TUSS</label>
-            <select id="tabela-tuss-select" class="form-control">
-                <option value="22">22 - Procedimentos em Saúde</option>
-                <option value="20">20 - Medicamentos</option>
-                <option value="19">19 - Materiais e OPME</option>
-                <option value="18">18 - Taxas e Gases Medicinais</option>
-                <option value="63">63 - Diárias</option>
-            </select>
+            <select id="tabela-importacao" class="form-control">
+				<option value="18">18 - Diárias e Taxas</option> <!-- Unificado -->
+				<option value="19">19 - Materiais e OPME</option>
+				<option value="20">20 - Medicamentos</option>
+				<option value="22">22 - Procedimentos</option>
+			</select>
         </div>
         <div class="form-group">
             <label>Arquivo CSV</label>
@@ -68,7 +67,7 @@
         <div style="max-height: 400px; overflow-y: auto;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <thead style="background: #f8f9fa;">
-                    <tr><th>Tab</th><th>Código</th><th>Descrição</th><th>ANVISA</th><th>Ações</th></tr>
+                    <tr><th>Tab</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th></tr>
                 </thead>
                 <tbody id="tbody-dominios">
                     <tr><td colspan="5" style="text-align: center;">Faça uma pesquisa para exibir resultados.</td></tr>
@@ -86,11 +85,37 @@
         <input type="hidden" id="edit-tuss-id">
         <div class="form-group"><label>Tabela</label><input type="text" id="edit-tuss-tabela" class="form-control"></div>
         <div class="form-group"><label>Código</label><input type="text" id="edit-tuss-codigo" class="form-control"></div>
-        <div class="form-group"><label>Descrição / Termo</label><input type="text" id="edit-tuss-termo" class="form-control"></div>
+        <!---
+		<div class="form-group"><label>Descrição / Termo</label><input type="text" id="edit-tuss-termo" class="form-control"></div>
         <div class="form-group"><label>Reg. ANVISA</label><input type="text" id="edit-tuss-anvisa" class="form-control"></div>
+		--->
+		</div>
+		<div style="display: flex; gap: 10px; margin-top: 10px;">
+		<div style="flex: 2;">
+			<label><strong>Termo / Descrição:</strong></label>
+			<input type="text" id="edit-tuss-termo" class="form-control">
+		</div>
+		<div style="flex: 1;">
+			<label><strong>Apresentação / Modelo:</strong></label>
+			<input type="text" id="edit-tuss-modelo" class="form-control">
+		</div>
+		<div style="flex: 1;">
+			<label><strong>Classe de Risco:</strong></label>
+			<input type="text" id="edit-tuss-risco" class="form-control">
+		</div>
+	</div>
+	<div style="display: flex; gap: 10px; margin-top: 10px;">
+		<div style="flex: 1;">
+			<label><strong>Fabricante / Laboratório:</strong></label>
+			<input type="text" id="edit-tuss-fabricante" class="form-control">
+		</div>
+		<div style="flex: 1;">
+			<label><strong>Reg. ANVISA (Para 19):</strong></label>
+			<input type="text" id="edit-tuss-anvisa" class="form-control">
+		</div>
+	</div>
         <button class="btn btn-success" style="width: 100%;" onclick="salvarEdicaoDominio()">Guardar Alterações</button>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalEdicaoDominio')">Cancelar</button>
-    </div>
 </div>
 
 <!-- MODAL: VISUALIZAR REGRAS DOS CLIENTES (Suporte) -->

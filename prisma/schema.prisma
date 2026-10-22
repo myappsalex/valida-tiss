@@ -67,14 +67,19 @@ model RegraCliente {
 // --- TABELAS DE DOMÍNIO TUSS E GLOSAS (Versão 2.0.0) ---
 
 model DominioTUSS {
-  id              String   @id @default(uuid())
-  codigoTabela    String   // Ex: 18, 19, 20, 22, 63
-  codigoTermo     String   // O código do procedimento ou material
-  termo           String   // A descrição técnica (Ex: Tomografia de Crânio)
-  registroAnvisa  String?  // Exclusivo para OPME e Materiais (Tabela 19)
-  vigenciaInicio  DateTime?
-  vigenciaFim     DateTime?
-  ativo           Boolean  @default(true)
+  id                 String    @id @default(uuid())
+  codigoTabela       String    
+  codigoTermo        String    
+  termo              String    
+  registroAnvisa     String?   
+  vigenciaInicio     DateTime?
+  vigenciaFim        DateTime?
+  ativo              Boolean   @default(true)
+
+  // --- NOVOS CAMPOS PARA TABELAS 19 E 20 ---
+  fabricante         String?
+  apresentacaoModelo String?
+  classeRisco        String?
 
   @@index([codigoTabela, codigoTermo])
 }

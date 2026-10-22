@@ -212,5 +212,42 @@ async function carregarPublicidadesAtivas() {
     }
 }
 
+// --- FUNÇÕES DE CONSULTA E EDIÇÃO DE DOMÍNIOS TUSS ---
+async function pesquisarDominiosTUSS() {
+    const cod = document.getElementById('filtro-codigo-tuss').value;
+    const termo = document.getElementById('filtro-termo-tuss').value;
+    const tbody = document.getElementById('tbody-dominios');
+    
+    if (!cod && termo.length < 3) {
+        alert("Digite um código ou pelo menos 3 letras da descrição para pesquisar.");
+        return;
+    }
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ A pesquisar...</td></tr>';
+    try {
+        const res = await fetch(`/api/dominio_tuss?codigo=${cod}&termo=${termo}`);
+        const data = await res.json();
+        
+        if (res.ok) {
+            tbody.innerHTML = '';
+            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Sem resultados.</td></tr>'; return; }
+            data.forEach(d => {
+                const termoEscapado = d.termo.replace(/'/g, "");
+                const anvisa = d.registroAnvisa || '';
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td>${d.codigoTabela}</td><td><strong>${d.codigoTermo}</strong></td><td>${d.termo}</td><td>${d.apresentacaoModelo}</td><td>${fabricante}</td><td>${anvisa}</td>
+                        <td>
+                            <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}')">✏️</button>
+                            <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });		
+			
+        }
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Erro de rede.</td></tr>'; }
+}
+
 // Executa a busca assim que a página terminar de carregar
 document.addEventListener('DOMContentLoaded', carregarPublicidadesAtivas);
