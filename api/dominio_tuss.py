@@ -26,7 +26,10 @@ class handler(BaseHTTPRequestHandler):
             for r in resultados:
                 lista.append({
                     "id": r.id, "codigoTabela": r.codigoTabela, "codigoTermo": r.codigoTermo,
-                    "termo": r.termo, "registroAnvisa": r.registroAnvisa, "ativo": r.ativo
+                    "termo": r.termo, "registroAnvisa": r.registroAnvisa, "ativo": r.ativo,
+                    "fabricante": getattr(r, 'fabricante', ''),
+                    "apresentacaoModelo": getattr(r, 'apresentacaoModelo', ''),
+                    "classeRisco": getattr(r, 'classeRisco', '')
                 })
             self._send_response(200, lista)
         except Exception as e:
@@ -53,7 +56,10 @@ class handler(BaseHTTPRequestHandler):
                         "codigoTabela": dados.get("codigoTabela"),
                         "codigoTermo": dados.get("codigoTermo"),
                         "termo": dados.get("termo"),
-                        "registroAnvisa": dados.get("registroAnvisa") or None
+                        "registroAnvisa": dados.get("registroAnvisa") or None,
+                        "fabricante": dados.get("fabricante") or None,
+                        "apresentacaoModelo": dados.get("apresentacaoModelo") or None,
+                        "classeRisco": dados.get("classeRisco") or None
                     }
                 )
                 self._send_response(200, {'sucesso': True})

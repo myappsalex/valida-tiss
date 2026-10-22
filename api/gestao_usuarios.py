@@ -1,11 +1,11 @@
 import json
+import os
+import bcrypt
 from http.server import BaseHTTPRequestHandler
 from prisma import Prisma
 from urllib.parse import urlparse, parse_qs
-import bcrypt
 
 class handler(BaseHTTPRequestHandler):
-    # --- ROTA PARA LISTAR OS UTILIZADORES (O que já tínhamos) ---
     def do_GET(self):
         db = Prisma()
         try:
@@ -30,7 +30,6 @@ class handler(BaseHTTPRequestHandler):
         finally:
             if db.is_connected(): db.disconnect()
 
-    # --- NOVA ROTA: RECEBE OS COMANDOS DE EDIÇÃO, RESET E BLOQUEIO ---
     def do_POST(self):
         db = Prisma()
         try:
@@ -44,7 +43,6 @@ class handler(BaseHTTPRequestHandler):
             
             db.connect()
             
-            # 1. AÇÃO: BLOQUEAR
             if acao == 'bloquear':
                 if tipo == 'INTERNO':
                     db.usuario.update(where={"id": user_id}, data={"perfil": "BLOQUEADO"})
@@ -52,7 +50,6 @@ class handler(BaseHTTPRequestHandler):
                     db.cliente.update(where={"id": user_id}, data={"statusConta": "BLOQUEADO"})
                 mensagem = "Acesso revogado e bloqueado com sucesso!"
                 
-            # 2. AÇÃO: RESETAR SENHA
             elif acao == 'resetar':
                 nova_senha_hash = bcrypt.hashpw("Mudar@123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                 if tipo == 'INTERNO':
@@ -61,16 +58,15 @@ class handler(BaseHTTPRequestHandler):
                     db.cliente.update(where={"id": user_id}, data={"senhaHash": nova_senha_hash})
                 mensagem = "Senha redefinida com sucesso. A senha provisória é: Mudar@123"
                 
-            # 3. AÇÃO: EDITAR STATUS/PERFIL
             elif acao == 'editar':
                 novo_valor = data.get('novo_dado', '').strip().upper()
                 if tipo == 'INTERNO':
                     db.usuario.update(where={"id": user_id}, data={"perfil": novo_valor})
                 else:
                     db.cliente.update(where={"id": user_id}, data={"statusConta": novo_valor})
-                mensagem = f"Registo atualizado para: {novo_valor}"
+                mensagem = f"Registro atualizado para: {novo_valor}"
                 
-            # 4. AÇÃO: CANCELAMENTO 
+            # --- NOVO BLOCO QUE PROCESSA O CANCELAMENTO ---
             elif acao == 'cancelar':
                 if tipo == 'INTERNO':
                     db.usuario.update(where={"id": user_id}, data={"perfil": "CANCELADO"})
@@ -79,7 +75,8 @@ class handler(BaseHTTPRequestHandler):
                 mensagem = "Cadastro cancelado com sucesso."
                 
             else:
-                self._send_response(400, {'sucesso': False, 'erro': 'Comando desconhecido.'})
+                # Agora retorna qual foi o comando enviado para facilitar o diagnóstico
+                self._send_response(400, {'sucesso': False, 'erro': f"Comando desconhecido: '{acao}'"})
                 return
                 
             self._send_response(200, {'sucesso': True, 'mensagem': mensagem})
@@ -89,7 +86,6 @@ class handler(BaseHTTPRequestHandler):
         finally:
             if db.is_connected(): db.disconnect()
 
-    # Função auxiliar para não repetirmos código de cabeçalho
     def _send_response(self, status, payload):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
