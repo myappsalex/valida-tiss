@@ -732,6 +732,7 @@ async function salvarAvaliacaoAd(novoStatus) {
     const valor = parseFloat(document.getElementById('aval-ad-valor').value) || 0;
     const dtInicio = document.getElementById('aval-ad-inicio').value;
     const dtFim = document.getElementById('aval-ad-fim').value;
+	const localExibicao = document.getElementById('aval-ad-local').value;
 
     if (novoStatus === 'AGUARDANDO_PAGAMENTO' && valor <= 0) {
         alert("Para enviar o orçamento, informe um valor maior que zero.");
@@ -746,7 +747,8 @@ async function salvarAvaliacaoAd(novoStatus) {
             observacaoAdmin: obs,
             valorOrcamento: valor,
             dataInicio: dtInicio ? new Date(dtInicio + 'T00:00:00Z').toISOString() : null,
-            dataFim: dtFim ? new Date(dtFim + 'T23:59:59Z').toISOString() : null
+            dataFim: dtFim ? new Date(dtFim + 'T23:59:59Z').toISOString() : null,
+			localExibicao: localExibicao
         };
 
         const response = await fetch('/api/publicidade', {

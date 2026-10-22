@@ -233,7 +233,13 @@
         
         <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
         <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
-        
+        <div style="margin-top: 10px;">
+			<label><strong>Local de Exibição:</strong></label>
+			<select id="aval-ad-local" class="form-control" style="width: 100%;">
+				<option value="CABECALHO">Cabeçalho Principal (Horizontal)</option>
+				<option value="LATERAL">Barra Lateral (Vertical)</option>
+			</select>
+		</div>
         <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
     </div>

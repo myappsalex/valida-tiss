@@ -58,6 +58,7 @@ async function enviarPedidoPub() {
     const link = document.getElementById('pub-link').value;
     const tema = document.getElementById('pub-tema').value;
     const arquivoInput = document.getElementById('pub-arquivo');
+	const localExibicao = document.getElementById('aval-ad-local').value;
 
     if(!empresa || !email || !link || !tema) {
         alert("Preencha todos os campos obrigatórios (Empresa, E-mail, Link e Tema).");
@@ -81,6 +82,7 @@ async function enviarPedidoPub() {
                     email_contato: email, 
                     link_destino: link, 
                     tema: tema, 
+					localExibicao: localExibicao,
                     arquivo_base64: base64String 
                 })
             });
@@ -136,11 +138,14 @@ function abrirPedidoPublicidade() {
     const elClienteId = document.getElementById('pub-cliente-id');
     const elEmpresa = document.getElementById('pub-empresa');
     const elEmail = document.getElementById('pub-email');
+	const elocalExibicao = document.getElementById('aval-ad-local').value;
     
     if (elClienteId && elEmpresa && elEmail) {
         elClienteId.value = sessao.id;
         elEmpresa.value = sessao.nome;
         elEmail.value = sessao.email;
+		elocalExibicao = sessao.localExibicao,
+		
     }
     
     abrirModal('modalPublicidade');
@@ -171,3 +176,48 @@ function copiarPix() {
     document.execCommand("copy");
     alert("Código PIX copiado com sucesso!");
 }
+
+async function carregarPublicidadesAtivas() {
+    try {
+        const response = await fetch('/api/campanhas');
+        if (!response.ok) return;
+        
+        const anuncios = await response.json();
+        
+        // Filtra os anúncios por local
+        const adCabecalho = anuncios.find(a => a.local === 'CABECALHO');
+        const adLateral = anuncios.find(a => a.local === 'LATERAL');
+        
+        // Renderiza no Cabeçalho se houver campanha ativa
+        if (adCabecalho) {
+            const divCabecalho = document.getElementById('ads_cabecalho');
+            divCabecalho.innerHTML = `
+                <h3 style="margin: 0;">🚀 ${adCabecalho.titulo}</h3>
+                <span class="pulse-text">${adCabecalho.texto}</span>
+            `;
+            // Se tiver link, altera o evento de clique (se for 'modal', mantém o original)
+            if (adCabecalho.link && adCabecalho.link !== 'modal') {
+                divCabecalho.onclick = () => window.open(adCabecalho.link, '_blank');
+            }
+        }
+
+        // Renderiza na Lateral se houver campanha ativa
+        if (adLateral) {
+            const divLateral = document.getElementById('ads_lateral');
+            divLateral.innerHTML = `
+                <h4>${adLateral.titulo}</h4>
+                <p>${adLateral.texto}</p>
+                <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+                <span class="btn-ad">Acessar</span>
+            `;
+            if (adLateral.link && adLateral.link !== 'modal') {
+                divLateral.onclick = () => window.open(adLateral.link, '_blank');
+            }
+        }
+    } catch (error) {
+        console.error("Erro ao carregar publicidades:", error);
+    }
+}
+
+// Executa a busca assim que a página terminar de carregar
+document.addEventListener('DOMContentLoaded', carregarPublicidadesAtivas);
