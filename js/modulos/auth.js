@@ -157,3 +157,25 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if(typeof iniciarRotacaoPublicidade === 'function') iniciarRotacaoPublicidade();
 });
+
+// Inicialização
+        window.onload = () => {
+            console.log("ValidaTISS 2.0.0 Inicializado");
+			document.addEventListener('DOMContentLoaded', () => {
+			// Tecla Enter no Login de Cliente
+			const inputSenhaLogin = document.getElementById('login-senha');
+			if (inputSenhaLogin) {
+				inputSenhaLogin.addEventListener('keypress', (e) => {
+					if (e.key === 'Enter') efetuarLogin();
+				});
+			}
+
+			// Tecla Enter no Login Admin
+			const inputSenhaAdmin = document.getElementById('admin-senha');
+			if (inputSenhaAdmin) {
+				inputSenhaAdmin.addEventListener('keypress', (e) => {
+					if (e.key === 'Enter') efetuarLoginAdmin();
+				});
+			}
+		});
+   };

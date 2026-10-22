@@ -176,29 +176,26 @@ async function carregarPublicidadesAtivas() {
     try {
         const response = await fetch('/api/campanhas');
         if (!response.ok) return;
-        
         const anuncios = await response.json();
         
-        // Filtra os anúncios por local
         const adCabecalho = anuncios.find(a => a.local === 'CABECALHO');
         const adLateral = anuncios.find(a => a.local === 'LATERAL');
         
-        // Renderiza no Cabeçalho se houver campanha ativa
-        if (adCabecalho) {
-            const divCabecalho = document.getElementById('ads_cabecalho');
+        const divCabecalho = document.getElementById('ads_cabecalho');
+        if (adCabecalho && divCabecalho) { // Verifica se a div existe antes de mexer
             divCabecalho.innerHTML = `
                 <h3 style="margin: 0;">🚀 ${adCabecalho.titulo}</h3>
                 <span class="pulse-text">${adCabecalho.texto}</span>
             `;
-            // Se tiver link, altera o evento de clique (se for 'modal', mantém o original)
             if (adCabecalho.link && adCabecalho.link !== 'modal') {
-                divCabecalho.onclick = () => window.open(adCabecalho.link, '_blank');
+                // Adiciona o https:// se o cliente tiver esquecido
+                const linkFinal = adCabecalho.link.startsWith('http') ? adCabecalho.link : `https://${adCabecalho.link}`;
+                divCabecalho.onclick = () => window.open(linkFinal, '_blank');
             }
         }
 
-        // Renderiza na Lateral se houver campanha ativa
-        if (adLateral) {
-            const divLateral = document.getElementById('ads_lateral');
+        const divLateral = document.getElementById('ads_lateral');
+        if (adLateral && divLateral) { // Verifica se a div existe antes de mexer
             divLateral.innerHTML = `
                 <h4>${adLateral.titulo}</h4>
                 <p>${adLateral.texto}</p>
@@ -206,7 +203,8 @@ async function carregarPublicidadesAtivas() {
                 <span class="btn-ad">Acessar</span>
             `;
             if (adLateral.link && adLateral.link !== 'modal') {
-                divLateral.onclick = () => window.open(adLateral.link, '_blank');
+                const linkFinal = adLateral.link.startsWith('http') ? adLateral.link : `https://${adLateral.link}`;
+                divLateral.onclick = () => window.open(linkFinal, '_blank');
             }
         }
     } catch (error) {
