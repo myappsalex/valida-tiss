@@ -24,6 +24,7 @@
             <div>
                 <button class="btn btn-primary" onclick="window.location.href='index.html'">Voltar ao Validador</button>
                 <button class="btn btn-danger" onclick="efetuarLogout()">Sair</button>
+				<button class="btn btn-primary" onclick="abrirModal('modalConsultaTUSS')">📦 Consulta tabelas TISS/TUSS</button>
             </div>
         </div>
 		<!-- PAINEL FINANCEIRO DO CLIENTE -->
@@ -242,6 +243,30 @@
 		</div>
         <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
+    </div>
+</div>
+
+	
+<!-- MODAL: CONSULTA E EDIÇÃO DE DOMÍNIOS -->
+<div id="modalConsultaTUSS" class="modal-overlay">
+    <div class="modal-content" style="width: 800px; max-height: 90vh;">
+        <h3 style="margin-top: 0; color: #333;">🔍 Consultar Tabelas de Domínio - TUSS</h3>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="filtro-codigo-tuss" placeholder="Código (Ex: 10101012)" class="form-control" style="flex: 1;">
+            <input type="text" id="filtro-termo-tuss" placeholder="Descrição (Parte do nome)" class="form-control" style="flex: 2;">
+            <button class="btn btn-primary" onclick="pesquisarDominiosTUSS()">Pesquisar</button>
+        </div>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead style="background: #f8f9fa;">
+                    <tr><th>Tab</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th></tr>
+                </thead>
+                <tbody id="tbody-dominios">
+                    <tr><td colspan="5" style="text-align: center;">Faça uma pesquisa para exibir resultados.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee;" onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
     </div>
 </div>
 
