@@ -8,22 +8,28 @@ class handler(BaseHTTPRequestHandler):
         db = Prisma()
         try:
             db.connect()
+            # Busca apenas as campanhas ativas
             campanhas_ativas = db.campanhaads.find_many(where={"status": "ATIVO"})
             
             lista_anuncios = []
             agora = datetime.now(timezone.utc)
 
             for c in campanhas_ativas:
-                if c.dataInicio and c.dataInicio > agora: continue
-                if c.dataFim and c.dataFim < agora: continue
+                # Validação das datas de validade
+                if getattr(c, 'dataInicio', None) and c.dataInicio > agora: continue
+                if getattr(c, 'dataFim', None) and c.dataFim < agora: continue
                 
-                lista_anuncios.append({
+                # Monta a estrutura base do anúncio
+                anuncio_base = {
                     "titulo": c.empresa_nome,
                     "texto": c.tema,
                     "link": c.link_destino if c.link_destino else "modal",
-                    "cor": "linear-gradient(-45deg, #10a37f, #0056b3)",
-                    "local": "TODOS" 
-                })
+                    "cor": "linear-gradient(-45deg, #10a37f, #0056b3)"
+                }
+                
+                # Envia explicitamente para os dois blocos esperados pelo seu front-end
+                lista_anuncios.append({**anuncio_base, "local": "CABECALHO"})
+                lista_anuncios.append({**anuncio_base, "local": "RODAPE"})
             
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
