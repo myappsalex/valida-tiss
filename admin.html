@@ -15,7 +15,7 @@
     </script>
 </head>
 <body>
-    <div class="dashboard">
+<div class="dashboard">
         <div class="header">
             <h2 style="margin: 0;">⚙️ Centro de Operações (Backoffice)</h2>
             <button class="btn btn-danger" onclick="efetuarLogout()">Sair do Sistema</button>
@@ -159,7 +159,6 @@
                 </tbody>
             </table>
         </div>
-    </div>
 
     <!-- Modal: Cadastro de Utilizadores Internos -->
     <div id="modalFuncionario" class="modal-overlay">
@@ -252,9 +251,6 @@
         </div>
     </div>
 
-    <script>
-
-    </script>
 	<!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
 	<!-- Modal: Gestão de Identidade e Acessos -->
     <div id="modalGestaoAcessos" class="modal-overlay">
@@ -298,8 +294,8 @@
         <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalImportacaoTUSS')">📥 Importar CSV (Carga em Lote)</button>
         <button class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalConsultaTUSS')">🔍 Consultar e Editar Registos</button>
         <button class="btn" style="width: 100%; background: #eee; color: #333;" onclick="fecharModal('modalAcaoTUSS')">Cancelar</button>
+		</div>
 	</div>
-</div>
 	
 	<!-- MODAL: GESTÃO DE ASSINATURAS SAAS -->
 <div id="modalAssinaturas" class="modal-overlay">
@@ -423,7 +419,7 @@
 <div id="modalPagarAds" class="modal-overlay">
     <div class="modal-content" style="width: 400px; text-align: center;">
         <h3 style="color: #28a745; margin-top: 0;">💲 Pagamento da Campanha</h3>
-        <p>Orçamento aprovado no valor de <strong>R$ 500,00</strong></p>
+        <p>Orçamento aprovado no valor de <strong>R$ </strong></p>
         <div style="background: #eee; width: 200px; height: 200px; margin: 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
             [QR CODE PIX GERADO AQUI]
         </div>
@@ -486,8 +482,8 @@
         <button class="btn btn-info" style="width: 100%; margin-top: 20px; background: #17a2b8; color: white;" onclick="salvarDadosCliente()">Salvar Alterações</button>
         <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalDadosCliente')">Fechar</button>
     </div>
+	</div>
 </div>
-
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>

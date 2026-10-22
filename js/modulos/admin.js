@@ -1,11 +1,4 @@
 // js/modulos/admin.js
-async function processarCargaTUSS() {
-    // Lógica de upload do CSV
-}
-
-async function pesquisarDominiosTUSS() {
-    // Lógica de consulta de domínios
-}
 
 // Feedback imediato assim que o utilizador escolhe o ficheiro (mesmo antes de clicar no botão)
 function verificarArquivoSelecionado() {
@@ -642,13 +635,13 @@ function alterarStatusAd(id, novoStatus) {
     }
 }
 
- function abrirPagamentoPIX(campanhaId, valor) {
+function abrirPagamentoPIX(campanhaId, valor) {
         document.getElementById('pix-valor-display').innerText = `R$ ${valor.toFixed(2)}`;
         // Aqui integraremos a API do gateway (Asaas/Stripe) para gerar o Copia-e-Cola real
         abrirModal('modalPagarAds');
     }
     
-    function copiarPix() {
+function copiarPix() {
         const copyText = document.getElementById("pix-copia-cola");
         copyText.select();
         document.execCommand("copy");
