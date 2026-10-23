@@ -5,16 +5,13 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from prisma import Prisma
 
-# Função auxiliar para ler datas em múltiplos formatos de forma segura
 def parse_data_flexivel(data_str):
     if not data_str or data_str == '-':
         return None
     try:
-        # Tenta o formato DD/MM/YYYY
         return datetime.strptime(data_str, "%d/%m/%Y")
     except ValueError:
         try:
-            # Se falhar, tenta o formato YYYY-MM-DD
             return datetime.strptime(data_str, "%Y-%m-%d")
         except ValueError:
             return None
@@ -41,17 +38,15 @@ class handler(BaseHTTPRequestHandler):
                 self._send_response(400, {'sucesso': False, 'erro': 'Arquivo CSV vazio ou inválido.'})
                 return
 
-            source_arquivo = rows[0].get('source', '')
+            source_arquivo = (rows[0].get('source') or '').strip()
             source_esperado = f"tuss-{tabela}"
             if source_arquivo != source_esperado:
                 self._send_response(400, {'sucesso': False, 'erro': f'Layout Inválido! Você escolheu a Tabela {tabela}, mas o arquivo enviado pertence à tabela "{source_arquivo}".'})
                 return
 
-            # Mapeamento para bloquear duplicidades usando um padrão único de texto
             existentes = db.dominiotuss.find_many(where={"codigoTabela": tabela})
             set_existentes = set()
             for e in existentes:
-                # Padroniza a data para YYYY-MM-DD para a verificação interna
                 d_ini = e.vigenciaInicio.strftime("%Y-%m-%d") if e.vigenciaInicio else "-"
                 d_fim = e.vigenciaFim.strftime("%Y-%m-%d") if e.vigenciaFim else "-"
                 if tabela in ['18', '22']:
@@ -63,30 +58,29 @@ class handler(BaseHTTPRequestHandler):
 
             novos_registros = []
             for row in rows:
-                cod = row.get('id', '').strip()
+                # CORREÇÃO: Usa (row.get('x') or '') para impedir o erro NoneType
+                cod = (row.get('id') or '').strip()
                 if not cod: continue
 
-                termo = row.get('display_name', '').strip()
-                str_ini = row.get('extras_inicio_vigencia', '').strip()
-                str_fim = row.get('extras_fim_vigencia', '').strip()
+                termo = (row.get('display_name') or '').strip()
+                str_ini = (row.get('extras_inicio_vigencia') or '').strip()
+                str_fim = (row.get('extras_fim_vigencia') or '').strip()
                 
-                # Conversão flexível das datas
                 dt_ini = parse_data_flexivel(str_ini)
                 dt_fim = parse_data_flexivel(str_fim)
                 
-                # Formata a string para comparar com o banco usando o mesmo padrão interno
                 comp_ini = dt_ini.strftime("%Y-%m-%d") if dt_ini else "-"
                 comp_fim = dt_fim.strftime("%Y-%m-%d") if dt_fim else "-"
 
                 fab, mod, anvisa, risco = '', '', None, None
                 if tabela == '20':
-                    fab = row.get('extras_laboratorio', '').strip()
-                    mod = row.get('extras_apresentacao', '').strip()
+                    fab = (row.get('extras_laboratorio') or '').strip()
+                    mod = (row.get('extras_apresentacao') or '').strip()
                 elif tabela == '19':
-                    fab = row.get('extras_fabricante', '').strip()
-                    mod = row.get('extras_modelo', '').strip()
-                    anvisa = row.get('extras_registro_anvisa', '').strip()
-                    risco = row.get('extras_classe_risco', '').strip()
+                    fab = (row.get('extras_fabricante') or '').strip()
+                    mod = (row.get('extras_modelo') or '').strip()
+                    anvisa = (row.get('extras_registro_anvisa') or '').strip()
+                    risco = (row.get('extras_classe_risco') or '').strip()
 
                 assinatura = (cod, comp_ini, comp_fim) if tabela in ['18', '22'] else (cod, comp_ini, comp_fim, fab, mod)
                 if assinatura in set_existentes:
