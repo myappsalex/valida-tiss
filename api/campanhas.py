@@ -24,6 +24,7 @@ class handler(BaseHTTPRequestHandler):
                     "texto": c.tema,
                     "link": c.link_destino if c.link_destino else "modal",
                     "cor": "linear-gradient(-45deg, #10a37f, #0056b3)",
+                    "banner": c.bannerUrl,
                     "local": local_banco
                 })
             
