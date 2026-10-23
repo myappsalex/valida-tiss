@@ -67,6 +67,10 @@ async function processarCargaTUSS() {
                     break; // Interrompe se o backend rejeitar
                 }
                 lotesEnviados++;
+				
+				// Faz o script esperar 1.5 segundos antes de enviar o próximo pacote
+                // Isso impede o banco de dados de bloquear as conexões (Erro 500)
+				await new Promise(resolve => setTimeout(resolve, 1500));
             }
             
             if (!temErro) {
@@ -210,11 +214,15 @@ function prepararEdicaoDominio(id, tabela, codigo, termo, anvisa, fabricante, mo
     document.getElementById('edit-tuss-tabela').value = tabela;
     document.getElementById('edit-tuss-codigo').value = codigo;
     document.getElementById('edit-tuss-termo').value = termo;
-    document.getElementById('edit-tuss-anvisa').value = anvisa || '';
-    document.getElementById('edit-tuss-fabricante').value = fabricante || '';
-    document.getElementById('edit-tuss-modelo').value = modelo || '';
-    document.getElementById('edit-tuss-risco').value = risco || '';
-    abrirModal('modalEditarTUSS');
+    
+    // Remove os tracinhos se o campo for vazio
+    document.getElementById('edit-tuss-anvisa').value = anvisa === '-' ? '' : anvisa;
+    document.getElementById('edit-tuss-fabricante').value = fabricante === '-' ? '' : fabricante;
+    document.getElementById('edit-tuss-modelo').value = modelo === '-' ? '' : modelo;
+    document.getElementById('edit-tuss-risco').value = risco === '-' ? '' : risco;
+    
+    // CORREÇÃO: O ID exato que está no seu admin.html
+    abrirModal('modalEdicaoDominio'); 
 }
 
 async function salvarEdicaoDominio() {
