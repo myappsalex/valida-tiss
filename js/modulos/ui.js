@@ -199,8 +199,8 @@ async function carregarPublicidadesAtivas() {
             divLateral.innerHTML = `
                 <h4>${adLateral.titulo}</h4>
                 <p>${adLateral.texto}</p>
-                <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
-                <span class="btn-ad">Acessar</span>
+                <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢<img src="${adLateral.banner}" alt="Visite nosso site"></div>
+                <span class="btn-ad">Acessar</span>				
             `;
             if (adLateral.link && adLateral.link !== 'modal') {
                 const linkFinal = adLateral.link.startsWith('http') ? adLateral.link : `https://${adLateral.link}`;
