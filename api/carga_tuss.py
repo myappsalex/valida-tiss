@@ -2,6 +2,10 @@ import json
 import csv
 import io
 from datetime import datetime
+from http.server import BaseHTTPRequestHandlerimport json
+import csv
+import io
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from prisma import Prisma
 
@@ -41,10 +45,18 @@ class handler(BaseHTTPRequestHandler):
             source_arquivo = (rows[0].get('source') or '').strip()
             source_esperado = f"tuss-{tabela}"
             if source_arquivo != source_esperado:
-                self._send_response(400, {'sucesso': False, 'erro': f'Layout Inválido! Você escolheu a Tabela {tabela}, mas o arquivo enviado pertence à tabela "{source_arquivo}".'})
+                self._send_response(400, {'sucesso': False, 'erro': f'Layout Inválido! Tabela esperada: "{source_esperado}".'})
                 return
 
-            existentes = db.dominiotuss.find_many(where={"codigoTabela": tabela})
+            # OTIMIZAÇÃO: Pega apenas os códigos presentes neste pequeno pacote
+            codigos_no_pacote = [ (r.get('id') or '').strip() for r in rows if (r.get('id') or '').strip() ]
+
+            # Consulta SOMENTE os códigos que vieram no pacote, ignorando o resto da tabela gigante
+            existentes = db.dominiotuss.find_many(where={
+                "codigoTabela": tabela,
+                "codigoTermo": {"in": codigos_no_pacote}
+            })
+            
             set_existentes = set()
             for e in existentes:
                 d_ini = e.vigenciaInicio.strftime("%Y-%m-%d") if e.vigenciaInicio else "-"
@@ -58,7 +70,6 @@ class handler(BaseHTTPRequestHandler):
 
             novos_registros = []
             for row in rows:
-                # CORREÇÃO: Usa (row.get('x') or '') para impedir o erro NoneType
                 cod = (row.get('id') or '').strip()
                 if not cod: continue
 
@@ -98,16 +109,11 @@ class handler(BaseHTTPRequestHandler):
                 novos_registros.append(novo)
             
             if not novos_registros:
-                self._send_response(200, {'sucesso': True, 'mensagem': 'Nenhum item importado. Todos os códigos com estas vigências já existem.'})
+                self._send_response(200, {'sucesso': True, 'mensagem': 'Termos já existentes ignorados.'})
                 return
 
-            criados = 0
-            for i in range(0, len(novos_registros), 500):
-                chunk = novos_registros[i:i + 500]
-                db.dominiotuss.create_many(data=chunk)
-                criados += len(chunk)
-            
-            self._send_response(200, {'sucesso': True, 'mensagem': f'Sucesso! {criados} novos termos importados para a Tabela {tabela}.'})
+            criados = db.dominiotuss.create_many(data=novos_registros)
+            self._send_response(200, {'sucesso': True, 'mensagem': f'Sucesso! {criados} novos termos importados.'})
             
         except Exception as e:
             self._send_response(500, {'sucesso': False, 'erro': f"Erro: {str(e)}"})

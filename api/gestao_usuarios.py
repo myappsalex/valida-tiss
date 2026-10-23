@@ -73,6 +73,19 @@ class handler(BaseHTTPRequestHandler):
                 else:
                     db.cliente.update(where={"id": user_id}, data={"statusConta": "CANCELADO"})
                 mensagem = "Cadastro cancelado com sucesso."
+            
+            elif acao == 'editar_dados':
+                nome_atualizado = data.get('nome')
+                status_atualizado = data.get('statusConta')
+                
+                db.cliente.update(
+                    where={"id": user_id},
+                    data={
+                        "nomeEmpresa": nome_atualizado,
+                        "statusConta": status_atualizado
+                    }
+                )
+                mensagem = "Dados cadastrais atualizados com sucesso."
                 
             else:
                 # Agora retorna qual foi o comando enviado para facilitar o diagnóstico
