@@ -184,7 +184,7 @@ async function carregarPublicidadesAtivas() {
         const divCabecalho = document.getElementById('ads_cabecalho');
         if (adCabecalho && divCabecalho) { // Verifica se a div existe antes de mexer
             divCabecalho.innerHTML = `
-                <h3 style="margin: 0;"><img src="${adLateral.banner}" width="150">${adCabecalho.titulo}</h3>
+                <h3 style="margin: 0;">🚀 ${adCabecalho.titulo}</h3>
                 <span class="pulse-text">${adCabecalho.texto}</span>				
             `;
             if (adCabecalho.link && adCabecalho.link !== 'modal') {
