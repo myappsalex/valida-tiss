@@ -757,3 +757,25 @@ async function salvarAvaliacaoAd(novoStatus) {
     } catch (e) { alert("Erro de comunicação com o servidor."); }
 }
 
+function abrirPedidoPublicidadeAvulsoAdmin() {
+    document.getElementById('pub-cliente-id').value = 'GUEST';
+    
+    // Libera os campos para o admin digitar o nome e email do cliente externo
+    const elEmpresa = document.getElementById('pub-empresa');
+    const elEmail = document.getElementById('pub-email');
+    
+    elEmpresa.value = '';
+    elEmpresa.readOnly = false;
+    elEmpresa.style.background = '#fff';
+    elEmpresa.placeholder = "Digite o nome da empresa parceira";
+    
+    elEmail.value = '';
+    elEmail.readOnly = false;
+    elEmail.style.background = '#fff';
+    elEmail.placeholder = "contato@empresa.com";
+    
+    document.getElementById('pub-tema').value = "";
+    document.getElementById('pub-link').value = "";
+    
+    abrirModal('modalPublicidade');
+}

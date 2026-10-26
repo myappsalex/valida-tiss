@@ -113,36 +113,52 @@ async function enviarPedidoPub() {
     }
 }
 
-// --- FLUXO DE PEDIDO DE PUBLICIDADE ---
-function abrirPedidoPublicidade() {
+function abrirPedidoPublicidade(modo = 'LOGADO') {
     const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
     
-    // 1. SE NÃO ESTIVER LOGADO -> Pede para logar/cadastrar
-    if (!sessao) {
+    // Elementos do formulário
+    const elClienteId = document.getElementById('pub-cliente-id');
+    const elEmpresa = document.getElementById('pub-empresa');
+    const elEmail = document.getElementById('pub-email');
+    const elLocalExibicao = document.getElementById('aval-ad-local');
+    
+    // Limpa os campos por padrão
+    if(elEmpresa) { elEmpresa.value = ''; elEmpresa.readOnly = false; elEmpresa.style.background = '#fff'; }
+    if(elEmail) { elEmail.value = ''; elEmail.readOnly = false; elEmail.style.background = '#fff'; }
+    if(elClienteId) elClienteId.value = 'GUEST'; // Flag para Anunciante Avulso
+
+    // 1. SE NÃO ESTIVER LOGADO E NÃO ESCOLHEU O MODO -> Mostra o menu de opções
+    if (!sessao && modo === 'LOGADO') {
         abrirModal('modalBoasVindasPub');
         return;
     }
     
-    // 2. SE ESTIVER LOGADO MAS ESTIVER NO INDEX -> Redireciona
-    if (!window.location.href.includes('dashboard_cliente.html')) {
-        // Envia uma variável na URL para o dashboard saber que deve abrir o modal
+    // 2. SE ESTIVER LOGADO MAS ESTIVER NO INDEX -> Redireciona para o Painel
+    if (sessao && !window.location.href.includes('dashboard_cliente.html')) {
         window.location.href = 'dashboard_cliente.html?abrirPub=true';
         return;
     }
 
-    // 3. SE ESTIVER LOGADO E JÁ NO DASHBOARD -> Preenche e Abre
-    const elClienteId = document.getElementById('pub-cliente-id');
-    const elEmpresa = document.getElementById('pub-empresa');
-    const elEmail = document.getElementById('pub-email');
-	const elocalExibicao = document.getElementById('aval-ad-local').value;
-    
-    if (elClienteId && elEmpresa && elEmail) {
-        elClienteId.value = sessao.id;
-        elEmpresa.value = sessao.nome;
-        elEmail.value = sessao.email;
-		elocalExibicao = sessao.localExibicao;		
+    // 3. PREENCHIMENTO DE DADOS (Logado vs Visitante)
+    if (sessao && modo === 'LOGADO') {
+        if (elClienteId && elEmpresa && elEmail) {
+            elClienteId.value = sessao.id;
+            elEmpresa.value = sessao.nome;
+            elEmpresa.readOnly = true; 
+            elEmpresa.style.background = '#f4f7f6';
+            
+            elEmail.value = sessao.email;
+            elEmail.readOnly = true;
+            elEmail.style.background = '#f4f7f6';
+            
+            if (elLocalExibicao && sessao.localExibicao) {
+                elLocalExibicao.value = sessao.localExibicao;
+            }
+        }
     }
     
+    // Fecha o modal de boas vindas e abre o formulário
+    fecharModal('modalBoasVindasPub');
     abrirModal('modalPublicidade');
 }
 

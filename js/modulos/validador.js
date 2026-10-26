@@ -581,3 +581,43 @@ function exportarExcel() {
     link.setAttribute("download", "Relatorio_TISS_Completo.csv");
     link.click();
 }
+
+// Função para validar no backend
+async function validarCodigosTUSS(arrayDeCodigos) {
+    try {
+        const res = await fetch('/api/dominio_tuss', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acao: 'validar_lote', codigos: arrayDeCodigos })
+        });
+        if (res.ok) return await res.json(); // Retorna array ['10101012', '20101015', ...]
+        return [];
+    } catch (e) { return []; }
+}
+
+// EXEMPLO DE APLICAÇÃO NO SEU LOOP DE RENDERIZAÇÃO DE ITENS:
+// Suponha que `listaCodigosXML` tenha os códigos extraídos do arquivo.
+// const validosTUSS = await validarCodigosTUSS(listaCodigosXML);
+
+function renderizarItemComTUSS(codigoItem, descricaoItem, textoGlosa) {
+    // 1. Lógica do TUSS (Verde ou Vermelho)
+    const existeNaTUSS = validosTUSS.includes(codigoItem);
+    const iconeTUSS = existeNaTUSS 
+        ? `<span title="Código validado no padrão TUSS" style="color: green; margin-right: 5px;">✅</span>` 
+        : `<span title="Código não encontrado na TUSS" style="color: red; margin-right: 5px; cursor: help;">❌</span>`;
+
+    // 2. Lógica da Glosa (Limpa e sem check verde falso)
+    let iconeGlosa = '';
+    if (textoGlosa && textoGlosa.trim() !== '') {
+        // Mostra o alerta apenas se houver erro
+        const glosaEncoded = encodeURIComponent(textoGlosa);
+        iconeGlosa = `<button class="btn-glosa" onclick="mostrarGlosaModal('${glosaEncoded}')" title="Ver detalhe da glosa">⚠️ Ver Glosa</button>`;
+    }
+
+    return `
+        <tr>
+            <td>${iconeTUSS} ${codigoItem}</td>
+            <td>${descricaoItem}</td>
+            <td style="text-align: center;">${iconeGlosa}</td>
+        </tr>
+    `;
+}

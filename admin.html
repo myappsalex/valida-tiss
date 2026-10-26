@@ -30,6 +30,7 @@
             <button class="btn btn-primary" onclick="abrirModal('modalFuncionario')">👤 Cadastrar Utilizador Interno</button>
             <button class="btn btn-success" onclick="abrirModalTokens()">💰 Gerir Tokens de IA</button>
 			<button class="btn btn-warning" onclick="abrirGestaoAdsAdminGeral()">📢 Gerir Publicidade</button>
+			<button class="btn btn-warning" onclick="abrirPedidoPublicidadeAvulsoAdmin()">📢 Lançar Anúncio Avulso</button>
         </div>
 		
 <!-- MODAL: IMPORTAÇÃO TUSS (O que criámos antes, agora num modal) -->
@@ -80,17 +81,20 @@
 
 <!-- MODAL: EDIÇÃO INDIVIDUAL (Abre por cima do anterior) -->
 <div id="modalEdicaoDominio" class="modal-overlay" style="z-index: 2000;">
-    <div class="modal-content" style="width: 680px;">
+    <div class="modal-content" style="width: 400px;">
         <h3 style="margin-top: 0; color: #f39c12;">✏️ Editar Domínio</h3>
         <input type="hidden" id="edit-tuss-id">
-        <div class="form-group"><label>Tabela</label><input type="text" id="edit-tuss-tabela" class="form-control"></div>
+        <div class="form-group">
+			<label>Tabela</label>
+			<input type="text" id="edit-tuss-tabela" class="form-control">
+		</div>
         <div class="form-group"><label>Código</label><input type="text" id="edit-tuss-codigo" class="form-control"></div>
         <!---
 		<div class="form-group"><label>Descrição / Termo</label><input type="text" id="edit-tuss-termo" class="form-control"></div>
         <div class="form-group"><label>Reg. ANVISA</label><input type="text" id="edit-tuss-anvisa" class="form-control"></div>
 		--->
 		</div>
-		<div style="display: flex; gap: 10px; margin-top: 10px;">
+	<div style="display: flex; gap: 10px; margin-top: 10px;">
 		<div style="flex: 2;">
 			<label><strong>Termo / Descrição:</strong></label>
 			<input type="text" id="edit-tuss-termo" class="form-control">

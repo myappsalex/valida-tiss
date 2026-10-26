@@ -156,15 +156,32 @@
 	</div>
 	
 	<!-- MODAL: CONVITE DE PUBLICIDADE (NÃO LOGADO) -->
-	<div id="modalBoasVindasPub" class="modal-overlay">
-		<div class="modal-content" style="width: 400px; text-align: center;">
-			<h3 style="color: #0056b3; margin-top: 0;">👋 Bem-vindo ao ValidaTISS!</h3>
-			<p style="font-size: 14px; color: #666;">Para solicitar um orçamento e gerenciar suas campanhas de publicidade de forma segura, você precisa acessar o seu painel.</p>
-			<button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('login');">Já sou cliente (Fazer Login)</button>
-			<button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('registro');">Quero me cadastrar</button>
-			<button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalBoasVindasPub')">Cancelar</button>
-		</div>
-	</div>
+<!-- MODAL: CONVITE DE PUBLICIDADE (Comunicação de Marketing) -->
+<div id="modalBoasVindasPub" class="modal-overlay">
+    <div class="modal-content" style="width: 450px; text-align: center;">
+        <h3 style="color: #0056b3; margin-top: 0;">Impulsione o seu negócio no ValidaTISS 🚀</h3>
+        <p style="font-size: 14px; color: #555; margin-bottom: 20px;">
+            Milhares de faturistas, gestores e auditores médicos utilizam a nossa plataforma todos os dias. 
+            <strong>Conecte a sua marca diretamente a quem decide.</strong> Como deseja prosseguir?
+        </p>
+        
+        <button class="btn btn-success" style="width: 100%; margin-bottom: 10px; padding: 12px; font-size: 14px;" onclick="abrirPedidoPublicidade('VISITANTE')">
+            🎯 Quero apenas anunciar (Anunciante Avulso)
+        </button>
+        
+        <div style="display: flex; align-items: center; margin: 15px 0;">
+            <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
+            <span style="color: #999; font-size: 12px; padding: 0 10px;">Já utiliza os nossos serviços?</span>
+            <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
+        </div>
+
+        <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('login');">
+            Fazer Login na minha Conta
+        </button>
+        
+        <button class="btn" style="width: 100%; margin-top: 5px; background: #eee; color: #333;" onclick="fecharModal('modalBoasVindasPub')">Cancelar</button>
+    </div>
+</div>
 
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/ui.js"></script>
