@@ -55,7 +55,7 @@ body {
         .container { max-width: 950px; margin: 20px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         
         /* Espaços Publicitários (Monetização) */
-        .ad-banner { background-color: #e9ecef; border: 1px dashed #adb5bd; color: #6c757d; text-align: center; padding: 15px; margin: 15px auto; max-width: 728px; border-radius: 8px; font-size: 13px; }
+        .ad-banner { background-color: #e9ecef; border: 1px dashed #adb5bd; color: #6c757d; text-align: center; padding: 15px; margin: 15px auto; max-height: 120px; max-width: 800px; border-radius: 8px; font-size: 13px; }
         
         /* Sistema Wizard */
         .wizard-step { display: none; }
