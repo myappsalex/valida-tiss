@@ -188,45 +188,105 @@ function copiarPix() {
     alert("Código PIX copiado com sucesso!");
 }
 
-async function carregarPublicidadesAtivas() {
+// --- SISTEMA DE ROTAÇÃO DE PUBLICIDADE (CARROSSEL HÍBRIDO) ---
+
+// 1. Definimos o "Anúncio Padrão" que chama o Modal como o primeiro item da fila
+let adsCabecalho = [
+    {
+        titulo: "🚀 O seu software médico visto por milhares de faturistas!",
+        texto: "Clique aqui e anuncie no portal",
+        link: "modal",
+        isDefault: true
+    }
+];
+
+let adsLateral = [
+    {
+        titulo: "Anuncie Aqui",
+        texto: "O seu software visto por quem decide.",
+        link: "modal",
+        isDefault: true
+    }
+];
+
+let idxCabecalho = 0;
+let idxLateral = 0;
+
+async function iniciarRotacaoPublicidade() {
+    // 2. Busca as campanhas ativas no banco de dados
     try {
         const response = await fetch('/api/campanhas');
-        if (!response.ok) return;
-        const anuncios = await response.json();
-        
-        const adCabecalho = anuncios.find(a => a.local === 'CABECALHO');
-        const adLateral = anuncios.find(a => a.local === 'LATERAL');
-        
-        const divCabecalho = document.getElementById('ads_cabecalho');
-        if (adCabecalho && divCabecalho) { // Verifica se a div existe antes de mexer
-            divCabecalho.innerHTML = `
-                <h3 style="margin: 0;">🚀 ${adCabecalho.titulo}</h3>
-                <span class="pulse-text">${adCabecalho.texto}</span>				
-            `;
-            if (adCabecalho.link && adCabecalho.link !== 'modal') {
-                // Adiciona o https:// se o cliente tiver esquecido
-                const linkFinal = adCabecalho.link.startsWith('http') ? adCabecalho.link : `https://${adCabecalho.link}`;
-                divCabecalho.onclick = () => window.open(linkFinal, '_blank');
-            }
-        }
-
-        const divLateral = document.getElementById('ads_lateral');
-        if (adLateral && divLateral) { // Verifica se a div existe antes de mexer
-            divLateral.innerHTML = `
-                <h4>${adLateral.titulo}</h4>
-                <p>${adLateral.texto}</p>
-                <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢<img src="${adLateral.banner}" alt="Visite nosso site" width="150"></div>
-                <span class="btn-ad">Acessar</span>				
-            `;
-            if (adLateral.link && adLateral.link !== 'modal') {
-                const linkFinal = adLateral.link.startsWith('http') ? adLateral.link : `https://${adLateral.link}`;
-                divLateral.onclick = () => window.open(linkFinal, '_blank');
-            }
+        if (response.ok) {
+            const anunciosAtivos = await response.json();
+            
+            // Adiciona os anúncios pagos à fila
+            anunciosAtivos.forEach(ad => {
+                if (ad.local === 'CABECALHO' || ad.local === 'TODOS') adsCabecalho.push(ad);
+                if (ad.local === 'LATERAL' || ad.local === 'TODOS') adsLateral.push(ad);
+            });
         }
     } catch (error) {
-        console.error("Erro ao carregar publicidades:", error);
+        console.error("Erro ao buscar campanhas pagas. Mantendo apenas anúncios padrão.");
     }
+
+    // 3. Motor de Renderização do Cabeçalho
+    const renderCabecalho = () => {
+        const div = document.getElementById('ads_cabecalho');
+        if (!div) return;
+        const ad = adsCabecalho[idxCabecalho];
+        
+        div.style.transition = "opacity 0.5s ease-in-out";
+        div.innerHTML = `
+            <h3 style="margin: 0;">${ad.titulo}</h3>
+            <span class="pulse-text">${ad.texto}</span>
+        `;
+        
+        // Se for anúncio pago, aplica o gradiente. Se for padrão, remove para usar o CSS original
+        div.style.background = ad.cor ? ad.cor : ""; 
+
+        div.onclick = () => {
+            if (ad.link === 'modal') abrirPedidoPublicidade('VISITANTE');
+            else window.open(ad.link.startsWith('http') ? ad.link : `https://${ad.link}`, '_blank');
+        };
+        
+        idxCabecalho = (idxCabecalho + 1) % adsCabecalho.length;
+    };
+
+    // 4. Motor de Renderização da Lateral
+    const renderLateral = () => {
+        const div = document.getElementById('ads_lateral');
+        if (!div) return;
+        const ad = adsLateral[idxLateral];
+
+        div.style.transition = "opacity 0.5s ease-in-out";
+        div.innerHTML = `
+            <h4>${ad.titulo}</h4>
+            <p>${ad.texto}</p>
+            <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+            <span class="btn-ad">${ad.isDefault ? 'Ver Formatos' : 'Acessar'}</span>
+        `;
+
+        div.style.background = ad.cor ? ad.cor : ""; 
+
+        div.onclick = () => {
+            if (ad.link === 'modal') abrirPedidoPublicidade('VISITANTE');
+            else window.open(ad.link.startsWith('http') ? ad.link : `https://${ad.link}`, '_blank');
+        };
+
+        idxLateral = (idxLateral + 1) % adsLateral.length;
+    };
+
+    // 5. Arranque Imediato
+    renderCabecalho();
+    renderLateral();
+
+    // 6. Rotação (Apenas se houver anúncios pagos além do padrão. A cada 6 segundos)
+    if (adsCabecalho.length > 1) setInterval(renderCabecalho, 6000);
+    if (adsLateral.length > 1) setInterval(renderLateral, 6000);
 }
+
+// Inicia a rotação assim que a página terminar de carregar
+document.addEventListener('DOMContentLoaded', iniciarRotacaoPublicidade);
 
 // --- ATALHO GLOBAL DO TECLADO (ENTER PARA LOGIN) ---
 document.addEventListener('keydown', (e) => {
