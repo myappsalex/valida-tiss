@@ -73,3 +73,21 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(payload).encode('utf-8'))
+
+# (Adicione este bloco logo acima do `elif acao == 'excluir':` no do_POST)
+            if acao == 'validar_lote':
+                codigos_para_validar = dados.get('codigos', [])
+                if not codigos_para_validar:
+                    self._send_response(200, [])
+                    return
+                
+                # Busca rápida no banco
+                encontrados = db.dominiotuss.find_many(
+                    where={"codigoTermo": {"in": codigos_para_validar}},
+                    select={"codigoTermo": True}
+                )
+                
+                # Cria uma lista apenas com os códigos que existem
+                lista_validos = [item.codigoTermo for item in encontrados]
+                self._send_response(200, lista_validos)
+                return

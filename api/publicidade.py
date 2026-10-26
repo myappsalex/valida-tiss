@@ -62,13 +62,33 @@ class handler(BaseHTTPRequestHandler):
             db.connect()
 
             if acao == 'criar':
+                usuario_id = dados.get('usuarioId')
+                
+                # Tratamento para Anunciantes Avulsos (Visitantes)
+                if not usuario_id or usuario_id == 'GUEST':
+                    # Procura a conta fictícia (Single-pattern)
+                    cliente_avulso = db.cliente.find_first(where={"emailAcesso": "anunciante.avulso@validatiss.com"})
+                    
+                    if not cliente_avulso:
+                        # Se não existir, cria a "Empresa Fictícia" para abrigar todos os ads externos
+                        cliente_avulso = db.cliente.create(
+                            data={
+                                "nomeEmpresa": "[Controle Interno] Anunciantes Avulsos",
+                                "emailAcesso": "anunciante.avulso@validatiss.com",
+                                "senhaHash": "none",
+                                "statusConta": "GUEST"
+                            }
+                        )
+                    usuario_id = cliente_avulso.id
+
                 nova = db.campanhaads.create(
                     data={
-                        "usuarioId": dados.get('usuarioId'),
+                        "usuarioId": usuario_id,
                         "empresa_nome": dados.get('empresa_nome'),
                         "email_contato": dados.get('email_contato'),
                         "link_destino": dados.get('link_destino'),
                         "tema": dados.get('tema'),
+                        "localExibicao": dados.get('localExibicao', 'CABECALHO'),
                         "status": "PENDENTE",
                         "valorOrcamento": 0.0
                     }
