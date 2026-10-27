@@ -1,81 +1,82 @@
-from http.server import BaseHTTPRequestHandler
-import json
-from lxml import etree
+"""/api/validador – validação XSD do XML TISS.
+
+Corrige: XXE (lxml resolve entidades por padrão); XSD recompilado a cada
+requisição; versão desconhecida caía silenciosamente no XSD 4.03.00; schemas
+buscados via os.getcwd(); acentos corrompidos quando o XML declara ISO-8859-1;
+hash calculado pelo método errado e desativado; erros sem linha/caminho.
+Mantém os códigos HTTP do original (200 válido / 400 inválido) para não
+quebrar o validador.js.
+"""
 import os
-import hashlib # NOVA IMPORTAÇÃO PARA O HASH
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
+from functools import lru_cache
+from pathlib import Path
+
+from lxml import etree
+
+from vt_core import config, tiss
+from vt_core.web import ApiError, ApiHandler
+
+RAIZ = Path(__file__).resolve().parent.parent
+MAX_ERROS = 200
+
+
+@lru_cache(maxsize=8)
+def _schema(arquivo):
+    caminho = RAIZ / "schemas" / arquivo
+    if not caminho.exists():
+        caminho = Path(os.getcwd()) / "schemas" / arquivo
+    if not caminho.exists():
+        return None
+    return etree.XMLSchema(etree.parse(str(caminho)))  # caminho: resolve xs:include relativo
+
+
+def _parser():
+    return etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False,
+                           dtd_validation=False, huge_tree=False, recover=False)
+
+
+class handler(ApiHandler):
+    def post(self, ctx):
+        d = ctx.json(limite=config.LIMITE_XML_BYTES + 4096)
+        xml = d.get("xml", "")
+        if not isinstance(xml, str) or not xml.strip():
+            raise ApiError(400, "XML ausente.")
+        bruto = tiss.remover_declaracao(xml).encode("utf-8")
+        if len(bruto) > config.LIMITE_XML_BYTES:
+            raise ApiError(413, "XML acima do limite de 4 MB para validação online.")
+        if b"<!DOCTYPE" in bruto.upper() or b"<!ENTITY" in bruto.upper():
+            return (400, {"valido": False, "erros": ["DTD/entidades não são permitidas em arquivos TISS."]})
         try:
-            # 1. Lê os dados enviados
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
-            
-            xml_content = data.get('xml', '')
-            versao = data.get('versao', '4.03.00')
-
-            # 2. Descobre qual arquivo XSD usar
-            arquivo_xsd = 'tissV4_03_00.xsd'
-            if versao == '4.01.00': arquivo_xsd = 'tissV4_01_00.xsd'
-            elif versao == '4.02.00': arquivo_xsd = 'tissV4_02_00.xsd'
-            elif versao == '3.03.02': arquivo_xsd = 'tissV3_03_02.xsd'
-            elif versao == '3.03.01': arquivo_xsd = 'tissV3_03_01.xsd'
-            elif versao == '3.03.00': arquivo_xsd = 'tissV3_03_00.xsd'
-            elif versao == '3.02.02': arquivo_xsd = 'tissV3_02_02.xsd'
-            elif versao == '3.02.01': arquivo_xsd = 'tissV3_02_01.xsd'
-            
-            xsd_path = os.path.join(os.getcwd(), 'schemas', arquivo_xsd)
-            
-            if not os.path.exists(xsd_path):
-                self._send_response(500, {'erro': f'Arquivo XSD não encontrado no servidor: {arquivo_xsd}'})
-                return
-
-            # Converte o texto do XML enviado para o formato que o validador entende
-            parser = etree.XMLParser(recover=False)
-            xml_doc = etree.fromstring(xml_content.encode('utf-8'), parser=parser)
-
-            # --- 3. NOVA FASE: VALIDAÇÃO DO HASH (MD5) ---
-            namespaces = {'ans': 'http://www.ans.gov.br/padroes/tiss/schemas'}
-            hash_node = xml_doc.find('.//ans:epilogo/ans:hash', namespaces)
-            
-            if hash_node is not None and hash_node.text:
-                hash_enviado = hash_node.text.strip()
-                
-                # No TISS, o cálculo exato do Hash varia por operadora (geralmente é o MD5 de todo o conteúdo de <prestadorParaOperadora> 
-                # ou a concatenação de campos chave). Aqui preparamos o motor MD5 estrutural.
-                # Exemplo prático de extração da string do lote para hash:
-                lote_node = xml_doc.find('.//ans:prestadorParaOperadora', namespaces)
-                if lote_node is not None:
-                    # Gera a string do nó para calcular o hash (canonicalização básica)
-                    xml_string_base = etree.tostring(lote_node, method="c14n")
-                    hash_calculado = hashlib.md5(xml_string_base).hexdigest()
-                    
-                    # Se houver divergência, bloqueia o processamento imediatamente
-                    # (NOTA: Descomente as duas linhas abaixo quando a regra de canonicalização da sua operadora estiver 100% alinhada)
-                    # if hash_enviado != hash_calculado:
-                    #     self._send_response(400, {'valido': False, 'erros': [f'XSD_INVALIDO (Hash): O hash MD5 enviado ({hash_enviado}) difere do calculado.']})
-                    #     return
-            # ---------------------------------------------
-
-            # 4. Prepara e executa a validação XSD
-            with open(xsd_path, 'rb') as f:
-                xsd_doc = etree.parse(f)
-            schema = etree.XMLSchema(xsd_doc)
-
-            if schema.validate(xml_doc):
-                self._send_response(200, {'valido': True, 'mensagem': f'XML válido segundo o padrão TISS {versao}!'})
-            else:
-                erros = [str(error.message) for error in schema.error_log]
-                self._send_response(400, {'valido': False, 'erros': erros})
-
+            raiz = etree.fromstring(bruto, parser=_parser())
         except etree.XMLSyntaxError as e:
-            self._send_response(400, {'valido': False, 'erros': [f'Erro de sintaxe no XML: {str(e)}']})
-        except Exception as e:
-            self._send_response(500, {'erro': 'Erro interno no servidor.', 'detalhes': str(e)})
+            return (400, {"valido": False, "erros": [f"Erro de sintaxe no XML (linha {e.lineno}): {e.msg}"]})
 
-    def _send_response(self, status_code, payload):
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(payload).encode('utf-8'))
+        solicitada = str(d.get("versao") or "")
+        declarada = tiss.versao_declarada(raiz)
+        versao = declarada if declarada in config.VERSOES_TISS else solicitada or config.VERSAO_TISS_PADRAO
+        if versao not in config.VERSOES_TISS:
+            return (400, {"valido": False, "erros": [f"Versão TISS não suportada: {versao}."]})
+        aviso_versao = None
+        if declarada and solicitada and declarada != solicitada:
+            aviso_versao = f"O arquivo declara a versão {declarada}; validado contra ela (você selecionou {solicitada})."
+        schema = _schema(config.VERSOES_TISS[versao])
+        if schema is None:
+            raise ApiError(500, "Schema desta versão indisponível no servidor.")
+
+        avisos = [aviso_versao] if aviso_versao else []
+        informado, calculado = tiss.hash_informado(raiz), tiss.calcular_hash(raiz)
+        if informado and informado != calculado:
+            avisos.append(f"Hash do epílogo divergente (informado {informado}, calculado {calculado}). "
+                          "Se você editou o arquivo, recalcule o hash antes de enviar à operadora.")
+
+        if schema.validate(raiz):
+            return {"valido": True, "versao": versao, "avisos": avisos,
+                    "mensagem": f"XML válido segundo o padrão TISS {versao}!"}
+        log = list(schema.error_log)[:MAX_ERROS]
+        detalhes = [{"linha": e.line, "coluna": e.column, "caminho": e.path, "mensagem": e.message} for e in log]
+        return (400, {"valido": False, "versao": versao, "avisos": avisos,
+                      "erros": [f"Linha {x['linha']}: {x['mensagem']}" for x in detalhes],
+                      "detalhes": detalhes, "truncado": len(schema.error_log) > MAX_ERROS})

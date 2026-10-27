@@ -1,0 +1,140 @@
+// SUGERIDO – reconstruído a partir dos campos que o código acessa.
+// O schema.prisma original NÃO foi fornecido: compare campo a campo antes de migrar.
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "sync"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // URL com pooler (pgbouncer=true)
+  directUrl = env("DIRECT_URL")     // conexão direta, usada só em migrate
+}
+
+model Usuario {            // equipe interna
+  id                 String    @id @default(cuid())
+  nome               String
+  email              String    @unique
+  senhaHash          String
+  perfil             String    @default("ANALISTA")   // ADMIN | GESTOR | ANALISTA | COMERCIAL ...
+  status             String    @default("ATIVO")      // ATIVO | BLOQUEADO | CANCELADO
+  mustChangePassword Boolean   @default(false)
+  tokenVersion       Int       @default(0)
+  tentativasFalhas   Int       @default(0)
+  bloqueadoAte       DateTime?
+  ultimoLoginEm      DateTime?
+  criadoEm           DateTime  @default(now())
+}
+
+model Cliente {            // prestadores
+  id                 String    @id @default(cuid())
+  nomeEmpresa        String
+  emailAcesso        String    @unique
+  senhaHash          String
+  cpfCnpj            String?
+  asaasCustomerId    String?
+  statusConta        String    @default("PENDENTE")   // PENDENTE | ATIVO | BLOQUEADO | CANCELADO
+  plano              String    @default("FREEMIUM")   // FREEMIUM | PREMIUM
+  statusPagamento    String    @default("ATIVO")      // ATIVO | INATIVO
+  planoValidoAte     DateTime?
+  tokensIA           Int       @default(0)
+  mustChangePassword Boolean   @default(false)
+  tokenVersion       Int       @default(0)
+  tentativasFalhas   Int       @default(0)
+  bloqueadoAte       DateTime?
+  ultimoLoginEm      DateTime?
+  aceiteTermosEm     DateTime?
+  criadoEm           DateTime  @default(now())
+  regras             RegraCliente[]
+  campanhas          CampanhaAds[]
+  logsIA             LogIA[]
+  @@index([statusConta])
+}
+
+model RegraCliente {
+  id            String   @id @default(cuid())
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  nomeRegra     String
+  tipoGuia      String
+  campoValidado String
+  condicao      String
+  valorEsperado String
+  acao          String
+  mensagemErro  String   @default("")
+  criadoEm      DateTime @default(now())
+  @@index([clienteId, criadoEm])
+}
+
+model CampanhaAds {
+  id             String    @id @default(cuid())
+  usuarioId      String    // = Cliente.id (nome mantido por compatibilidade)
+  cliente        Cliente   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa_nome   String
+  email_contato  String
+  link_destino   String
+  tema           String
+  localExibicao  String    @default("CABECALHO")
+  status         String    @default("PENDENTE")  // PENDENTE|ORCADO|AGUARDANDO_PAGAMENTO|ATIVO|CANCELADO|REJEITADO|EXPIRADO
+  valorOrcamento Float     @default(0)
+  observacaoAdmin String?
+  bannerUrl      String?
+  bannerMime     String?
+  bannerDados    Bytes?
+  asaasPaymentId String?   @unique
+  dataInicio     DateTime?
+  dataFim        DateTime?
+  pagoEm         DateTime?
+  criadoEm       DateTime  @default(now())
+  @@index([usuarioId, status])
+  @@index([status, dataInicio, dataFim])
+}
+
+model PagamentoProcessado {   // idempotência do webhook
+  id         String   @id          // id da cobrança Asaas
+  referencia String
+  valor      Float
+  criadoEm   DateTime @default(now())
+}
+
+model DominioTuss {
+  id                 String    @id @default(cuid())
+  codigoTabela       String
+  codigoTermo        String
+  termo              String
+  registroAnvisa     String?
+  fabricante         String?
+  apresentacaoModelo String?
+  classeRisco        String?
+  vigenciaInicio     DateTime?
+  vigenciaFim        DateTime?
+  ativo              Boolean   @default(true)
+  @@index([codigoTabela, codigoTermo])
+}
+
+model LogIA {
+  id          String   @id @default(cuid())
+  clienteId   String
+  cliente     Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  numeroGuia  String
+  motorUsado  String
+  tokensGastos Int
+  criadoEm    DateTime @default(now())
+  @@index([clienteId, criadoEm])
+}
+
+model LogAdmin {
+  id        String   @id @default(cuid())
+  atorTipo  String
+  atorId    String
+  atorEmail String
+  acao      String
+  alvoTipo  String
+  alvoId    String
+  detalhes  String
+  ip        String
+  criadoEm  DateTime @default(now())
+  @@index([criadoEm])
+  @@index([alvoTipo, alvoId])
+}
