@@ -202,8 +202,8 @@ let adsCabecalho = [
 
 let adsLateral = [
     {
-        titulo: "Anuncie Aqui",
-        texto: "O seu software visto por quem decide.",
+        titulo: "🚀 Anuncie Aqui",
+        texto: "O seu software visto por quem decide. 💲",
         link: "modal",
         isDefault: true
     }
@@ -262,7 +262,7 @@ async function iniciarRotacaoPublicidade() {
         div.innerHTML = `
             <h4>${ad.titulo}</h4>
             <p>${ad.texto}</p>
-            <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;">📢</div>
+            <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;"><img src=${ad.bannerUrl}; width="120px"></div>
             <span class="btn-ad">${ad.isDefault ? 'Ver Formatos' : 'Acessar'}</span>
         `;
 
