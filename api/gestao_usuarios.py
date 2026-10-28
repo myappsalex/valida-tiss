@@ -96,10 +96,10 @@ class handler(ApiHandler):
             audit.registrar(db, p, "USUARIO_CRIADO", "INTERNO", novo.id, {"perfil": perfil, "email": email}, ctx.ip)
             return {"sucesso": True, "mensagem": "Usuário criado.", "senhaTemporaria": temp, "id": novo.id}
 
-        tipo = v.escolha(corpo.get("tipo", "CLIENTE" if acao in ("atualizar_tokens", "editar_dados") else None),
+        tipo = v.escolha(corpo.get("tipo", "CLIENTE" if acao in ("atualizar_tokens", "editar_dados", "editar_assinatura") else None),
                          ("INTERNO", "CLIENTE"), "Tipo")
         perm = "usuarios:gerir" if tipo == "INTERNO" else (
-            "tokens:ajustar" if acao == "atualizar_tokens" else "clientes:editar")
+            "tokens:ajustar" if acao == "atualizar_tokens" else ("assinatura:editar" if acao == "editar_assinatura" else "clientes:editar"))
             
         if not p.pode(perm):
             raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
@@ -188,5 +188,19 @@ class handler(ApiHandler):
             saldo = tabela.find_unique(where={"id": alvo.id}).tokensIA
             audit.registrar(db, p, "TOKENS_AJUSTADOS", "CLIENTE", alvo.id, {"delta": q, "motivo": motivo, "saldo": saldo}, ctx.ip)
             return {"sucesso": True, "mensagem": "Saldo atualizado.", "tokensRestantes": saldo}
+            
+        if acao == "editar_assinatura":
+            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
+            plano = v.escolha(corpo.get("plano"), config.PLANOS, "Plano")
+            status_pag = v.escolha(corpo.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
+            data_upd = {"plano": plano, "statusPagamento": status_pag}
+            
+            if plano == "PREMIUM" and corpo.get("planoValidoAte"):
+                data_upd["planoValidoAte"] = v.data_iso(corpo["planoValidoAte"], "Validade do plano", fim_do_dia=True)
+            
+            tabela.update(where={"id": alvo.id}, data=data_upd)
+            audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", alvo.id,
+                            {"depois": [plano, status_pag]}, ctx.ip)
+            return {"sucesso": True, "mensagem": "Assinatura atualizada."}    
 
         raise ApiError(400, f"Comando desconhecido.")

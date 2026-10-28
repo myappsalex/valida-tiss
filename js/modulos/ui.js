@@ -89,7 +89,7 @@ function _girar() {
 
 async function carregarPublicidadesAtivas() {
     if (!document.getElementById('ads_cabecalho') && !document.getElementById('ads_lateral')) return;
-    const r = await api('/api/campanhas');
+    const r = await api('/api/publicidade?acao=ativas');
     _anuncios = r.ok && Array.isArray(r.dados) ? r.dados : [];
     
     // Injetamos um null na fila para garantir que a publicidade padrão rode no meio dos pagantes
