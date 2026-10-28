@@ -1,79 +1,45 @@
-"""/api/webhook_asaas – confirmação de pagamento.
+import json
+from http.server import BaseHTTPRequestHandler
+from prisma import Prisma
 
-Corrige: webhook sem autenticação (qualquer um forjava PAYMENT_RECEIVED); os
-updates estavam comentados e o de assinatura apontava para `usuario` em vez de
-`cliente`; sem idempotência (reentrega estenderia o plano duas vezes); sem
-conferência de valor e de vínculo cobrança<->pedido.
-Configure no Asaas o "token de autenticação" do webhook = ASAAS_WEBHOOK_TOKEN.
-"""
-import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from datetime import timedelta
-
-from vt_core import config, security
-from vt_core.db import get_db
-from vt_core.web import ApiError, ApiHandler
-
-EVENTOS_PAGO = ("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED")
-
-
-def _log(msg):
-    print(f"[webhook_asaas] {msg}", file=sys.stderr)
-
-
-class handler(ApiHandler):
-    exige_origem_em_post = False  # chamada servidor-a-servidor
-
-    def post(self, ctx):
-        esperado = config.env("ASAAS_WEBHOOK_TOKEN")
-        if not esperado:
-            _log("ASAAS_WEBHOOK_TOKEN não configurado")
-            raise ApiError(503, "Webhook não configurado.")
-        if not security.comparar_seguro(ctx.header("asaas-access-token"), esperado):
-            raise ApiError(401, "Não autorizado.")
-        corpo = ctx.json(limite=100 * 1024)
-        evento, pg = corpo.get("event"), corpo.get("payment") or {}
-        if evento not in EVENTOS_PAGO:
-            return {"recebido": True, "ignorado": str(evento)[:60]}
-        pid, ref = str(pg.get("id") or ""), str(pg.get("externalReference") or "")
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        db = Prisma()
         try:
-            valor = round(float(pg.get("value") or 0), 2)
-        except (TypeError, ValueError):
-            valor = 0.0
-        if not pid or not ref:
-            return {"recebido": True, "ignorado": "sem id/referência"}
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            payload = json.loads(post_data.decode('utf-8'))
+            
+            evento = payload.get('event')
+            pagamento = payload.get('payment', {})
+            
+            # O Asaas envia vários eventos, só nos interessa quando o dinheiro cai
+            if evento == 'PAYMENT_RECEIVED':
+                id_referencia = pagamento.get('externalReference')
+                
+                if id_referencia:
+                    db.connect()
+                    
+                    # Exemplo: Atualizar status de uma Campanha de Publicidade
+                    if id_referencia.startswith('AD_'):
+                        id_campanha = id_referencia.replace('AD_', '')
+                        # db.campanhaads.update(where={"id": id_campanha}, data={"status": "ATIVO"})
+                        
+                    # Exemplo: Atualizar Assinatura de um Cliente
+                    elif id_referencia.startswith('ASSINATURA_'):
+                        id_cliente = id_referencia.replace('ASSINATURA_', '')
+                        # db.usuario.update(where={"id": id_cliente}, data={"statusPagamento": "ATIVO"})
+            
+            # O Asaas exige que o seu servidor responda 200 OK rapidamente, senão ele fica tentando reenviar
+            self._send_response(200, {'recebido': True})
+            
+        except Exception as e:
+            self._send_response(500, {'erro': str(e)})
+        finally:
+            if db.is_connected(): db.disconnect()
 
-        db = get_db()
-        agora = security.agora_utc()
-        with db.tx() as tx:
-            try:  # idempotência atômica: PK = id da cobrança
-                tx.pagamentoprocessado.create(data={"id": pid, "referencia": ref[:100], "valor": valor})
-            except Exception as exc:
-                if type(exc).__name__ == "UniqueViolationError":
-                    return {"recebido": True, "duplicado": True}
-                raise
-            if ref.startswith("AD_"):
-                camp = tx.campanhaads.find_unique(where={"id": ref[3:]})
-                if not camp or camp.asaasPaymentId != pid or abs((camp.valorOrcamento or 0) - valor) > 0.01:
-                    _log(f"AD divergente ref={ref} pid={pid} valor={valor}")
-                    return {"recebido": True, "ignorado": "divergente"}
-                tx.campanhaads.update_many(
-                    where={"id": camp.id, "status": {"in": ["ORCADO", "AGUARDANDO_PAGAMENTO"]}},
-                    data={"status": "ATIVO", "pagoEm": agora,
-                          "dataInicio": camp.dataInicio or agora,
-                          "dataFim": camp.dataFim or (agora + timedelta(days=30))})
-            elif ref.startswith("ASSINATURA_"):
-                preco = float(config.env("PRECO_PREMIUM_MENSAL") or 0)
-                cli = tx.cliente.find_unique(where={"id": ref[len("ASSINATURA_"):]})
-                if not cli or preco <= 0 or valor + 0.01 < preco:
-                    _log(f"ASSINATURA divergente ref={ref} pid={pid} valor={valor}")
-                    return {"recebido": True, "ignorado": "divergente"}
-                base = max(agora, security._aware(getattr(cli, "planoValidoAte", None)) or agora)
-                tx.cliente.update(where={"id": cli.id}, data={
-                    "plano": "PREMIUM", "statusPagamento": "ATIVO",
-                    "planoValidoAte": base + timedelta(days=30)})
-            else:
-                _log(f"referência desconhecida {ref[:40]}")
-        return {"recebido": True}
+    def _send_response(self, status, payload):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode('utf-8'))

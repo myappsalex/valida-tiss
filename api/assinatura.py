@@ -1,32 +1,41 @@
-"""/api/assinatura – ajuste manual de plano (staff).
+import json
+from http.server import BaseHTTPRequestHandler
+from prisma import Prisma
 
-Corrige: sem autenticação (qualquer um virava PREMIUM); atualizava `db.usuario`
-(tabela de funcionários) em vez de `db.cliente`; sem validação nem auditoria.
-"""
-import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        db = Prisma()
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            dados = json.loads(post_data.decode('utf-8'))
+            
+            cliente_id = dados.get('id')
+            plano = dados.get('plano')
+            status_pagamento = dados.get('statusPagamento')
+            
+            if not cliente_id or not plano:
+                self._send_response(400, {'sucesso': False, 'erro': 'Dados incompletos.'})
+                return
 
-from vt_core import audit, config, validation as v
-from vt_core.db import get_db
-from vt_core.web import ApiError, ApiHandler
+            db.connect()
+            db.usuario.update(
+                where={"id": cliente_id},
+                data={
+                    "plano": plano,
+                    "statusPagamento": status_pagamento
+                }
+            )
+            
+            self._send_response(200, {'sucesso': True, 'mensagem': 'Assinatura atualizada.'})
+            
+        except Exception as e:
+            self._send_response(500, {'sucesso': False, 'erro': str(e)})
+        finally:
+            if db.is_connected(): db.disconnect()
 
-
-class handler(ApiHandler):
-    def post(self, ctx):
-        p = ctx.exigir(tipo="INTERNO", permissao="assinatura:editar")
-        c = ctx.json()
-        plano = v.escolha(c.get("plano"), config.PLANOS, "Plano")
-        status = v.escolha(c.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
-        db = get_db()
-        antes = db.cliente.find_unique(where={"id": str(c.get("id") or "")})
-        if not antes:
-            raise ApiError(404, "Cliente não encontrado.")
-        data = {"plano": plano, "statusPagamento": status}
-        if plano == "PREMIUM" and c.get("planoValidoAte"):
-            data["planoValidoAte"] = v.data_iso(c["planoValidoAte"], "Validade do plano", fim_do_dia=True)
-        db.cliente.update(where={"id": antes.id}, data=data)
-        audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", antes.id,
-                        {"antes": [getattr(antes, "plano", None), getattr(antes, "statusPagamento", None)],
-                         "depois": [plano, status]}, ctx.ip)
-        return {"sucesso": True, "mensagem": "Assinatura atualizada."}
+    def _send_response(self, status, payload):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode('utf-8'))

@@ -1,89 +1,144 @@
-"""/api/carga_tuss – carga incremental de domínios TUSS por CSV (staff).
-
-Mantém a lógica de delta do original (boa), corrigindo: sem autenticação;
-`tabela` sem lista permitida; corpo sem limite; datas ingênuas; conexão por
-requisição (origem do "sleep 1,5 s" no front); duplicidade por corrida.
-"""
+import json
 import csv
 import io
-import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from datetime import datetime
+from http.server import BaseHTTPRequestHandler
+from prisma import Prisma
 
-from datetime import datetime, timezone
-
-from vt_core import audit, config, validation as v
-from vt_core.db import get_db
-from vt_core.web import ApiError, ApiHandler
-
-MAX_LINHAS = 5000
-
-
-def parse_data(s):
-    if not s or s == "-":
+def parse_data_flexivel(data_str):
+    if not data_str or data_str == '-':
         return None
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+    try:
+        return datetime.strptime(data_str, "%d/%m/%Y")
+    except ValueError:
         try:
-            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(data_str, "%Y-%m-%d")
         except ValueError:
-            pass
-    return None
+            return None
 
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        db = Prisma()
+        try:
+            # 1. Recepção Segura do Payload
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            dados = json.loads(post_data.decode('utf-8'))
+            
+            tabela = dados.get('tabela')
+            csv_raw = dados.get('csv_data')
+            
+            if not tabela or not csv_raw:
+                self._send_response(400, {'sucesso': False, 'erro': 'Parâmetros inválidos (Tabela ou CSV ausentes).'})
+                return
 
-def _chave(cod, ini, fim, fab, mod):
-    f = lambda d: d.strftime("%Y-%m-%d") if d else "-"
-    return (cod, f(ini), f(fim), fab or "", mod or "")
+            # 2. Parseamento do CSV
+            reader = csv.DictReader(io.StringIO(csv_raw), delimiter=';')
+            rows = list(reader)
+            if not rows:
+                self._send_response(400, {'sucesso': False, 'erro': 'Arquivo CSV vazio ou corrompido.'})
+                return
 
+            # 3. Validação de Integridade do Layout (Prevenção de Lixo de Dados)
+            source_arquivo = (rows[0].get('source') or '').strip()
+            source_esperado = f"tuss-{tabela}"
+            if source_arquivo != source_esperado:
+                self._send_response(400, {'sucesso': False, 'erro': f'Inconsistência: Tabela selecionada "{tabela}", mas o arquivo é "{source_arquivo}".'})
+                return
 
-class handler(ApiHandler):
-    def post(self, ctx):
-        p = ctx.exigir(tipo="INTERNO", permissao="tuss:carga")
-        d = ctx.json(limite=config.LIMITE_CSV_BYTES)
-        tabela = v.escolha(d.get("tabela"), config.TABELAS_TUSS, "Tabela")
-        bruto = d.get("csv_data")
-        if not isinstance(bruto, str) or not bruto.strip():
-            raise ApiError(400, "CSV ausente.")
-        linhas = list(csv.DictReader(io.StringIO(bruto), delimiter=";"))
-        if not linhas:
-            raise ApiError(400, "Arquivo CSV vazio ou corrompido.")
-        if len(linhas) > MAX_LINHAS:
-            raise ApiError(413, f"Envie no máximo {MAX_LINHAS} linhas por pacote.")
-        if (linhas[0].get("source") or "").strip() != f"tuss-{tabela}":
-            raise ApiError(400, f'Inconsistência: tabela "{tabela}" não corresponde ao arquivo.')
-        codigos = list({(r.get("id") or "").strip() for r in linhas if (r.get("id") or "").strip()})
-        if not codigos:
-            return {"sucesso": True, "mensagem": "Nenhum código válido neste lote."}
+            # Extrai apenas os códigos presentes neste pacote (Delta Extraction)
+            codigos_no_pacote = [ (r.get('id') or '').strip() for r in rows if (r.get('id') or '').strip() ]
+            if not codigos_no_pacote:
+                self._send_response(200, {'sucesso': True, 'mensagem': 'Nenhum código válido encontrado neste lote.'})
+                return
 
-        db = get_db()
-        existentes = {_chave(e.codigoTermo, e.vigenciaInicio, e.vigenciaFim,
-                             getattr(e, "fabricante", ""), getattr(e, "apresentacaoModelo", ""))
-                      for e in db.dominiotuss.find_many(where={"codigoTabela": tabela, "codigoTermo": {"in": codigos}})}
-        novos = []
-        for r in linhas:
-            cod = (r.get("id") or "").strip()
-            if not cod:
-                continue
-            ini, fim = parse_data((r.get("extras_inicio_vigencia") or "").strip()), parse_data((r.get("extras_fim_vigencia") or "").strip())
-            fab = mod = ""
-            anvisa = risco = None
-            if tabela == "20":
-                fab, mod = (r.get("extras_laboratorio") or "").strip(), (r.get("extras_apresentacao") or "").strip()
-            elif tabela == "19":
-                fab, mod = (r.get("extras_fabricante") or "").strip(), (r.get("extras_modelo") or "").strip()
-                anvisa, risco = (r.get("extras_registro_anvisa") or "").strip(), (r.get("extras_classe_risco") or "").strip()
-            k = _chave(cod, ini, fim, fab, mod)
-            if k in existentes:
-                continue
-            existentes.add(k)
-            reg = {"codigoTabela": tabela, "codigoTermo": cod[:20], "termo": (r.get("display_name") or "").strip()[:500],
-                   "vigenciaInicio": ini, "vigenciaFim": fim, "ativo": True}
-            if tabela in ("19", "20"):
-                reg["fabricante"], reg["apresentacaoModelo"] = fab[:200], mod[:300]
-            if tabela == "19":
-                reg["registroAnvisa"], reg["classeRisco"] = anvisa, risco
-            novos.append(reg)
-        if not novos:
-            return {"sucesso": True, "mensagem": "Delta zero: nada novo neste lote."}
-        criados = db.dominiotuss.create_many(data=novos, skip_duplicates=True)
-        audit.registrar(db, p, "TUSS_CARGA", "TUSS", tabela, {"criados": criados, "linhas": len(linhas)}, ctx.ip)
-        return {"sucesso": True, "mensagem": f"{criados} novos registros salvos.", "criados": criados}
+            # 4. Conexão ao Banco e Mapeamento de Existentes (Carga Incremental)
+            db.connect()
+            
+            existentes = db.dominiotuss.find_many(where={
+                "codigoTabela": tabela,
+                "codigoTermo": {"in": codigos_no_pacote}
+            })
+            
+            # Construção de Hash Set para Lookup O(1)
+            set_existentes = set()
+            for e in existentes:
+                d_ini = e.vigenciaInicio.strftime("%Y-%m-%d") if e.vigenciaInicio else "-"
+                d_fim = e.vigenciaFim.strftime("%Y-%m-%d") if e.vigenciaFim else "-"
+                
+                if tabela in ['18', '22']:
+                    set_existentes.add((e.codigoTermo, d_ini, d_fim))
+                else: 
+                    fab = getattr(e, 'fabricante', '') or ''
+                    mod = getattr(e, 'apresentacaoModelo', '') or ''
+                    set_existentes.add((e.codigoTermo, d_ini, d_fim, fab, mod))
+
+            # 5. Processamento e Transformação
+            novos_registros = []
+            for row in rows:
+                cod = (row.get('id') or '').strip()
+                if not cod: continue
+
+                termo = (row.get('display_name') or '').strip()
+                str_ini = (row.get('extras_inicio_vigencia') or '').strip()
+                str_fim = (row.get('extras_fim_vigencia') or '').strip()
+                
+                dt_ini = parse_data_flexivel(str_ini)
+                dt_fim = parse_data_flexivel(str_fim)
+                
+                comp_ini = dt_ini.strftime("%Y-%m-%d") if dt_ini else "-"
+                comp_fim = dt_fim.strftime("%Y-%m-%d") if dt_fim else "-"
+
+                fab, mod, anvisa, risco = '', '', None, None
+                if tabela == '20':
+                    fab = (row.get('extras_laboratorio') or '').strip()
+                    mod = (row.get('extras_apresentacao') or '').strip()
+                elif tabela == '19':
+                    fab = (row.get('extras_fabricante') or '').strip()
+                    mod = (row.get('extras_modelo') or '').strip()
+                    anvisa = (row.get('extras_registro_anvisa') or '').strip()
+                    risco = (row.get('extras_classe_risco') or '').strip()
+
+                assinatura = (cod, comp_ini, comp_fim) if tabela in ['18', '22'] else (cod, comp_ini, comp_fim, fab, mod)
+                
+                # Validação de Idempotência (Ignora se já existir)
+                if assinatura in set_existentes:
+                    continue
+                
+                # Adiciona ao Set local para evitar duplicidades dentro do próprio arquivo CSV
+                set_existentes.add(assinatura)
+
+                novo = {
+                    "codigoTabela": tabela, 
+                    "codigoTermo": cod, 
+                    "termo": termo,
+                    "vigenciaInicio": dt_ini, 
+                    "vigenciaFim": dt_fim, 
+                    "ativo": True
+                }
+                
+                if tabela in ['19', '20']:
+                    novo["fabricante"], novo["apresentacaoModelo"] = fab, mod
+                if tabela == '19':
+                    novo["registroAnvisa"], novo["classeRisco"] = anvisa, risco
+                    
+                novos_registros.append(novo)
+            
+            # 6. Gravação em Lote (Bulk Insert)
+            if not novos_registros:
+                self._send_response(200, {'sucesso': True, 'mensagem': 'Delta zero: Todos os termos deste lote já estão atualizados no banco.'})
+                return
+
+            criados = db.dominiotuss.create_many(data=novos_registros)
+            self._send_response(200, {'sucesso': True, 'mensagem': f'Sucesso! {criados} novos registros salvos de forma incremental.'})
+            
+        except Exception as e:
+            self._send_response(500, {'sucesso': False, 'erro': f"Erro interno do servidor: {str(e)}"})
+        finally:
+            if db.is_connected(): db.disconnect()
+
+    def _send_response(self, status, payload):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode('utf-8'))
