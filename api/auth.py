@@ -5,6 +5,7 @@ se o e-mail existia, login de conta bloqueada/cancelada permitido, sem limite de
 tentativas, política de senha só no navegador, sessão forjável.
 Criação de usuário interno agora é feita em /api/gestao_usuarios (ADMIN).
 """
+"""/api/auth – login, registro, sessão e troca de senha."""
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,11 +14,9 @@ from datetime import timedelta
 
 from vt_core import config, security, validation as v
 from vt_core.db import get_db
-from vt_core.web import ApiError, ApiHandler
-
+from vt_core.web import ApiError, ApiHandler, Principal
 
 def publico(p):
-    """Payload de sessão exposto ao navegador (sem segredos)."""
     r = p.rec
     base = {"id": p.id, "nome": p.nome, "email": p.email, "tipo": p.tipo,
             "mustChangePassword": p.must_change}
@@ -26,20 +25,16 @@ def publico(p):
     else:
         base.update(statusConta=r.statusConta, plano=security.plano_efetivo(r),
                     statusPagamento=getattr(r, "statusPagamento", "ATIVO") or "ATIVO",
-                    tokensRestantes=r.tokensIA,
-                    exportacoesRestantes=getattr(r, "exportacoesGratis", 0), permissoes=[])
+                    tokensRestantes=r.tokensIA, permissoes=[])
     return base
-
 
 def _buscar(db, tipo, email):
     if tipo == "INTERNO":
         return db.usuario.find_unique(where={"email": email})
     return db.cliente.find_unique(where={"emailAcesso": email})
 
-
 def _tabela(db, tipo):
     return db.usuario if tipo == "INTERNO" else db.cliente
-
 
 def _login(ctx, corpo, tipo):
     email = security.normalizar_email(corpo.get("email"))
@@ -53,7 +48,7 @@ def _login(ctx, corpo, tipo):
 
     bloqueado_ate = security._aware(getattr(rec, "bloqueadoAte", None)) if rec else None
     if bloqueado_ate and bloqueado_ate > agora:
-        security.verificar_senha(senha, None)  # mantém o custo de tempo
+        security.verificar_senha(senha, None)  
         raise ApiError(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.", "bloqueio_temporario")
 
     ok = security.verificar_senha(senha, rec.senhaHash if rec else None)
@@ -73,9 +68,8 @@ def _login(ctx, corpo, tipo):
     rec = tabela.update(where={"id": rec.id}, data={
         "tentativasFalhas": 0, "bloqueadoAte": None, "ultimoLoginEm": agora})
     ctx.definir_sessao(tipo, rec)
-    from vt_core.web import Principal
+    
     return {"sucesso": True, "usuario": publico(Principal(tipo, rec))}
-
 
 def _registro(corpo):
     nome = v.texto(corpo.get("nome"), "Nome", 2, 120)
@@ -95,7 +89,6 @@ def _registro(corpo):
         "statusPagamento": "ATIVO", "aceiteTermosEm": security.agora_utc()})
     return {"sucesso": True, "mensagem": "Conta criada! Ela ficará pendente até a liberação pela nossa equipe."}
 
-
 def _trocar_senha(ctx, corpo):
     p = ctx.exigir(permitir_troca_pendente=True)
     atual, nova = corpo.get("senha_atual"), corpo.get("nova_senha")
@@ -110,10 +103,8 @@ def _trocar_senha(ctx, corpo):
     rec = _tabela(db, p.tipo).update(where={"id": p.id}, data={
         "senhaHash": security.hash_senha(nova), "mustChangePassword": False,
         "tokenVersion": {"increment": 1}})
-    ctx.definir_sessao(p.tipo, rec)  # novo cookie; sessões antigas ficam inválidas
-    from vt_core.web import Principal
+    ctx.definir_sessao(p.tipo, rec)  
     return {"sucesso": True, "mensagem": "Senha alterada.", "usuario": publico(Principal(p.tipo, rec))}
-
 
 class handler(ApiHandler):
     def get(self, ctx):
@@ -133,7 +124,7 @@ class handler(ApiHandler):
             return {"sucesso": True, "usuario": publico(ctx.exigir(permitir_troca_pendente=True))}
         if acao == "logout":
             p = ctx.principal()
-            if p is not None:  # revoga no servidor: um cookie copiado deixa de valer (encerra também outros dispositivos)
+            if p is not None:  
                 _tabela(get_db(), p.tipo).update(where={"id": p.id}, data={"tokenVersion": {"increment": 1}})
             ctx.encerrar_sessao()
             return {"sucesso": True}

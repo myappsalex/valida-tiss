@@ -1,6 +1,6 @@
 lxml
 openai
 prisma
-bcrypt
 requests
-PyJWT
+PyJWT>=2.0.0
+bcrypt>=4.0.0
