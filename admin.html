@@ -57,7 +57,7 @@
     <div class="table-responsive" style="max-height:400px;overflow:auto"><table>
         <thead><tr><th scope="col">Nome</th><th scope="col">E-mail</th><th scope="col">Perfil / Status</th><th scope="col">Ações</th></tr></thead>
         <tbody id="lista-usuarios-body"></tbody></table></div>
-    <button class="btn" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalGestaoAcessos')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalGestaoAcessos')">Fechar</button>
 </div></div>
 
 <div id="modalEditarAcesso" class="modal-overlay" style="z-index:2000"><div class="modal-content" style="width:380px">
@@ -65,7 +65,7 @@
     <p id="ea-quem" class="muted"></p>
     <label for="ea-valor">Novo valor</label><select id="ea-valor" class="form-control"></select>
     <button class="btn btn-primary" style="width:100%;margin-top:12px" data-onclick="salvarEdicaoAcesso">Salvar</button>
-    <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalEditarAcesso')">Cancelar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalEditarAcesso')">Cancelar</button>
 </div></div>
 
 <div id="modalSenhaTemp" class="modal-overlay" style="z-index:2100"><div class="modal-content" style="width:420px;text-align:center">
@@ -87,7 +87,7 @@
     <div class="form-group"><label for="cad-email-interno">E-mail corporativo</label><input type="email" id="cad-email-interno" class="form-control" autocomplete="off"></div>
     <p class="muted">Uma senha provisória aleatória será gerada e exibida uma única vez.</p>
     <button id="btn-cad-interno" class="btn btn-primary" style="width:100%" data-onclick="cadastrarUsuarioInterno">Criar usuário</button>
-    <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalFuncionario')">Cancelar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalFuncionario')">Cancelar</button>
 </div></div>
 
 <!-- Tokens -->
@@ -103,7 +103,7 @@
         <input type="text" id="token-motivo" class="form-control" maxlength="200" placeholder="Ex.: cortesia, estorno…">
         <button id="btn-tokens" class="btn btn-success" style="width:100%;margin-top:10px" data-onclick="salvarTokensCliente">Atualizar saldo</button>
     </div>
-    <button class="btn" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalTokens')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalTokens')">Fechar</button>
 </div></div>
 
 <!-- Assinaturas -->
@@ -120,7 +120,7 @@
         <select id="edit-status-pagamento" class="form-control"><option value="ATIVO">Em dia (ativo)</option><option value="INATIVO">Inadimplente (bloqueia IA)</option></select>
         <button id="btn-assinatura" class="btn btn-success" style="width:100%;margin-top:10px" data-onclick="salvarAssinaturaCliente">Salvar assinatura</button>
     </div>
-    <button class="btn" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalAssinaturas')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalAssinaturas')">Fechar</button>
 </div></div>
 
 <!-- Dados do cliente -->
@@ -135,7 +135,7 @@
             <input type="date" id="dados-cli-data-cancelamento" class="form-control"></div>
     </div>
     <button id="btn-dados-cli" class="btn btn-success" style="width:100%;margin-top:12px" data-onclick="salvarDadosCliente">Salvar</button>
-    <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalDadosCliente')">Cancelar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalDadosCliente')">Cancelar</button>
 </div></div>
 
 <!-- TUSS -->
@@ -154,7 +154,7 @@
         <input type="file" id="arquivo-csv-tuss" accept=".csv" class="form-control" data-onchange="verificarArquivoSelecionado"></div>
     <button id="btn-upload-tuss" class="btn btn-primary" style="width:100%" data-onclick="processarCargaTUSS">Fazer upload</button>
     <div id="resultado-carga" role="status" style="margin-top:15px;font-weight:bold;font-size:14px"></div>
-    <button class="btn" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalImportacaoTUSS')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalImportacaoTUSS')">Fechar</button>
 </div></div>
 
 <div id="modalConsultaTUSS" class="modal-overlay"><div class="modal-content" style="width:760px;max-width:96%">
@@ -166,7 +166,7 @@
     <div class="table-responsive" style="max-height:420px;overflow:auto"><table style="font-size:13px">
         <thead><tr><th>Tab.</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th><th></th></tr></thead>
         <tbody id="tbody-dominios"><tr><td colspan="7" style="text-align:center">Faça uma pesquisa para exibir resultados.</td></tr></tbody></table></div>
-    <button class="btn" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
 </div></div>
 
 <div id="modalEdicaoDominio" class="modal-overlay" style="z-index:2000"><div class="modal-content" style="width:560px;max-width:96%">
@@ -183,7 +183,7 @@
         <div style="flex:1"><label for="edit-tuss-fabricante">Fabricante / laboratório</label><input type="text" id="edit-tuss-fabricante" class="form-control"></div>
         <div style="flex:1"><label for="edit-tuss-anvisa">Reg. ANVISA (tabela 19)</label><input type="text" id="edit-tuss-anvisa" class="form-control"></div></div>
     <button id="btn-edit-tuss" class="btn btn-success" style="width:100%;margin-top:12px" data-onclick="salvarEdicaoDominio">Salvar alterações</button>
-    <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalEdicaoDominio')">Cancelar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalEdicaoDominio')">Cancelar</button>
 </div></div>
 
 <!-- Regras (leitura) -->
@@ -194,7 +194,7 @@
     <div class="table-responsive" style="max-height:400px;overflow:auto"><table style="font-size:13px">
         <thead><tr><th>Regra</th><th>Guia / campo</th><th>Condição</th><th>Ação</th></tr></thead>
         <tbody id="tbody-regras-admin"><tr><td colspan="4" style="text-align:center">Selecione um cliente.</td></tr></tbody></table></div>
-    <button class="btn" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalRegrasAdmin')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalRegrasAdmin')">Fechar</button>
 </div></div>
 
 <!-- Publicidade -->
@@ -209,7 +209,7 @@
     <div class="table-responsive" style="max-height:420px;overflow:auto"><table>
         <thead><tr><th>Cliente</th><th>Tema</th><th>Local</th><th>Status</th><th></th></tr></thead>
         <tbody id="tbody-gestao-ads-admin"></tbody></table></div>
-    <button class="btn" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalGestaoAdsAdmin')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:12px;background:#eee" data-onclick="fecharModal('modalGestaoAdsAdmin')">Fechar</button>
 </div></div>
 
 <div id="modalAvaliarAdAdmin" class="modal-overlay" style="z-index:2000"><div class="modal-content" style="width:640px;max-width:96%">
@@ -230,7 +230,7 @@
         <button class="btn btn-success" style="flex:1" data-onclick="salvarAvaliacaoAd('ATIVO')">Ativar exibição</button>
         <button class="btn" style="flex:1;background:#5c6770;color:#fff" data-onclick="salvarAvaliacaoAd('REJEITADO')">Rejeitar</button>
         <button class="btn btn-danger" style="flex:1" data-onclick="salvarAvaliacaoAd('CANCELADO')">Cancelar</button></div>
-    <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalAvaliarAdAdmin')">Fechar</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalAvaliarAdAdmin')">Fechar</button>
 </div></div>
 
 <!-- Modal Publicidade (Lançado pelo Admin) -->
@@ -246,8 +246,16 @@
                 <option value="CADASTRADO">Cliente Cadastrado</option>
             </select>
         </div>
-        <div id="div-cliente-cadastrado" style="display:none; margin-bottom: 10px;">
-            <select id="pub-cliente-id" class="form-control" data-onchange="preencherDadosClienteAd()"></select>
+        
+        <!-- NOVO BLOCO: Pesquisa Dinâmica (Typeahead) -->
+        <div id="div-cliente-cadastrado" style="display:none; margin-bottom: 15px; position: relative;">
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Buscar Cliente na Base:</label>
+            <input type="text" id="pub-busca-cliente" class="form-control" placeholder="Digite 3 letras do nome ou e-mail..." autocomplete="off">
+            <input type="hidden" id="pub-cliente-id">
+            
+            <!-- Caixa Flutuante de Resultados -->
+            <div id="resultado-busca-cliente" style="display:none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #0056b3; z-index: 10; max-height: 150px; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.15); border-radius: 4px;">
+            </div>
         </div>
         
         <input type="text" id="pub-empresa" placeholder="Nome da Empresa (Para controle)" class="form-control" style="margin-bottom: 10px;">
