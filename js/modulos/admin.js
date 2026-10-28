@@ -296,23 +296,94 @@ async function salvarAvaliacaoAd(status) {
 }
 
 // INTEGRAÇÃO: Permite ao Administrador criar anúncios para empresas sem conta (B2B Phone/Email Sales)
+// --- GESTÃO DE ANÚNCIOS AVULSOS E PESQUISA DE CLIENTES ---
+
 function abrirPedidoPublicidadeAvulsoAdmin() {
-    document.getElementById('pub-cliente-id').value = 'GUEST';
-    const elEmpresa = document.getElementById('pub-empresa');
-    const elEmail = document.getElementById('pub-email');
-    
-    elEmpresa.value = ''; 
-    elEmpresa.readOnly = false; 
-    elEmpresa.style.background = '#fff';
-    elEmpresa.placeholder = "Digite o nome da empresa parceira";
-    
-    elEmail.value = ''; 
-    elEmail.readOnly = false; 
-    elEmail.style.background = '#fff';
-    elEmail.placeholder = "contato@empresa.com";
-    
+    document.getElementById('pub-tipo-cliente').value = 'AVULSO';
+    mudarTipoClienteAd();
     document.getElementById('pub-tema').value = "";
     document.getElementById('pub-link').value = "";
-    
+    if (document.getElementById('pub-logo')) document.getElementById('pub-logo').value = "";
     abrirModal('modalPublicidade');
 }
+
+async function mudarTipoClienteAd() {
+    const tipo = document.getElementById('pub-tipo-cliente').value;
+    const div = document.getElementById('div-cliente-cadastrado');
+    const emp = document.getElementById('pub-empresa');
+    const email = document.getElementById('pub-email');
+    const busca = document.getElementById('pub-busca-cliente');
+    const res = document.getElementById('resultado-busca-cliente');
+    
+    if (tipo === 'CADASTRADO') {
+        div.style.display = 'block';
+        emp.readOnly = true; emp.style.background = '#f4f7f6'; emp.value = '';
+        email.readOnly = true; email.style.background = '#f4f7f6'; email.value = '';
+        busca.value = ''; document.getElementById('pub-cliente-id').value = '';
+        if (res) res.style.display = 'none';
+        
+        // Garante que a lista base de clientes está na memória
+        if (typeof _clientes === 'undefined' || _clientes.length === 0) {
+            if (typeof carregarClientes === 'function') await carregarClientes();
+        }
+    } else {
+        div.style.display = 'none';
+        emp.readOnly = false; emp.style.background = '#fff'; emp.value = '';
+        email.readOnly = false; email.style.background = '#fff'; email.value = '';
+        document.getElementById('pub-cliente-id').value = 'GUEST';
+    }
+}
+
+async function buscarClienteAd(termo) {
+    const resDiv = document.getElementById('resultado-busca-cliente');
+    if (!termo || termo.length < 3) {
+        resDiv.style.display = 'none';
+        return;
+    }
+
+    // Filtra localmente sem sobrecarregar a base de dados
+    const filtrados = (_clientes || []).filter(c => 
+        c.nome.toLowerCase().includes(termo.toLowerCase()) || 
+        c.email.toLowerCase().includes(termo.toLowerCase())
+    ).slice(0, 10); // Mostra no máximo 10 resultados para não quebrar o design
+
+    limpar(resDiv);
+    if (filtrados.length === 0) {
+        resDiv.append(el('div', { style: 'padding: 10px; color: #666; font-size: 13px;' }, 'Nenhum cliente encontrado.'));
+    } else {
+        filtrados.forEach(c => {
+            const item = el('div', {
+                style: 'padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; color: #333; transition: 0.2s;'
+            }, el('strong', {}, c.nome), ' - ', c.email);
+            
+            // Eventos seguros (CSP) de hover e clique
+            item.onmouseover = () => item.style.background = '#f0f7ff';
+            item.onmouseout = () => item.style.background = 'none';
+            item.onclick = () => selecionarClienteAd(c.id, c.nome, c.email);
+            
+            resDiv.append(item);
+        });
+    }
+    resDiv.style.display = 'block';
+}
+
+function selecionarClienteAd(id, nome, email) {
+    document.getElementById('pub-cliente-id').value = id;
+    document.getElementById('pub-busca-cliente').value = nome;
+    document.getElementById('resultado-busca-cliente').style.display = 'none';
+
+    document.getElementById('pub-empresa').value = nome;
+    document.getElementById('pub-email').value = email;
+}
+
+// Binda o evento de digitação de forma segura (CSP compliant)
+document.addEventListener('DOMContentLoaded', () => {
+    const inputBusca = document.getElementById('pub-busca-cliente');
+    if (inputBusca) {
+        inputBusca.addEventListener('input', (e) => buscarClienteAd(e.target.value));
+    }
+});
+
+// Expõe globalmente as funções necessárias para o HTML
+window.abrirPedidoPublicidadeAvulsoAdmin = abrirPedidoPublicidadeAvulsoAdmin;
+window.mudarTipoClienteAd = mudarTipoClienteAd;
