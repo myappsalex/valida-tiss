@@ -138,9 +138,9 @@ body {
 .ad-banner-vertical {
 	position: fixed;
 	right: 0;
-    top: 60%;
+    top: 55%;
 	width: 150px;
-	height: 300px;
+	height: 400px;
 	transform: translateY(-50%);
 	background: linear-gradient(45deg, #0016b3, #0006b3, #01c6a3, #eef552);
     background-size: 400% 400%;
