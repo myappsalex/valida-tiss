@@ -39,7 +39,7 @@
                     <span style="font-size: 13px; color: #666;">Tokens</span>
                 </div>
                 <p style="font-size: 13px; color: #666; margin: 10px 0;">Utilizados para auditoria profunda de pertinência médica.</p>
-                <button class="btn btn-primary" style="width:100%; margin-top: 15px; background-color: #6f42c1; font-size: 13px;" data-onclick="irPara('index.html')">🛒 Comprar Mais Tokens</button>
+                <button class="btn btn-primary" style="width:100%; margin-top: 15px; background-color: #6f42c1; font-size: 13px;" data-onclick="abrirModalComprarTokens()">🛒 Comprar Mais Tokens</button>
             </div>
         </div>
 
@@ -76,7 +76,7 @@
         
         <button class="btn btn-success" style="width: 100%;" data-onclick="copiarPix()">Copiar Código PIX</button>
         <p style="font-size: 11px; color: #dc3545; margin-top: 10px;">A campanha é ativada automaticamente após a confirmação do pagamento.</p>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalPagarAds')">Fechar</button>
+        <button class="btn btn-cancel" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalPagarAds')">Fechar</button>
     </div>
 </div>
 
@@ -168,7 +168,7 @@
             </div>
 
             <button class="btn btn-success" style="width: 100%; margin-top: 10px;" data-onclick="salvarRegra()">Guardar Regra</button>
-            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModal('modalNovaRegra')">Cancelar</button>
+            <button class="btn btn-cancel" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModal('modalNovaRegra')">Cancelar</button>
         </div>
     </div>
 
@@ -196,7 +196,7 @@
             <button id="btn-aprovar-orc" class="btn btn-success" style="flex: 1;" data-onclick="aprovarOrcamentoPIX">Aprovar e Pagar PIX</button>
             <button id="btn-cancelar-orc" class="btn btn-danger" style="flex: 1;" data-onclick="cancelarPedidoCliente">Cancelar Pedido</button>
         </div>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
+        <button class="btn btn-cancel" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
     </div>
 </div>
 
@@ -226,7 +226,7 @@
 			</select>
 		</div>
         <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" data-onclick="enviarPedidoPub()">Solicitar Orçamento</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModais()">Cancelar</button>
+        <button class="btn btn-cancel" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModais()">Cancelar</button>
     </div>
 </div>
 
@@ -249,7 +249,35 @@
                 </tbody>
             </table>
         </div>
-        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee; color: #333;" data-onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
+        <button class="btn btn-cancel" style="width: 100%; margin-top: 15px; background: #eee; color: #333;" data-onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
+    </div>
+</div>
+
+<!-- Modal Comprar Tokens -->
+<div id="modalComprarTokens" class="modal-overlay">
+    <div class="modal-content" style="width: 400px; text-align: center;">
+        <h3 style="color: #0056b3; margin-top: 0;">🪙 Comprar Tokens de IA</h3>
+        <p style="font-size: 14px; color: #555;">Cada token permite a análise de 1 guia médica pela Inteligência Artificial.</p>
+
+        <div style="margin: 20px 0; text-align: left;">
+            <label style="font-weight: bold; font-size: 13px;">Quantidade desejada (Min: 10):</label>
+            <input type="number" id="qtd-tokens-comprar" class="form-control" value="100" min="10" step="10" data-oninput="calcularValorTokens()">
+        </div>
+
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+            <span style="font-size: 14px;">Total a pagar:</span><br>
+            <strong style="font-size: 24px; color: #28a745;" id="valor-total-tokens">R$ 15,00</strong>
+            <div style="font-size: 11px; color: #777; margin-top: 5px;">(R$ 0,15 por token)</div>
+        </div>
+
+        <div id="area-pix-tokens" style="display: none; margin-bottom: 15px;">
+            <img id="qrcode-pix-tokens" src="" alt="QR Code PIX" style="max-width: 200px; margin: 0 auto; display: block; border: 1px solid #ddd; border-radius: 8px; padding: 10px;">
+            <input type="text" id="copia-cola-pix-tokens" class="form-control" readonly style="margin-top: 10px; font-size: 11px; text-align: center;" data-onclick="this.select(); document.execCommand('copy'); avisar('Copiado!', 'ok');">
+            <p style="font-size: 12px; color: #d32f2f; margin-top: 10px;">⏳ O saldo será liberado automaticamente após o pagamento.</p>
+        </div>
+
+        <button id="btn-gerar-pix-tokens" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" data-onclick="gerarPixTokens()">Gerar PIX</button>
+        <button class="btn btn-cancel" style="width: 100%;" data-onclick="fecharModais()">Cancelar</button>
     </div>
 </div>
 
