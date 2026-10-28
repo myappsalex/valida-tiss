@@ -22,7 +22,8 @@
         <button class="btn btn-primary" data-perm="tuss:ler" data-onclick="abrirModal('modalAcaoTUSS')">📦 Domínios TISS/TUSS</button>
         <button class="btn btn-success" data-perm="regras:ler" data-onclick="abrirModalRegrasAdmin">⚙️ Regras dos Clientes</button>
         <button class="btn btn-warning" data-perm="ads:ler" data-onclick="abrirGestaoAdsAdminGeral">📢 Publicidade</button>
-    </nav>
+		<button class="btn btn-info" data-perm="ads:criar" data-onclick="abrirPedidoPublicidadeAvulsoAdmin">📢 Lançar Anúncio Avulso</button>
+	</nav>
 
     <main id="conteudo" data-perm="clientes:ler">
         <h2 style="margin:0 0 15px;border-bottom:2px solid #eee;padding-bottom:10px;font-size:18px">Carteira de clientes</h2>
@@ -231,6 +232,52 @@
         <button class="btn btn-danger" style="flex:1" data-onclick="salvarAvaliacaoAd('CANCELADO')">Cancelar</button></div>
     <button class="btn" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalAvaliarAdAdmin')">Fechar</button>
 </div></div>
+
+<!-- Modal Publicidade (Lançado pelo Admin) -->
+<div id="modalPublicidade" class="modal-overlay">
+    <div class="modal-content" style="width: 500px;">
+        <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+        
+        <!-- CORREÇÃO 3: Dropdown de vínculo com o Cliente -->
+        <div class="form-group" id="bloco-tipo-cliente-admin">
+            <label>Vínculo do Cliente</label>
+            <select id="pub-tipo-cliente" class="form-control" data-onchange="mudarTipoClienteAd()">
+                <option value="AVULSO">Anunciante Avulso (Sem conta)</option>
+                <option value="CADASTRADO">Cliente Cadastrado</option>
+            </select>
+        </div>
+        <div id="div-cliente-cadastrado" style="display:none; margin-bottom: 10px;">
+            <select id="pub-cliente-id" class="form-control" data-onchange="preencherDadosClienteAd()"></select>
+        </div>
+        
+        <input type="text" id="pub-empresa" placeholder="Nome da Empresa (Para controle)" class="form-control" style="margin-bottom: 10px;">
+        <input type="email" id="pub-email" placeholder="E-mail de Contato (Para boleto)" class="form-control" style="margin-bottom: 10px;">
+        <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha:</label>
+        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
+        
+        <label for="pub-local" style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Local de exibição:</label>
+        <!-- CORREÇÃO 2: Chama a função toggleLogoLateral -->
+        <select id="pub-local" class="form-control" style="margin-bottom: 15px;" data-onchange="toggleLogoLateral()">
+            <option value="CABECALHO">Cabeçalho principal (horizontal)</option>
+            <option value="LATERAL">Barra lateral (vertical)</option>
+        </select>
+
+        <!-- CORREÇÃO 2: Campo da Logo -->
+        <div id="div-logo-lateral" style="display:none; margin-bottom: 15px;">
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">URL da Logo (Max 120px):</label>
+            <input type="url" id="pub-logo" placeholder="https://site.com/logo.png" class="form-control">
+        </div>
+        
+        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+        
+        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" data-onclick="enviarPedidoPub()">Lançar Pedido no Sistema</button>
+        <!-- CORREÇÃO 4: Classe btn-cancel aplicada -->
+        <button class="btn btn-cancel" style="width: 100%; margin-top: 10px;" data-onclick="fecharModais()">Cancelar</button>
+    </div>
+</div>
 
 <script src="js/modulos/core.js"></script>
 <script src="js/modulos/ui.js"></script>

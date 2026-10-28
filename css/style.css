@@ -40,6 +40,17 @@ body {
 .btn-success { background: #28a745; color: white; }
 .btn-success:hover { background: #218838; }
 
+/* CORREÇÃO 4: Botão de Cancelar legível */
+.btn-cancel {
+    background-color: #e2e6ea !important;
+    color: #002233 !important;
+    font-weight: bold;
+    border: 1px solid #dae0e5;
+}
+.btn-cancel:hover {
+    background-color: #d3d9df !important;
+}
+
 /* Loader */
 .gauge-loader {
     width: 20px; height: 20px;

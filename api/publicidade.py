@@ -107,12 +107,14 @@ class handler(ApiHandler):
                     email_ctt = cliente_alvo.emailAcesso
 
             img = v.imagem_banner(d.get("arquivo_base64"), config.LIMITE_BANNER_BYTES)
+            logo_url = v.url_http(d.get("logoUrl"), "URL da Logo", obrigatorio=False)
             data = {
                 "usuarioId": cliente_id, "empresa_nome": empresa, "email_contato": email_ctt,
                 "link_destino": v.url_http(d.get("link_destino"), "Link de destino"),
                 "tema": v.texto(d.get("tema"), "Tema", 10, 280),
                 "localExibicao": v.escolha(d.get("localExibicao", "CABECALHO"), config.LOCAIS_ADS, "Local"),
-                "status": "PENDENTE", "valorOrcamento": 0.0
+                "status": "PENDENTE", "valorOrcamento": 0.0,
+                "bannerUrl": logo_url if logo_url else None   # Guarda a logo se existir
             }
             if img:
                 data["bannerMime"], data["bannerDados"] = img

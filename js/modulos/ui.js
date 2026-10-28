@@ -39,10 +39,10 @@ function _abrirAnuncio(ad) {
 
 function _pintarCabecalho(ad) {
     const d = document.getElementById('ads_cabecalho'); if (!d) return;
-    limpar(d);
-    d.style.transition = "opacity 0.5s ease-in-out";
+    limpar(d); d.style.transition = "opacity 0.5s ease-in-out";
     
-    if (ad) {
+    // CORREÇÃO 1: Adicionado !ad.isPadrão
+    if (ad && !ad.isPadrão) {
         d.append(el('h3', { style: 'margin:0' }, '🚀 ' + ad.titulo), el('span', { class: 'pulse-text' }, ad.texto));
         d.style.background = ad.cor ? ad.cor : "";
     } else {
@@ -56,14 +56,21 @@ function _pintarCabecalho(ad) {
 
 function _pintarLateral(ad) {
     const d = document.getElementById('ads_lateral'); if (!d) return;
-    limpar(d);
-    d.style.transition = "opacity 0.5s ease-in-out";
+    limpar(d); d.style.transition = "opacity 0.5s ease-in-out";
     
-    if (ad) {
+    // CORREÇÃO 1: Adicionado !ad.isPadrão
+    if (ad && !ad.isPadrão) {
         d.append(el('h4', {}, ad.titulo), el('p', {}, ad.texto));
-        if (ad.banner && ad.banner.startsWith('/api/banner?id='))
+        
+        if (ad.banner && ad.banner.startsWith('/api/banner?id=')) {
             d.append(el('img', { src: ad.banner, alt: 'Anúncio: ' + ad.titulo, width: 150, loading: 'lazy' }));
-        d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
+        } else if (ad.banner && ad.banner.startsWith('http')) {
+            // CORREÇÃO 2: Exibe a Logo através de URL no lugar do emoji
+            d.append(el('img', { src: ad.banner, alt: 'Logo ' + ad.titulo, style: 'max-width:120px; max-height:120px; margin: 10px auto; display: block; border-radius: 4px;' }));
+        } else {
+            d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
+        }
+        
         d.append(el('span', { class: 'btn-ad' }, 'Acessar'));
         d.style.background = ad.cor ? ad.cor : "";
     } else {
@@ -75,6 +82,14 @@ function _pintarLateral(ad) {
     d.onclick = () => _abrirAnuncio(ad);
     d.setAttribute('role', 'link'); d.tabIndex = 0;
     d.onkeydown = e => { if (e.key === 'Enter') d.onclick(); };
+}
+
+function toggleLogoLateral() {
+    const local = document.getElementById('pub-local');
+    const divLogo = document.getElementById('div-logo-lateral');
+    if (local && divLogo) {
+        divLogo.style.display = local.value === 'LATERAL' ? 'block' : 'none';
+    }
 }
 
 function _girar() {
@@ -133,11 +148,12 @@ function _lerArquivo(f) {
 async function enviarPedidoPub() {
     const link = document.getElementById('pub-link').value.trim();
     const tema = document.getElementById('pub-tema').value.trim();
-    const f = document.getElementById('pub-arquivo').files[0];
-    const clienteId = document.getElementById('pub-cliente-id').value;
-    const local = document.getElementById('aval-ad-local') ? document.getElementById('aval-ad-local').value : 'CABECALHO';
+    const f = document.getElementById('pub-arquivo') ? document.getElementById('pub-arquivo').files[0] : null;
+    const clienteId = document.getElementById('pub-cliente-id') ? document.getElementById('pub-cliente-id').value : 'GUEST';
+    const local = document.getElementById('pub-local') ? document.getElementById('pub-local').value : 'CABECALHO';
     const empresa = document.getElementById('pub-empresa').value.trim();
     const email = document.getElementById('pub-email').value.trim();
+    const logoUrl = document.getElementById('pub-logo') ? document.getElementById('pub-logo').value.trim() : null;
 
     if(!empresa || !email) return avisar('Informe o Nome da Empresa e E-mail de contato.', 'erro');
     if (!urlSegura(link)) return avisar('Informe um link válido começando com http:// ou https://', 'erro');
@@ -147,16 +163,19 @@ async function enviarPedidoPub() {
     await comCarga('btn-pub-submit', 'Enviando…', async () => {
         const r = await api('/api/publicidade', {
             acao: 'criar', usuarioId: clienteId, empresa_nome: empresa, email_contato: email,
-            link_destino: link, tema, localExibicao: local,
+            link_destino: link, tema, localExibicao: local, logoUrl: logoUrl,
             arquivo_base64: f ? await _lerArquivo(f) : null
         });
         if (r.ok) {
-            avisar('Pedido registrado! A equipe comercial enviará um orçamento em breve.', 'ok');
+            avisar('Pedido registrado!', 'ok');
             fecharModais();
             if (typeof carregarMinhasCampanhas === 'function') carregarMinhasCampanhas();
+            if (typeof pesquisarPedidosAdAdmin === 'function') pesquisarPedidosAdAdmin();
         } else avisar(erroDe(r), 'erro');
     });
 }
+
+
 document.addEventListener('DOMContentLoaded', () => {
     if (new URLSearchParams(location.search).get('abrirPub') === '1')
         Pronto.then(() => abrirPedidoPublicidade());
