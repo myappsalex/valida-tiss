@@ -1,64 +1,62 @@
+"""/api/gerar_pix – cobrança PIX para anúncio aprovado ou assinatura Premium.
+
+Corrige: valor, cliente Asaas e referência vinham do navegador (dava para pagar
+R$ 0,01 por um anúncio de R$ 500 e vincular o pagamento a outro registro); sem
+autenticação; sem timeout; tela de PIX no front era um QR falso (Google Charts,
+descontinuado). Aqui o VALOR é sempre lido do banco/config.
+"""
 import os
-import json
-import requests
-from http.server import BaseHTTPRequestHandler
-from datetime import datetime, timedelta
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            dados = json.loads(post_data.decode('utf-8'))
-            
-            # Aqui você buscaria o ID do cliente no Asaas salvo na sua base, ou criaria um na hora
-            cliente_asaas_id = dados.get('clienteAsaasId') # Ex: cus_00000503...
-            valor = dados.get('valor')
-            descricao = dados.get('descricao', 'Pagamento ValidaTISS')
-            id_referencia = dados.get('referenciaId') # O ID da campanha ou assinatura no seu banco
-            
-            headers = {
-                "accept": "application/json",
-                "content-type": "application/json",
-                "access_token": os.getenv("ASAAS_API_KEY")
-            }
-            
-            # 1. Criar a cobrança via PIX
-            payload_cobranca = {
-                "customer": cliente_asaas_id,
-                "billingType": "PIX",
-                "value": float(valor),
-                "dueDate": (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d'),
-                "description": descricao,
-                "externalReference": str(id_referencia) # Fundamental para o Webhook saber o que foi pago
-            }
-            
-            url_base = os.getenv("ASAAS_API_URL")
-            resp_cobranca = requests.post(f"{url_base}/payments", json=payload_cobranca, headers=headers)
-            
-            if resp_cobranca.status_code != 200:
-                self._send_response(400, {'sucesso': False, 'erro': 'Falha ao criar cobrança no Asaas'})
-                return
-                
-            cobranca_id = resp_cobranca.json().get('id')
-            
-            # 2. Obter o QR Code e o Copia-e-Cola dessa cobrança
-            resp_qr = requests.get(f"{url_base}/payments/{cobranca_id}/pixQrCode", headers=headers)
-            dados_pix = resp_qr.json()
-            
-            resposta = {
-                'sucesso': True,
-                'cobrancaId': cobranca_id,
-                'payload_pix': dados_pix.get('payload'), # O Copia e Cola
-                'imagem_qrcode': dados_pix.get('encodedImage') # Base64 do QR Code para o HTML
-            }
-            self._send_response(200, resposta)
-            
-        except Exception as e:
-            self._send_response(500, {'sucesso': False, 'erro': str(e)})
+from vt_core import asaas, config, validation as v
+from vt_core.db import get_db
+from vt_core.web import ApiError, ApiHandler
 
-    def _send_response(self, status, payload):
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(payload).encode('utf-8'))
+
+def _garantir_cliente_asaas(db, cliente, cpf_cnpj_informado):
+    if getattr(cliente, "asaasCustomerId", None):
+        return cliente.asaasCustomerId
+    doc = getattr(cliente, "cnpj", None) or None
+    if not doc:
+        if not cpf_cnpj_informado:
+            raise ApiError(422, "Informe o CPF/CNPJ para gerar a cobrança.", "cpf_cnpj_necessario")
+        doc = v.cpf_cnpj(cpf_cnpj_informado)
+    cid = asaas.criar_cliente(cliente.nomeEmpresa, cliente.emailAcesso, doc)
+    db.cliente.update(where={"id": cliente.id}, data={"asaasCustomerId": cid, "cnpj": doc})
+    return cid
+
+
+class handler(ApiHandler):
+    def post(self, ctx):
+        p = ctx.exigir(tipo="CLIENTE")
+        d = ctx.json()
+        tipo = v.escolha(d.get("tipo"), ("AD", "ASSINATURA"), "Tipo")
+        db = get_db()
+
+        if tipo == "AD":
+            camp = db.campanhaads.find_first(where={"id": str(d.get("id") or ""), "usuarioId": p.id})
+            if not camp:
+                raise ApiError(404, "Pedido não encontrado.")
+            if camp.status not in ("ORCADO", "AGUARDANDO_PAGAMENTO") or (camp.valorOrcamento or 0) <= 0:
+                raise ApiError(409, "Este pedido não está aguardando pagamento.", "estado")
+            valor = round(float(camp.valorOrcamento), 2)
+            if camp.status == "AGUARDANDO_PAGAMENTO" and camp.asaasPaymentId:
+                pix = asaas.obter_qrcode(camp.asaasPaymentId)  # idempotente: reaproveita a cobrança
+                return {"sucesso": True, "valor": valor, "cobrancaId": camp.asaasPaymentId, **pix}
+            cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
+            cob = asaas.criar_cobranca_pix(cid, valor, "Anúncio ValidaTISS", f"AD_{camp.id}")
+            n = db.campanhaads.update_many(
+                where={"id": camp.id, "status": {"in": ["ORCADO", "AGUARDANDO_PAGAMENTO"]}},
+                data={"status": "AGUARDANDO_PAGAMENTO", "asaasPaymentId": cob["id"]})
+            if n == 0:
+                raise ApiError(409, "O pedido mudou de estado. Atualize a página.", "estado")
+            return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
+
+        preco = config.env("PRECO_PREMIUM_MENSAL")
+        if not preco:
+            raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
+        valor = round(float(preco), 2)
+        cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
+        cob = asaas.criar_cobranca_pix(cid, valor, "Assinatura Premium ValidaTISS", f"ASSINATURA_{p.id}")
+        return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}

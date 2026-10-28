@@ -1,132 +1,68 @@
+"""/api/auditoria – pré-auditoria por IA (consome 1 token por análise).
+
+Corrige: identidade vinha do `email` no corpo (dava para gastar tokens alheios);
+verificação de saldo e débito separados (corrida: N requisições paralelas com 1
+token); `provedor` livre; sem limite de itens; sem timeout; chave Gemini na URL;
+saída da IA devolvida crua; dados do paciente potencialmente enviados.
+Agora: reserva atômica do token ANTES da chamada e estorno se a IA falhar.
+"""
 import json
-from http.server import BaseHTTPRequestHandler
 import os
-import requests
-from openai import OpenAI
-from prisma import Prisma
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        db = Prisma()
+from vt_core import config, ia, validation as v
+from vt_core.db import get_db
+from vt_core.web import ApiError, ApiHandler
+
+MAX_ITENS = 60
+CAMPOS_CONTEXTO = ("especialidade", "tipoGuia", "caraterAtendimento", "tipoInternacao", "tipoAtendimento")
+
+
+def _itens(bruto):
+    if not isinstance(bruto, list) or not bruto:
+        raise ApiError(400, "Nenhum item encontrado nesta guia para analisar.")
+    saida = []
+    for it in bruto[:MAX_ITENS]:
+        if not isinstance(it, dict) or str(it.get("codigoItem", "")) in ("", "-"):
+            continue
+        saida.append({"tipo": str(it.get("tipoDespesa", "Procedimento"))[:40],
+                      "codigo": str(it.get("codigoItem", ""))[:20],
+                      "descricao": str(it.get("descricaoItem", ""))[:200],
+                      "qtd": str(it.get("qtdItem", ""))[:20],
+                      "valor": str(it.get("valorItem", ""))[:20]})
+    if not saida:
+        raise ApiError(400, "Nenhum item válido para analisar.")
+    return saida
+
+
+class handler(ApiHandler):
+    def post(self, ctx):
+        p = ctx.exigir(tipo="CLIENTE")
+        d = ctx.json(limite=256 * 1024)
+        provedor = v.escolha(d.get("provedor", "gemini"), ia.provedores_habilitados(), "Provedor de IA")
+        itens = _itens(d.get("itens"))
+        contexto = {k: str(d["contexto"][k])[:60] for k in CAMPOS_CONTEXTO
+                    if isinstance(d.get("contexto"), dict) and k in d["contexto"]}
+        numero_guia = str(d.get("guia", "Desconhecida"))[:40]
+
+        cli = p.rec
+        if cli.statusConta != "ATIVO" or getattr(cli, "statusPagamento", "ATIVO") == "INATIVO":
+            raise ApiError(403, "Plano inativo. Contacte o suporte.", "plano_inativo")
+
+        db = get_db()
+        # Reserva atômica: só debita se ainda houver saldo (sem corrida).
+        if db.cliente.update_many(where={"id": cli.id, "tokensIA": {"gte": 1}},
+                                  data={"tokensIA": {"decrement": 1}}) == 0:
+            raise ApiError(402, "Sem tokens suficientes. Adquira mais tokens ou contacte o suporte.", "sem_tokens")
         try:
-            db.connect()
-            
-            # 1. Lê os dados enviados pelo JavaScript
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
-
-            numero_guia = data.get('guia', 'Desconhecida')
-            itens = data.get('itens', [])
-            provedor = data.get('provedor', 'gemini') 
-            email_usuario = data.get('email', '') # Precisa enviar o e-mail no JS
-
-            # 2. Verifica se o cliente tem saldo
-            cliente = db.cliente.find_unique(where={"emailAcesso": email_usuario})
-
-            if not cliente or cliente.tokensIA <= 0 or cliente.statusConta != "ATIVO":
-                self._send_error(403, "Plano inativo ou sem tokens suficientes. Contacte o suporte.")
-                return
-
-            if not itens:
-                self._send_error(400, "Nenhum item encontrado nesta guia para analisar.")
-                return
-
-            # 3. Monta a lista de itens cruzados
-            resumo_itens = ""
-            for item in itens:
-                tipo = item.get('tipoDespesa', 'Procedimento')
-                codigo = item.get('codigoItem', '')
-                descricao = item.get('descricaoItem', '')
-                qtd = item.get('qtdItem', '')
-                valor = item.get('valorItem', '')
-                
-                if codigo != "-":
-                    resumo_itens += f"- [{tipo}] Código: {codigo} | Descrição: {descricao} | Qtd: {qtd} | Valor: R$ {valor}\n"
-
-            # 4. Engenharia de Prompt Otimizada
-            prompt = f"""
-                        Atue como auditor médico rigoroso (padrão TISS/TUSS).
-                        Cruze o procedimento principal com os itens cobrados (materiais/taxas/medicamentos).
-                        Regras:
-                        - Aponte APENAS desvios técnicos, incompatibilidade de especialidade ou excessos abusivos.
-                        - Se não houver desvio claro, retorne "Conta coerente".
-                        - Não use saudações. Seja telegráfico.
-
-                        Guia: {numero_guia}
-                        Itens: {resumo_itens}
-
-                        Responda ESTRITAMENTE neste formato JSON:
-                        {{"status": "ALERTA" ou "OK", "achados": ["lista curta de desvios, se houver"]}}
-            """
-            resposta_ia = ""
-
-            # 5. Roteamento de Modelos de IA (Gemini agora via API REST super leve)
-            if provedor == 'gemini':
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key: raise Exception("GEMINI_API_KEY não configurada.")
-                
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-                payload = {"contents": [{"parts": [{"text": prompt}]}]}
-                
-                resp = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
-                if resp.status_code == 200:
-                    resposta_ia = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                else:
-                    raise Exception(f"Erro na API do Gemini: {resp.text}")
-
-            elif provedor == 'chatgpt':
-                api_key = os.environ.get("OPENAI_API_KEY")
-                if not api_key: raise Exception("OPENAI_API_KEY não configurada.")
-                client = OpenAI(api_key=api_key)
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                resposta_ia = response.choices[0].message.content
-
-            elif provedor == 'deepseek':
-                api_key = os.environ.get("DEEPSEEK_API_KEY")
-                if not api_key: raise Exception("DEEPSEEK_API_KEY não configurada.")
-                client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-                response = client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                resposta_ia = response.choices[0].message.content
-            else:
-                raise Exception("Provedor de IA desconhecido.")
-
-            # 6. Deduz o token e grava o histórico
-            db.cliente.update(
-                where={"id": cliente.id},
-                data={"tokensIA": {"decrement": 1}}
-            )
-
-            db.logia.create(
-                data={
-                    "clienteId": cliente.id,
-                    "numeroGuia": numero_guia,
-                    "motorUsado": provedor,
-                    "tokensGastos": 1
-                }
-            )
-
-            # 7. Devolve a resposta
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({'analise': resposta_ia, 'provedor_usado': provedor}).encode('utf-8'))
-
-        except Exception as e:
-            self._send_error(500, f"Erro interno ao processar IA: {str(e)}")
-            
-        finally:
-            if db.is_connected():
-                db.disconnect()
-
-    def _send_error(self, status, mensagem):
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({'erro': mensagem}).encode('utf-8'))
+            resultado = ia.analisar(provedor, itens, contexto)
+        except ia.IaErro:
+            db.cliente.update(where={"id": cli.id}, data={"tokensIA": {"increment": 1}})  # estorno
+            raise ApiError(502, "A análise de IA falhou. Seu token foi devolvido; tente novamente.", "ia_indisponivel")
+        db.logia.create(data={"clienteId": cli.id, "numeroGuia": numero_guia,
+                              "motorUsado": provedor, "tokensGastos": 1})
+        saldo = db.cliente.find_unique(where={"id": cli.id}).tokensIA
+        return {"sucesso": True, **resultado, "analise": json.dumps(resultado, ensure_ascii=False),
+                "provedor_usado": provedor, "tokensRestantes": saldo,
+                "aviso": "Apoio à decisão. Não substitui a análise do auditor."}

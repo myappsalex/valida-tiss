@@ -1,170 +1,113 @@
+// js/modulos/cliente.js – painel do cliente (requer core.js, ui.js, auth.js)
+'use strict';
 
+let _regras = [], _campanhas = [], _campanhaAtual = null;
+const COR_STATUS = { ATIVO: '#1e7e34', AGUARDANDO_PAGAMENTO: '#b45f06', ORCADO: '#b45f06', PENDENTE: '#0056b3', CANCELADO: '#b02a37', REJEITADO: '#b02a37', EXPIRADO: '#5c6770' };
+const TXT_STATUS = { ORCADO: 'ORÇAMENTO RECEBIDO', AGUARDANDO_PAGAMENTO: 'AGUARDANDO PIX', PENDENTE: 'EM ANÁLISE' };
+
+// Guarda de rota (a proteção REAL é o servidor; isto só evita tela vazia)
+Pronto.then(u => {
+    if (!u) { avisar('Entre para acessar o painel.', 'erro'); return irPara('index.html'); }
+    if (u.tipo !== 'CLIENTE') return irPara('admin.html');
+    carregarPainelCliente();
+    if (location.hash === '#assinatura') assinarPremium();
+});
+
+async function carregarPainelCliente() {
+    const u = Sessao.usuario; if (!u || u.tipo !== 'CLIENTE') return;
+    document.getElementById('nome-empresa-painel').textContent = u.nome;
+    document.getElementById('dash-tokens').textContent = u.tokensRestantes ?? 0;
+    document.getElementById('dash-plano').textContent = u.plano || 'FREEMIUM';
+    const st = document.getElementById('dash-status');
+    st.textContent = u.statusPagamento || 'ATIVO';
+    const ok = (u.statusPagamento || 'ATIVO') === 'ATIVO';
+    st.style.backgroundColor = ok ? '#d4edda' : '#f8d7da'; st.style.color = ok ? '#155724' : '#721c24';
+    carregarRegrasCliente(); carregarMinhasCampanhas();
+}
+
+// ---------- assinatura ----------
+function assinarPremium() { return gerarPix({ tipo: 'ASSINATURA' }, 'btn-assinar'); }
+
+// ---------- regras ----------
 async function carregarRegrasCliente() {
-    if (!usuarioLogado) return; 
-    const tbody = document.getElementById('lista-regras-body'); if(!tbody) return;
-    try {
-        const response = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`); const data = await response.json();
-        if (response.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">Nenhuma regra.</td></tr>'; return; }
-            data.forEach(r => {
-                const argsEdit = `'${r.id}', '${r.nomeRegra.replace(/'/g,"")}', '${r.tipoGuia}', '${r.campoValidado}', '${r.condicao}', '${r.valorEsperado}', '${r.acao}', '${r.mensagemErro.replace(/'/g,"")}'`;
-                tbody.innerHTML += `<tr><td><strong>${r.nomeRegra}</strong></td><td>${r.tipoGuia}</td><td>${r.condicao} <strong>${r.valorEsperado}</strong></td><td>${r.acao}</td><td><button onclick="abrirModalEdicao(${argsEdit})">Editar</button> <button onclick="excluirRegra('${r.id}')">Excluir</button></td></tr>`;
-            });
-        }
-    } catch (e) { console.error(e); }
+    const tb = document.getElementById('lista-regras-body'); if (!tb) return;
+    const r = await api('/api/regras'); limpar(tb);
+    if (!r.ok) return tb.append(linhaMsg(5, erroDe(r), '#c00'));
+    _regras = r.dados;
+    if (!_regras.length) return tb.append(linhaMsg(5, 'Nenhuma regra criada ainda. Use "+ Criar Nova Regra".'));
+    for (const x of _regras) {
+        tb.append(el('tr', {},
+            el('td', {}, el('strong', {}, x.nomeRegra)), el('td', {}, x.tipoGuia, el('br'), el('small', {}, 'Campo: ' + x.campoValidado)),
+            el('td', {}, x.condicao + ' ', el('strong', {}, x.valorEsperado)), el('td', {}, x.acao),
+            el('td', {}, el('button', { class: 'btn', 'data-acao': 'abrirModalEdicao', 'data-id': x.id }, 'Editar'), ' ',
+                el('button', { class: 'btn btn-danger', 'data-acao': 'excluirRegra', 'data-id': x.id }, 'Excluir'))));
+    }
 }
-
+const _CAMPOS_REGRA = { 'regra-id': 'id', 'regra-nome': 'nomeRegra', 'regra-tipo': 'tipoGuia', 'regra-campo': 'campoValidado', 'regra-condicao': 'condicao', 'regra-valor': 'valorEsperado', 'regra-acao': 'acao', 'regra-mensagem': 'mensagemErro' };
+function abrirModalNovaRegra() {
+    for (const id of Object.keys(_CAMPOS_REGRA)) { const e = document.getElementById(id); if (e.tagName !== 'SELECT') e.value = ''; else e.selectedIndex = 0; }
+    document.getElementById('titulo-modal-regra').textContent = 'Criar Gatilho de Validação';
+    abrirModal('modalNovaRegra');
+}
+function abrirModalEdicao(d) {
+    const r = _regras.find(x => x.id === d.id); if (!r) return;
+    for (const [id, campo] of Object.entries(_CAMPOS_REGRA)) document.getElementById(id).value = r[campo] ?? '';
+    document.getElementById('titulo-modal-regra').textContent = 'Editar Regra';
+    abrirModal('modalNovaRegra');
+}
 async function salvarRegra() {
-    const dados = { 
-        id: document.getElementById('regra-id').value, 
-        acao_req: document.getElementById('regra-id').value ? 'editar' : 'criar', 
-        clienteId: usuarioLogado.id, 
-        nomeRegra: document.getElementById('regra-nome').value, 
-        tipoGuia: document.getElementById('regra-tipo').value, 
-        campoValidado: document.getElementById('regra-campo').value, 
-        condicao: document.getElementById('regra-condicao').value, 
-        valorEsperado: document.getElementById('regra-valor').value, 
-        acao: document.getElementById('regra-acao').value, 
-        mensagemErro: document.getElementById('regra-mensagem').value 
-    };
-    if(!dados.nomeRegra || !dados.valorEsperado) return;
-    try { 
-        const response = await fetch('/api/regras', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) }); 
-        if(response.ok) { fecharModal('modalNovaRegra'); carregarRegrasCliente(); } 
-    } catch(e){}
+    const g = id => document.getElementById(id).value.trim();
+    const dados = { id: g('regra-id'), acao_req: g('regra-id') ? 'editar' : 'criar', nomeRegra: g('regra-nome'), tipoGuia: g('regra-tipo'),
+        campoValidado: g('regra-campo'), condicao: g('regra-condicao'), valorEsperado: g('regra-valor'), acao: g('regra-acao'), mensagemErro: g('regra-mensagem') };
+    if (dados.nomeRegra.length < 2 || !dados.valorEsperado) return avisar('Informe o nome da regra e o valor esperado.', 'erro');
+    if (dados.condicao === 'MAIOR_QUE' && isNaN(dados.valorEsperado.replace(',', '.'))) return avisar('Para "Maior que", o valor deve ser numérico.', 'erro');
+    const r = await api('/api/regras', dados);
+    if (r.ok) { fecharModal('modalNovaRegra'); avisar('Regra salva.', 'ok'); carregarRegrasCliente(); } else avisar(erroDe(r), 'erro');
+}
+async function excluirRegra(d) {
+    if (!confirm('Excluir esta regra? Esta ação não pode ser desfeita.')) return;
+    const r = await api('/api/regras', { acao_req: 'excluir', id: d.id });
+    if (r.ok) { avisar('Regra excluída.', 'ok'); carregarRegrasCliente(); } else avisar(erroDe(r), 'erro');
 }
 
-async function excluirRegra(idRegra) {
-    if(!confirm("Tem a certeza?")) return;
-    try { 
-        const response = await fetch('/api/regras', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao_req: 'excluir', id: idRegra }) }); 
-        if(response.ok) carregarRegrasCliente(); 
-    } catch(e){}
-}
-
-window.addEventListener('DOMContentLoaded', () => { 
-    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS')); 
-    if (sessao) { usuarioLogado = sessao; carregarRegrasCliente(); } 
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    const s = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-    if(s) {
-        const elNome = document.getElementById('nome-empresa-painel');
-        if(elNome) elNome.innerText = s.nome;
-        
-        // Os IDs devem existir no HTML para receberem os dados
-        const elDashTokens = document.getElementById('dash-tokens');
-        if(elDashTokens) elDashTokens.innerText = s.tokensRestantes || 0;
-		carregarMinhasCampanhas();
-        
-        const elPlano = document.getElementById('dash-plano');
-        if(elPlano) elPlano.innerText = s.plano || 'FREEMIUM';
-        
-        const statusEl = document.getElementById('dash-status');
-        if(statusEl) {
-            const statusPgto = s.statusPagamento || 'ATIVO';
-            statusEl.innerText = statusPgto;
-            if (statusPgto === 'ATIVO') {
-                statusEl.style.backgroundColor = '#d4edda'; statusEl.style.color = '#155724';
-            } else {
-                statusEl.style.backgroundColor = '#f8d7da'; statusEl.style.color = '#721c24';
-            }
-        }
-    }
-});
-
-// --- GESTÃO DE CAMPANHAS DO LADO DO CLIENTE ---
+// ---------- campanhas ----------
 async function carregarMinhasCampanhas() {
-    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-    if (!sessao) return;
-
-    const tbody = document.getElementById('lista-minhas-campanhas');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;"><div class="gauge-loader"></div> Buscando suas campanhas...</td></tr>';
-    
-    try {
-        const response = await fetch(`/api/publicidade?acao=listar_minhas&clienteId=${sessao.id}`);
-        const data = await response.json();
-        
-        tbody.innerHTML = '';
-        if (!response.ok || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #666;">Você ainda não solicitou nenhuma campanha de publicidade.</td></tr>';
-            return;
-        }
-
-        data.forEach(ad => {
-            let corStatus = '#6c757d'; 
-            if (ad.status === 'ATIVO') corStatus = '#28a745';
-            else if (ad.status === 'AGUARDANDO_PAGAMENTO') corStatus = '#f39c12';
-            else if (ad.status === 'CANCELADO') corStatus = '#dc3545';
-
-            let textoValor = ad.valorOrcamento > 0 ? `R$ ${ad.valorOrcamento.toFixed(2)}` : 'Em análise';
-            let btnAcao = '';
-
-            // Parâmetros para o modal de detalhes do cliente
-            const params = `'${ad.id}', '${ad.tema.replace(/'/g, "\\'")}', '${(ad.observacaoAdmin || "").replace(/'/g, "\\'")}', ${ad.valorOrcamento || 0}, '${ad.status}'`;
-
-            if (ad.status === 'AGUARDANDO_PAGAMENTO') {
-                btnAcao = `<button class="btn btn-success" style="padding: 5px; font-size:11px;" onclick="abrirAcompanhamentoCliente(${params})">Ver Orçamento</button>`;
-            } else {
-                btnAcao = `<button class="btn" style="background:#17a2b8; color:white; padding: 5px; font-size:11px;" onclick="abrirAcompanhamentoCliente(${params})">Detalhes</button>`;
-            }
-
-            tbody.innerHTML += `
-                <tr>
-                    <td><strong>${ad.tema}</strong></td>
-                    <td><span class="badge" style="background:${corStatus};">${ad.status}</span></td>
-                    <td><span style="font-size: 12px; color: #666;">${textoValor}</span></td>
-                    <td>${btnAcao}</td>
-                </tr>
-            `;
-        });
-    } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Erro ao consultar suas campanhas.</td></tr>';
+    const tb = document.getElementById('lista-minhas-campanhas'); if (!tb) return;
+    limpar(tb).append(linhaMsg(4, '⏳ Buscando suas campanhas…'));
+    const r = await api('/api/publicidade?acao=listar_minhas'); limpar(tb);
+    if (!r.ok) return tb.append(linhaMsg(4, erroDe(r), '#c00'));
+    _campanhas = r.dados;
+    if (!_campanhas.length) return tb.append(linhaMsg(4, 'Você ainda não solicitou nenhuma campanha.'));
+    for (const ad of _campanhas) {
+        tb.append(el('tr', {},
+            el('td', {}, el('strong', {}, ad.tema)),
+            el('td', {}, el('span', { class: 'badge', style: `background:${COR_STATUS[ad.status] || '#5c6770'}` }, TXT_STATUS[ad.status] || ad.status)),
+            el('td', {}, el('small', {}, ad.valorOrcamento > 0 ? brl(ad.valorOrcamento) : 'Em análise')),
+            el('td', {}, el('button', { class: 'btn', style: 'background:#0c7489;color:#fff;padding:5px;font-size:11px', 'data-acao': 'abrirAcompanhamentoCliente', 'data-id': ad.id },
+                ['ORCADO', 'AGUARDANDO_PAGAMENTO'].includes(ad.status) ? 'Ver orçamento' : 'Detalhes'))));
     }
 }
-
-function abrirAcompanhamentoCliente(id, tema, obsAdmin, valor, status) {
-    document.getElementById('acom-cli-tema').value = tema;
-    document.getElementById('acom-cli-obs').innerText = obsAdmin || "O administrador ainda não enviou observações.";
-    document.getElementById('acom-cli-valor').value = valor > 0 ? `R$ ${valor.toFixed(2)}` : "Aguardando definição";
-    
-    // Esconde botões de ação se não for status de orçamento aguardando
-    const btnAprovar = document.getElementById('btn-aprovar-orc');
-    const btnCancelar = document.getElementById('btn-cancelar-orc'); // Garanta que seu botão cancelar no HTML tem esse ID
-    
-    if (status === 'AGUARDANDO_PAGAMENTO') {
-        btnAprovar.style.display = 'inline-block';
-        if(btnCancelar) btnCancelar.style.display = 'inline-block';
-        
-        // Configura o botão para acionar o PIX
-        btnAprovar.onclick = function() {
-            responderOrcamentoCliente(id, 'APROVADO_PIX', valor);
-        };
-    } else {
-        btnAprovar.style.display = 'none';
-        if(btnCancelar) btnCancelar.style.display = 'none';
-    }
-    
+function abrirAcompanhamentoCliente(d) {
+    const ad = _campanhas.find(x => x.id === d.id); if (!ad) return; _campanhaAtual = ad;
+    document.getElementById('acom-cli-tema').value = ad.tema;
+    document.getElementById('acom-cli-obs').textContent = ad.observacaoAdmin || 'O administrador ainda não enviou observações.';
+    document.getElementById('acom-cli-valor').value = ad.valorOrcamento > 0 ? brl(ad.valorOrcamento) : 'Aguardando definição';
+    const pagar = ['ORCADO', 'AGUARDANDO_PAGAMENTO'].includes(ad.status);
+    document.getElementById('btn-aprovar-orc').style.display = pagar ? 'inline-block' : 'none';
+    document.getElementById('btn-cancelar-orc').style.display = ['PENDENTE', 'ORCADO', 'AGUARDANDO_PAGAMENTO'].includes(ad.status) ? 'inline-block' : 'none';
     abrirModal('modalAcompanharAdCliente');
 }
-
-async function responderOrcamentoCliente(id, decisao, valor) {
-    // Atualiza status no banco
-    try {
-        const payload = { acao: 'resposta_cliente', id: id, status: decisao === 'APROVADO_PIX' ? 'AGUARDANDO_PAGAMENTO' : 'CANCELADO' };
-        await fetch('/api/publicidade', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        
-        fecharModal('modalAcompanharAdCliente');
-        
-        if (decisao === 'APROVADO_PIX') {
-            abrirPagamentoPIX(id, valor); // Chama a tela do QRCode
-        } else {
-            alert("Pedido cancelado com sucesso.");
-            carregarMinhasCampanhas();
-        }
-    } catch(e) { alert("Erro de conexão."); }
+async function aprovarOrcamentoPIX() {
+    if (!_campanhaAtual) return;
+    const id = _campanhaAtual.id;
+    fecharModal('modalAcompanharAdCliente');
+    await gerarPix({ tipo: 'AD', id }, null);
+    carregarMinhasCampanhas();
+}
+async function cancelarPedidoCliente() {
+    if (!_campanhaAtual || !confirm('Cancelar este pedido de publicidade?')) return;
+    const r = await api('/api/publicidade', { acao: 'resposta_cliente', id: _campanhaAtual.id, status: 'CANCELADO' });
+    fecharModal('modalAcompanharAdCliente');
+    if (r.ok) avisar('Pedido cancelado.', 'ok'); else avisar(erroDe(r), 'erro');
+    carregarMinhasCampanhas();
 }
