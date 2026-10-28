@@ -1,5 +1,6 @@
-prisma==0.15.0
-PyJWT==2.9.0
-bcrypt==4.2.0
-lxml==5.3.0
-requests==2.32.3
+lxml
+openai
+prisma
+bcrypt
+requests
+PyJWT
