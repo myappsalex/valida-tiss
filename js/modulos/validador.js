@@ -1,623 +1,465 @@
-// js/modulos/validador.js
+// js/modulos/validador.js – validador TISS no navegador (requer core.js, ui.js, tiss_hash.js)
+// Reescrito sobre o original: sem innerHTML com dados do XML (XSS), sem handlers inline (CSP),
+// IA com identidade da sessão, exportação com hash recalculado/ISO-8859-1/limite no servidor.
+'use strict';
+
 let xmlDocAtual = null;
+let regrasAtivasCliente = [];
+let dadosParaExportacao = [];
+let hashConfereOriginal = false;      // o hash do arquivo bate com o nosso algoritmo? (só então regravamos)
 
-// --- NAVEGAÇÃO DO WIZARD ---
+const NI = 'Não informado';
+const TIPOS_GUIAS = ['guiaConsulta', 'guiaSP-SADT', 'guiaResumoInternacao', 'guiaHonorarioIndividual', 'guiaOdontologia'];
+const TABELAS_TUSS = ['18', '19', '20', '22'];
+const LIMITE_XML = 4 * 1024 * 1024;
+const _guias = [];                    // índice -> {no, tipo, numero, nome, ...}
+const _itens = new Map();             // "gi-TIPO-idx" -> item
+const _glosas = [];                   // textos de glosa (evita colocar texto em atributos/JS)
+let _tussValidos = null;              // Set | null (null = não verificado)
+let _ocupado = false;
+
+// ---------- navegação do wizard ----------
 function iniciarProcessamento() {
-    if (document.getElementById('xmlInput').files.length === 0) return;
-    if (typeof alterarPasso === 'function') alterarPasso(2);
-    setTimeout(processarXML, 500);
+    const inp = document.getElementById('xmlInput');
+    if (!inp || inp.files.length === 0 || _ocupado) return;
+    alterarPasso(2);
+    processarXML();
 }
 
-// --- FUNÇÕES DE APOIO (TISS) ---
+// ---------- apoio TISS ----------
 function buscarVariasTags(node, nomeTag) {
-    let elementos = node.getElementsByTagNameNS("*", nomeTag);
-    if (elementos.length === 0) elementos = node.getElementsByTagName(nomeTag);
-    if (elementos.length === 0) elementos = node.getElementsByTagName("ans:" + nomeTag);
-    return elementos;
+    let r = node.getElementsByTagNameNS('*', nomeTag);
+    if (r.length === 0) r = node.getElementsByTagName(nomeTag);
+    if (r.length === 0) r = node.getElementsByTagName('ans:' + nomeTag);
+    return r;
 }
+function buscarTagUnica(node, nomeTag) { const r = buscarVariasTags(node, nomeTag); return r.length ? r[0] : null; }
+function extrairTexto(node, nomeTag, padrao = NI) { const e = buscarTagUnica(node, nomeTag); return e ? e.textContent.trim() : padrao; }
+function numero(txt) { const n = parseFloat(String(txt).replace(',', '.')); return Number.isFinite(n) ? n : 0; }
+const dinheiro2 = n => (Math.round((n + Number.EPSILON) * 100) / 100);
+const fmtBR = n => dinheiro2(n).toFixed(2).replace('.', ',');
+const CATEGORIAS = { '01': 'Gasoterapia', '02': 'Medicamentos', '03': 'Materiais', '05': 'Diárias', '07': 'Taxas e Alugueis', '08': 'Órteses/Próteses (OPME)' };
+const nomeDespesa = c => CATEGORIAS[c] || 'Outra Despesa';
 
-function buscarTagUnica(node, nomeTag) { const elementos = buscarVariasTags(node, nomeTag); return elementos.length > 0 ? elementos[0] : null; }
-function extrairTexto(node, nomeTag, valorPadrao = "Não informado") { const elemento = buscarTagUnica(node, nomeTag); return elemento ? elemento.textContent.trim() : valorPadrao; }
-function obterNomeDespesaTISS(codigo) { const dominios = { "01": "Gasoterapia", "02": "Medicamentos", "03": "Materiais", "05": "Diárias", "07": "Taxas e Alugueis", "08": "Órteses/Próteses (OPME)" }; return dominios[codigo] || "Outra Despesa"; }
-
-// --- NOVAS FUNÇÕES: FILTROS E EDIÇÃO XML (AUDITORIA) ---
-function filtrarTabelaTISS(inputObj, tableId, colIndex) {
-    const filter = inputObj.value.toUpperCase();
-    const table = document.getElementById(tableId);
-    if(!table) return;
-    const tr = table.getElementsByTagName("tr");
-    
-    for (let i = 1; i < tr.length; i++) {
-        const td = tr[i].getElementsByTagName("td")[colIndex];
-        if (td) {
-            let txtValue = td.textContent || td.innerText;
-            if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-            } else {
-                tr[i].style.display = "none";
-            }
-        }
+// ---------- filtros de tabela (todos os filtros da tabela combinam) ----------
+function filtrarTabelaTISS(_input, tableId) {
+    const tb = document.getElementById(tableId); if (!tb) return;
+    const filtros = [...document.querySelectorAll(`input[data-tb="${tableId}"]`)]
+        .map(i => ({ col: Number(i.dataset.col), v: i.value.trim().toUpperCase() })).filter(f => f.v);
+    for (const tr of tb.rows) {
+        if (tr.cells.length && tr.cells[0].tagName === 'TH') continue;
+        tr.style.display = filtros.every(f => (tr.cells[f.col] ? tr.cells[f.col].textContent : '').toUpperCase().includes(f.v)) ? '' : 'none';
     }
 }
 
-// --- MOTOR DE REGRAS DE NEGÓCIO TISS 2.0.0 (CABEÇALHOS) ---
-function validarRegrasNegocio(guia, tipoGuia, dataAtendimentoStr) {
-    let badgesHTML = '';
-    let validacoesHTML = '';
-
-    if (dataAtendimentoStr && dataAtendimentoStr !== "Não informado") {
-        const partesData = dataAtendimentoStr.split('T')[0].split('-'); 
-        if (partesData.length === 3) {
-            const dataAtend = new Date(partesData[0], partesData[1] - 1, partesData[2]);
-            const hoje = new Date();
-            
-            if (dataAtend > hoje) {
-                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1203]</strong> Data de atendimento posterior à data de processamento.</div>`;
-            }
-            const diffDias = Math.ceil((hoje - dataAtend) / (1000 * 60 * 60 * 24));
-            if (diffDias > 60 && dataAtend <= hoje) {
-                validacoesHTML += `<div class="alerta-box">⚠️ Guia fora da janela de retroatividade contratual (> 60 dias).</div>`;
-            }
+// ---------- regras de negócio TISS (cabeçalho da guia) ----------
+function validarRegrasNegocio(guia, tipoGuia, dataStr) {
+    const badges = [], alertas = [];
+    const erro = (c, t) => alertas.push({ nivel: 'erro', cod: c, texto: t });
+    const aviso = (c, t) => alertas.push({ nivel: 'alerta', cod: c, texto: t });
+    if (dataStr && dataStr !== NI) {
+        const p = dataStr.split('T')[0].split('-');
+        if (p.length === 3) {
+            const d = new Date(+p[0], +p[1] - 1, +p[2]), hoje = new Date();
+            if (d > hoje) erro('Glosa 1203', 'Data de atendimento posterior à data de processamento.');
+            else if (Math.floor((hoje - d) / 86400000) > 60) aviso('', 'Guia fora da janela de retroatividade contratual (> 60 dias).');
         }
     }
-
     if (tipoGuia === 'guiaConsulta') {
-        const indAcidente = extrairTexto(guia, "indicacaoAcidente");
-        if (indAcidente === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Campo 'Indicação de Acidente' ausente ou inválido no XSD.</div>`;
-        }
+        if (extrairTexto(guia, 'indicacaoAcidente') === NI) erro('Glosa 1801', "Campo 'Indicação de Acidente' ausente ou inválido no XSD.");
     } else if (tipoGuia === 'guiaSP-SADT') {
-        const carater = extrairTexto(guia, "caraterAtendimento");
-        const temAutorizacao = buscarTagUnica(guia, "dadosAutorizacao") !== null;
-
-        if (carater === "2" || carater === "U") { 
-            badgesHTML += `<span class="badge bg-urgencia">URGÊNCIA</span>`; 
-        } else if (carater === "1" || carater === "E") { 
-            badgesHTML += `<span class="badge bg-eletivo">ELETIVO</span>`; 
-            if (!temAutorizacao) {
-                validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1311]</strong> Guia SP/SADT Eletiva exige preenchimento de Dados de Autorização Prévia.</div>`;
-            }
+        const carater = extrairTexto(guia, 'caraterAtendimento');
+        if (carater === '2' || carater === 'U') badges.push({ cls: 'bg-urgencia', texto: 'URGÊNCIA' });
+        else if (carater === '1' || carater === 'E') {
+            badges.push({ cls: 'bg-eletivo', texto: 'ELETIVO' });
+            if (!buscarTagUnica(guia, 'dadosAutorizacao')) erro('Glosa 1311', 'Guia SP/SADT Eletiva exige preenchimento de Dados de Autorização Prévia.');
         }
     } else if (tipoGuia === 'guiaResumoInternacao') {
-        const obitos = ["41", "42", "43", "61", "62", "63", "64"];
-        if (obitos.includes(extrairTexto(guia, "motivoEncerramento"))) {
-            badgesHTML += `<span class="badge bg-obito">ÓBITO</span>`;
-            validacoesHTML += `<div class="alerta-box">⚠️ <strong>[Regra de Negócio]</strong> Óbito identificado. Conta enviada para Auditoria Médica Concorrente.</div>`;
+        if (['41', '42', '43', '61', '62', '63', '64'].includes(extrairTexto(guia, 'motivoEncerramento'))) {
+            badges.push({ cls: 'bg-obito', texto: 'ÓBITO' });
+            aviso('Regra de Negócio', 'Óbito identificado. Conta enviada para Auditoria Médica Concorrente.');
         }
-        const dataInicio = extrairTexto(guia, "dataInicioFaturamento");
-        const dataFim = extrairTexto(guia, "dataFimFaturamento");
-        if (dataInicio === "Não informado" || dataFim === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1801]</strong> Período de faturamento ausente (Exigência XSD).</div>`;
-        }
+        if (extrairTexto(guia, 'dataInicioFaturamento') === NI || extrairTexto(guia, 'dataFimFaturamento') === NI)
+            erro('Glosa 1801', 'Período de faturamento ausente (Exigência XSD).');
     } else if (tipoGuia === 'guiaHonorarioIndividual') {
-        const guiaMae = extrairTexto(guia, "guiaSolicitacaoInternacao");
-        if (guiaMae === "Não informado") {
-            validacoesHTML += `<div class="erro-box">❌ <strong>[Glosa 1014]</strong> Guia de Honorário órfã. Obrigatório informar a Guia de Solicitação de Internação (guia mãe).</div>`;
-        }
+        if (extrairTexto(guia, 'guiaSolicitacaoInternacao') === NI)
+            erro('Glosa 1014', 'Guia de Honorário órfã. Obrigatório informar a Guia de Solicitação de Internação (guia mãe).');
     }
-
-    return { badges: badgesHTML, alertas: validacoesHTML };
+    return { badges, alertas };
 }
 
-// --- CHAMADA REAL DE IA ---
-async function analisarGuiaIA(idUnico, numeroGuia, provedor) {
-    if (!usuarioLogado) { abrirModal('modalAuth'); return; }
-    if (usuarioLogado.statusPagamento !== 'ATIVO' || usuarioLogado.tokensRestantes <= 0) { alert("Plano inativo ou saldo insuficiente."); return; }
-
-    const btnClicado = document.getElementById(`btn-ia-${provedor}-${idUnico}`);
-    const divResultado = document.getElementById(`resultado-ia-${idUnico}`);
-    const nomesProvedores = { 'gemini': '✨ Gemini', 'chatgpt': '✨ ChatGPT', 'deepseek': '✨ DeepSeek' };
-    const nomeIA = nomesProvedores[provedor];
-
-    btnClicado.disabled = true; btnClicado.innerText = "⏳ A processar...";
-    divResultado.style.display = 'block'; divResultado.innerHTML = `<strong>Aguarde...</strong> A analisar...`;
-
-    try {
-        const itensDestaGuia = dadosParaExportacao.filter(item => item.numeroGuia === numeroGuia);
-        const response = await fetch('/api/auditoria', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ guia: numeroGuia, itens: itensDestaGuia, provedor: provedor, email: usuarioLogado.email })
-        });
-        const data = await response.json();
-
-        if (response.ok) {
-            usuarioLogado.tokensRestantes -= 1;
-            document.getElementById('user-status').innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
-            let textoFormatado = '';
-            try {
-                const iaJson = JSON.parse(data.analise.replace(/```json/g, '').replace(/```/g, ''));
-                textoFormatado = `<strong>Status:</strong> ${iaJson.status === 'ALERTA' ? '<span style="color:red">⚠️ ALERTA</span>' : '<span style="color:green">✅ OK</span>'}<br><br><strong>Achados:</strong><br>• ${iaJson.achados.join('<br>• ')}`;
-            } catch(e) { textoFormatado = data.analise.replace(/\n/g, '<br>'); }
-            
-            divResultado.innerHTML = `<strong style="color: #333; font-size: 14px;">Auditor IA (${nomeIA})</strong><br><br>${textoFormatado}`;
-        } else {
-            divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro:</strong> ${data.erro}</span>`;
-        }
-    } catch (error) { divResultado.innerHTML = `<span style="color: #d8000c;"><strong>Erro na Conexão.</strong></span>`; } 
-    finally { btnClicado.disabled = false; btnClicado.innerText = nomeIA; }
+// ---------- regras do cliente (todas as opções oferecidas na UI agora são avaliadas) ----------
+function _compara(real, cond, esperado) {
+    const nr = Number(String(real).replace(',', '.')), ne = Number(String(esperado).replace(',', '.'));
+    const numericos = real !== '' && esperado !== '' && Number.isFinite(nr) && Number.isFinite(ne);
+    if (cond === 'MAIOR_QUE') return numericos && nr > ne;
+    if (cond === 'IGUAL') return numericos ? nr === ne : String(real).trim().toUpperCase() === String(esperado).trim().toUpperCase();
+    if (cond === 'CONTEM') return String(real).toUpperCase().includes(String(esperado).toUpperCase());
+    return false;
+}
+function _msgRegra(r) {
+    return `${r.acao === 'BLOQUEIO' ? '❌ [Bloqueio Cliente]' : '⚠️ [Alerta Cliente]'}: ${r.mensagemErro || r.nomeRegra}`;
+}
+function _regrasDoTipo(tipoGuia) {
+    return (regrasAtivasCliente || []).filter(r => r.tipoGuia === 'TODAS' || r.tipoGuia === tipoGuia);
 }
 
-// --- PROCESSAMENTO CENTRAL E EXTRAÇÃO ---
-async function processarXML() {
-    const fileInput = document.getElementById('xmlInput');
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-
-    reader.onload = async function(e) {
-        const xmlContent = e.target.result;
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, "application/xml");
-        
-        const parserError = buscarTagUnica(xmlDoc, "parsererror");
-        if (parserError) {
-            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro:</strong> O arquivo não é um XML válido.</div>`;
-            if (typeof alterarPasso === 'function') alterarPasso(3); 
-            return;
-        }
-
-        xmlDocAtual = xmlDoc;
-
-        let versaoTiss = "Versão não encontrada";
-        let operadoraID = "Não identificada";
-        let prestadorID = "Não informado";
-        
-        const cabecalho = buscarTagUnica(xmlDoc, "cabecalho");
-        if (cabecalho) {
-            const tagPadrao = buscarTagUnica(cabecalho, "Padrao") || buscarTagUnica(cabecalho, "versaoPadrao");
-            if (tagPadrao) versaoTiss = tagPadrao.textContent.trim();
-            const destino = buscarTagUnica(cabecalho, "destino");
-            if (destino) {
-                const regANS = buscarTagUnica(destino, "registroANS");
-                const cnpj = buscarTagUnica(destino, "cnpj");
-                if (regANS) operadoraID = "Registro ANS: " + regANS.textContent.trim();
-                else if (cnpj) operadoraID = "CNPJ: " + cnpj.textContent.trim();
-            }
-            const origem = buscarTagUnica(cabecalho, "origem");
-            if (origem){
-                const prestador = buscarTagUnica(origem, "CNPJ") || buscarTagUnica(origem, "codigoPrestadorNaOperadora");
-                if (prestador) prestadorID = prestador.textContent.trim();
-            }
-        }
-
-        try {
-            if (usuarioLogado && usuarioLogado.tipo === "CLIENTE") {
-                try {
-                    const resRegras = await fetch(`/api/regras?clienteId=${usuarioLogado.id}`);
-                    if (resRegras.ok) regrasAtivasCliente = await resRegras.json();
-                } catch (e) { console.log("Erro ao carregar regras"); }
-            }
-            const response = await fetch('/api/validador', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ xml: xmlContent, versao: versaoTiss })
-            });
-            const data = await response.json();
-
-            if (response.ok && data.valido) {
-                const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
-                let guiasHTML = ''; let totalGuias = 0; let valorTotalLote = 0;
-                let valorGasoterapia = 0; let valorMateriais = 0; let valorMedicamentos = 0;
-                let valorDiarias = 0; let valorTaxasAlugueis = 0; let valorOPME = 0; let valorTotalProcedimentosItem = 0;
-                
-                dadosParaExportacao = [];
-
-                tiposGuias.forEach(tipo => {
-                    let guias = buscarVariasTags(xmlDoc, tipo);
-                    for(let i = 0; i < guias.length; i++) {
-                        totalGuias++;
-                        const guia = guias[i];
-                        
-                        const numeroGuia = extrairTexto(guia, "numeroGuiaPrestador");
-                        const nomeBeneficiario = extrairTexto(guia, "nomeBeneficiario");
-                        let dataAtendimento = extrairTexto(guia, "dataAtendimento");
-                        if (dataAtendimento === "Não informado") dataAtendimento = extrairTexto(guia, "dataExecucao");
-                        
-                        let valorGuia = 0; let valorTotalProcedimentos = 0; let valorTotalOutrasDespesas = 0;
-                        const regrasAuditoria = validarRegrasNegocio(guia, tipo, dataAtendimento);
-
-                        let dadosExecutanteGuia = "Não informado";
-                        let dadosExecutante = buscarTagUnica(guia, "dadosExecutante");
-                        if (dadosExecutante){
-                            let cod = extrairTexto(guia, "codigoPrestadorNaOperadora");
-                            if(cod === "Não informado") cod = extrairTexto(guia, "cnpjContratado");
-                            const nome = extrairTexto(guia, "nomeContratado") || extrairTexto(guia, "nomeContratadoExecutante");
-                            if(nome !== "Não informado") dadosExecutanteGuia = `(${cod}) ${nome}`;
-                        }
-
-                        const nomeExibicaoGuia = tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
-                        let procedimentos = buscarVariasTags(guia, "procedimentoExecutado");
-                        let despesas = buscarVariasTags(guia, "despesa"); 
-                        
-                        let tabelaProcedimentosHTML = '';
-                        let tabelaOutrasDespesasHTML = '';
-
-                        // ---------------- TABELA DE PROCEDIMENTOS ----------------
-                        if (procedimentos.length > 0) {
-                            tabelaProcedimentosHTML = `
-                                <details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
-                                    <summary style="cursor: pointer; font-weight: bold; padding: 10px; background-color: #e6f2ff; color: #004085; outline: none;"> 
-                                        💵 Procedimentos Executados (${procedimentos.length})								
-                                    </summary>
-                                    <div style="padding: 10px;">
-                                        <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                                            <input type="text" placeholder="🔍 Filtrar Código..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 1)">
-                                            <input type="text" placeholder="🔍 Filtrar Grau Part..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-proc-${numeroGuia}', 3)">
-                                        </div>
-                                        <table class="tabela-dados" id="tb-proc-${numeroGuia}">
-                                            <tr style="background-color: #f0f0f0;">
-                                                <th>Tabela</th><th>Código</th><th>Descrição</th><th>Profissional</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th><th style="text-align:center;">Glosa</th>
-                                            </tr>
-                            `;
-                            for(let p = 0; p < procedimentos.length; p++) {
-                                const proc = procedimentos[p];
-                                const tabela = extrairTexto(proc, "codigoTabela");
-                                const codigo = extrairTexto(proc, "codigoProcedimento");
-                                const descricao = extrairTexto(proc, "descricaoProcedimento");
-                                
-                                let qtdStr = extrairTexto(proc, "quantidadeExecutada");
-                                let vlUnitStr = extrairTexto(proc, "valorUnitario");
-                                let vlTotStr = extrairTexto(proc, "valorTotal");
-                                
-                                let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
-                                let vlUnit = vlUnitStr !== "Não informado" ? parseFloat(vlUnitStr) : 0;
-                                let vlTot = vlTotStr !== "Não informado" ? parseFloat(vlTotStr) : (qtd * vlUnit);
-
-                                let grauPart = extrairTexto(proc, "grauParticipacao");
-                                if (grauPart === "Não informado") grauPart = extrairTexto(proc, "grauPart"); 
-                                let nomeProf = extrairTexto(proc, "nomeProfissional");
-                                if (nomeProf === "Não informado") nomeProf = extrairTexto(proc, "nomeProf");
-                                
-                                let profHTML = `<span style="color: #999; font-size: 11px;">Não informado</span>`;
-                                if (nomeProf !== "Não informado" || grauPart !== "Não informado") {
-                                    profHTML = `
-                                        <details style="background: #fdfdfd; padding: 2px; border-radius: 4px; border: 1px solid #eee;">
-                                            <summary style="cursor: pointer; color: #0056b3; outline: none; font-weight: bold; font-size: 11px;">Ver Equipe</summary>
-                                            <div style="margin-top: 5px; font-size: 11px; color: #333;"><strong>Nome:</strong> ${nomeProf}<br><strong>Grau Part.:</strong> ${grauPart}</div>
-                                        </details>
-                                    `;
-                                }
-
-                                valorTotalProcedimentos += vlTot;
-                                valorGuia += vlTot;
-                                valorTotalProcedimentosItem += vlTot;
-                                valorTotalLote += vlTot;
-                                
-                                let glosasItem = validarItemTISS(proc, 'PROCEDIMENTO', tipo);
-                                let htmlGlosa = glosasItem.length > 0 
-                                    ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
-                                    : `<span style="color:#28a745;">✅</span>`;
-
-                                let idBase = `proc-${numeroGuia}-${p}`;
-                                let inputQtd = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
-                                let inputVlUnit = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'PROCEDIMENTO', ${p}, this)">`;
-                                let inputVlTot = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-proc-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
-
-                                tabelaProcedimentosHTML += `<tr><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${profHTML}</td><td>${inputQtd}</td><td>${inputVlUnit}</td><td>${inputVlTot}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
-                                
-                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: "Procedimentos", profissional: nomeProf, grauParticipacao: grauPart, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
-                            }
-                            tabelaProcedimentosHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;" id="sum-proc-${numeroGuia}">R$ ${valorTotalProcedimentos.toFixed(2).replace('.', ',')}</div></div></details>`;
-                        }
-
-                        // ---------------- TABELA DE OUTRAS DESPESAS ----------------
-                        if(despesas.length > 0) {
-                            tabelaOutrasDespesasHTML = `
-                                <details style="margin-top: 15px; border: 1px solid #cce5ff; border-radius: 6px; overflow: hidden; background: #fff;">
-                                    <summary style="cursor: pointer; font-weight: bold; padding: 10px; background-color: #e6f2ff; color: #004085; outline: none;">
-                                        📦 Outras Despesas / OPME (${despesas.length})												
-                                    </summary>
-                                    <div style="padding: 10px;">
-                                        <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                                            <input type="text" placeholder="🔍 Filtrar Tipo (Ex: 08)..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 0)">
-                                            <input type="text" placeholder="🔍 Filtrar Tabela..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 1)">
-                                            <input type="text" placeholder="🔍 Filtrar Código..." class="form-control" style="width: 150px; padding: 4px; font-size: 12px;" onkeyup="filtrarTabelaTISS(this, 'tb-desp-${numeroGuia}', 2)">
-                                        </div>
-                                        <table class="tabela-dados" id="tb-desp-${numeroGuia}">
-                                            <tr style="background-color: #f0f0f0;">
-                                                <th>Tipo</th><th>Tabela</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>V. Unit</th><th>V. Total</th><th style="text-align:center;">Glosa</th>
-                                            </tr>
-                            `;
-                            for(let o = 0; o < despesas.length; o++) {
-                                const desp = despesas[o];
-                                const tabela = extrairTexto(desp, "codigoTabela");
-                                const codigo = extrairTexto(desp, "codigoProcedimento");
-                                const descricao = extrairTexto(desp, "descricaoProcedimento");
-                                const tipoDespesaCod = extrairTexto(desp, "codigoDespesa"); 
-                                const tipoDespesaNome = obterNomeDespesaTISS(tipoDespesaCod);
-                                
-                                let qtdStr = extrairTexto(desp, "quantidadeExecutada");
-                                let vlUnitStr = extrairTexto(desp, "valorUnitario");
-                                let vlTotStr = extrairTexto(desp, "valorTotal");
-
-                                let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
-                                let vlTot = vlTotStr !== "Não informado" ? parseFloat(vlTotStr) : 0;
-                                let vlUnit = vlUnitStr !== "Não informado" ? parseFloat(vlUnitStr) : (qtd > 0 ? (vlTot / qtd) : 0);
-                                
-                                valorGuia += vlTot;																				
-                                if(tipoDespesaCod === '01') valorGasoterapia += vlTot;
-                                else if(tipoDespesaCod === '02') valorMedicamentos += vlTot;
-                                else if(tipoDespesaCod === '03') valorMateriais += vlTot;
-                                else if(tipoDespesaCod === '05') valorDiarias += vlTot;
-                                else if(tipoDespesaCod === '07') valorTaxasAlugueis += vlTot;
-                                else if(tipoDespesaCod === '08') valorOPME += vlTot;
-                                
-                                valorTotalOutrasDespesas += vlTot;
-                                valorTotalLote += vlTot;
-
-                                let glosasItem = validarItemTISS(desp, 'DESPESA', tipo);
-                                let htmlGlosa = glosasItem.length > 0 
-                                    ? `<i class="fa-solid fa-triangle-exclamation blink-glosa" title="Ver Críticas" onclick="mostrarGlosaModal('${encodeURIComponent(glosasItem.join('<br><br>'))}')"></i>` 
-                                    : `<span style="color:#28a745;">✅</span>`;
-
-                                let idBase = `desp-${numeroGuia}-${o}`;
-                                let inputQtdD = `<input type="number" id="qtd-${idBase}" class="input-calc" step="0.01" value="${qtd}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
-                                let inputVlUnitD = `<input type="number" id="unit-${idBase}" class="input-calc" step="0.01" value="${vlUnit.toFixed(2)}" onchange="atualizarItemXML('${numeroGuia}', 'DESPESA', ${o}, this)">`;
-                                let inputVlTotD = `<input type="number" id="tot-${idBase}" class="input-calc input-readonly vltot-desp-${numeroGuia}" value="${vlTot.toFixed(2)}" readonly>`;
-
-                                tabelaOutrasDespesasHTML += `<tr><td><span class="badge" style="background:#6c757d;">${tipoDespesaCod} - ${tipoDespesaNome}</span></td><td>${tabela}</td><td>${codigo}</td><td>${descricao}</td><td>${inputQtdD}</td><td>${inputVlUnitD}</td><td>${inputVlTotD}</td><td style="text-align:center; vertical-align: middle;">${htmlGlosa}</td></tr>`;
-                                
-                                dadosParaExportacao.push({ tipoGuia: nomeExibicaoGuia, numeroGuia: numeroGuia, beneficiario: nomeBeneficiario, tabela: tabela, codigoItem: codigo, descricaoItem: descricao, tipoDespesa: tipoDespesaNome, qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot });
-                            }
-                            tabelaOutrasDespesasHTML += `</table><div style="text-align: right; margin-top: 5px; color: #0056b3; font-weight: bold;" id="sum-desp-${numeroGuia}">R$ ${valorTotalOutrasDespesas.toFixed(2).replace('.', ',')}</div></div></details>`;
-                        }
-
-                        guiasHTML += `
-                        <details style="margin-bottom: 10px; border: 1px solid #b8daff; border-radius: 6px; background: #fff; overflow: hidden;">
-                            <summary style="cursor: pointer; font-weight: bold; padding: 12px; background-color: #e2eef9; color: #004085; display: flex; justify-content: space-between;">
-                                <span>📄 ${numeroGuia} | ${nomeBeneficiario} ${regrasAuditoria.badges}</span>
-                                <span style="color: #0056b3;" id="sum-guia-${numeroGuia}">R$ ${valorGuia.toFixed(2).replace('.', ',')}</span>
-                            </summary>
-                            <div style="padding: 15px;">
-                                ${regrasAuditoria.alertas}
-                                <h4 style="margin: 0 0 10px 0; color: #333;">O que está a ser cobrado:</h4>
-                                <table class="tabela-dados" style="margin-top: 0;">
-                                    <tr><th>Executante</th><td>${dadosExecutanteGuia}</td></tr>
-                                    <tr><th>Guia / Data</th><td>${nomeExibicaoGuia} - ${dataAtendimento}</td></tr>
-                                </table>
-                                ${tabelaProcedimentosHTML}
-                                ${tabelaOutrasDespesasHTML}
-                                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-                                    <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'gemini')" style="background-color: #1a73e8; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com Gemini</button>
-                                    <button onclick="analisarGuiaIA(${totalGuias}, '${numeroGuia}', 'chatgpt')" style="background-color: #10a37f; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✨ Analisar com ChatGPT</button>
-                                </div>
-                            </div>
-                        </details>
-                        `;
-                    }
-                });
-
-                const htmlSucesso = `
-                    <div style="background: #f8f9fa; padding: 20px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
-                        <h4 style="margin: 0 0 10px 0; color: #333;">Resumo Financeiro do Lote</h4>
-                        <p style="margin: 5px 0;"><strong>Enviado por:</strong> <span style="color: #0056b3;">${prestadorID}</span> | <strong>Operadora:</strong> ${operadoraID}</p>
-                        <p style="margin: 5px 0;"><strong>Total de Guias:</strong> <span style="color: blue; font-weight: bold;">${totalGuias}</span></p>
-                        <p style="margin: 5px 0; font-size: 16px;"><strong>Valor Total a Pagar:</strong> <span style="color: red; font-weight: bold;">R$ <span id="sum-lote">${valorTotalLote.toFixed(2).replace('.', ',')}</span></span></p>
-                        
-                        <!-- BOTÃO DE EXPORTAÇÃO DO XML -->
-                        <button onclick="exportarXMLCorrigido()" class="btn btn-success" style="margin-top: 15px; width: 100%; font-size: 14px; padding: 12px;">💾 Descarregar XML Corrigido (Livre de Glosas)</button>
-
-                        <details style="background: #ededff; padding: 10px; border-radius: 4px; border: 1px solid #eee; margin-top: 15px;">
-                             <summary style="cursor: pointer; color: #0056b3; font-weight: bold;">Ver Detalhamento por Tipo de Despesa</summary>
-                             <table class="tabela-dados" style="margin-top: 10px;">
-                                <tr><th>Total de Procedimentos:</th> <td><strong style="color: red;">R$ ${valorTotalProcedimentosItem.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Diárias:</th> <td><strong style="color: red;">R$ ${valorDiarias.toFixed(2).replace('.',',')}</strong></td></tr> 
-                                <tr><th>Total de Taxas e Alugueis:</th> <td><strong style="color: red;">R$ ${valorTaxasAlugueis.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Materiais:</th> <td><strong style="color: red;">R$ ${valorMateriais.toFixed(2).replace('.',',')}</strong></td></tr> 
-                                <tr><th>Total de Medicamentos:</th> <td><strong style="color: red;">R$ ${valorMedicamentos.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de Gasoterapia:</th> <td><strong style="color: red;">R$ ${valorGasoterapia.toFixed(2).replace('.',',')}</strong></td></tr>
-                                <tr><th>Total de OPME:</th> <td><strong style="color: red;">R$ ${valorOPME.toFixed(2).replace('.',',')}</strong></td></tr>
-                             </table>
-                        </details>
-                    </div>					
-                    <h4 style="color: #333; margin-bottom: 10px;">Análise Individual das Guias</h4>
-                    ${guiasHTML || "<p>Nenhuma guia detalhada encontrada.</p>"}
-                `;
-                
-                document.getElementById('resultado').innerHTML = htmlSucesso;
-                document.getElementById('btnExportar').style.display = 'inline-block';
-                if (typeof alterarPasso === 'function') alterarPasso(3);
-                
-            } else {
-                document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>❌ Erro XSD:</strong> ${data.erros.join('<br>')}</div>`;
-                if (typeof alterarPasso === 'function') alterarPasso(3);
-            }
-        } catch (error) {
-            document.getElementById('resultado').innerHTML = `<div class="erro-box"><strong>Erro de Conexão:</strong> ${error.message}</div>`;
-            if (typeof alterarPasso === 'function') alterarPasso(3);
-        }
-    };
-    reader.readAsText(file);
-}
-
-// --- VALIDAÇÃO POR ITEM (GLOSAS DETALHADAS) ---
-function validarItemTISS(itemNode, tipoItem, tipoGuia) {
-    let erros = [];
-    let qtdStr = extrairTexto(itemNode, "quantidadeExecutada");
-    let qtd = qtdStr !== "Não informado" ? parseFloat(qtdStr) : 0;
-    let tabela = extrairTexto(itemNode, "codigoTabela");
-    let cod = extrairTexto(itemNode, "codigoProcedimento");
-
-    if (tipoGuia === 'guiaConsulta' && tipoItem === 'PROCEDIMENTO') {
-        if (qtd > 1) erros.push("<strong>[Glosa 1004]</strong> Quantidade superior ao permitido para Consulta (Máx: 1).");
-        if (tabela !== "22") erros.push("<strong>[Glosa 1102]</strong> Código de tabela inválido. Exigido Tabela 22.");
+// ---------- validação por item ----------
+function validarItemTISS(it) {
+    const erros = [], no = it.no;
+    const tabela = extrairTexto(no, 'codigoTabela'), cod = extrairTexto(no, 'codigoProcedimento');
+    const qtd = it.qtd;
+    if (it.tipoGuia === 'guiaConsulta' && it.tipo === 'PROCEDIMENTO') {
+        if (qtd > 1) erros.push('[Glosa 1004] Quantidade superior ao permitido para Consulta (Máx: 1).');
+        if (tabela !== '22') erros.push('[Glosa 1102] Código de tabela inválido. Exigido Tabela 22.');
     }
-    if (tipoItem === 'DESPESA') {
-        let tipoDesp = extrairTexto(itemNode, "codigoDespesa");
-        if (tipoDesp === '02' && tabela !== "20" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> Medicamento fora da Tabela 20.");
-        if (tipoDesp === '08' && tabela !== "19" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> OPME fora da Tabela 19.");
-        if (tipoDesp === '05' && tabela !== "63" && tabela !== "00") erros.push("<strong>[Glosa 1102]</strong> Diária fora da Tabela 63.");
+    if (it.tipo === 'DESPESA') {
+        const t = it.codDespesa;
+        if (t === '02' && tabela !== '20' && tabela !== '00') erros.push('[Glosa 1102] Medicamento fora da Tabela 20.');
+        if (t === '08' && tabela !== '19' && tabela !== '00') erros.push('[Glosa 1102] OPME fora da Tabela 19.');
+        if (t === '05' && tabela !== '63' && tabela !== '00') erros.push('[Glosa 1102] Diária fora da Tabela 63.');
     }
-
-    if (typeof regrasAtivasCliente !== 'undefined' && regrasAtivasCliente.length > 0) {
-        regrasAtivasCliente.forEach(regra => {
-            if (regra.tipoGuia === 'TODAS' || regra.tipoGuia === tipoGuia) {
-                let disparar = false;
-                if (regra.campoValidado === 'codigoProcedimento' && (regra.condicao === 'IGUAL' && cod === regra.valorEsperado || regra.condicao === 'CONTEM' && cod.includes(regra.valorEsperado))) disparar = true;
-                if (regra.campoValidado === 'quantidadeDespesa' && (regra.condicao === 'MAIOR_QUE' && qtd > parseFloat(regra.valorEsperado) || regra.condicao === 'IGUAL' && qtd === parseFloat(regra.valorEsperado))) disparar = true;
-                if (regra.campoValidado === 'tipoDespesa' && tipoItem === 'DESPESA') {
-                    let tDesp = extrairTexto(itemNode, "codigoDespesa");
-                    if (regra.condicao === 'IGUAL' && tDesp === regra.valorEsperado || regra.condicao === 'CONTEM' && tDesp.includes(regra.valorEsperado)) disparar = true;
-                }
-                
-                if (disparar) {
-                    let prefixo = regra.acao === 'BLOQUEIO' ? '❌ [Bloqueio Cliente]' : '⚠️ [Alerta Cliente]';
-                    erros.push(`<strong>${prefixo}:</strong> ${regra.mensagemErro}`);
-                }
-            }
-        });
+    for (const r of _regrasDoTipo(it.tipoGuia)) {
+        let real = null;
+        if (r.campoValidado === 'codigoProcedimento') real = cod;
+        else if (r.campoValidado === 'quantidadeDespesa') real = String(qtd);
+        else if (r.campoValidado === 'tipoDespesa' && it.tipo === 'DESPESA') real = it.codDespesa;
+        else if (r.campoValidado === 'grauParticipacao' && it.tipo === 'PROCEDIMENTO') real = it.grauPart === NI ? '' : it.grauPart;
+        if (real !== null && _compara(real, r.condicao, r.valorEsperado)) erros.push(_msgRegra(r));
     }
     return erros;
 }
-
-// --- CÁLCULO E ATUALIZAÇÃO DOM/XML EM TEMPO REAL ---
-function atualizarItemXML(numeroGuia, tipoItem, indexItem, inputElem) {
-    const baseId = inputElem.id.split('-').slice(1).join('-');
-    const inQtd = document.getElementById(`qtd-${baseId}`);
-    const inVlUnit = document.getElementById(`unit-${baseId}`);
-    const inVlTot = document.getElementById(`tot-${baseId}`);
-
-    let qtd = parseFloat(inQtd.value) || 0;
-    let vlUnit = parseFloat(inVlUnit.value) || 0;
-    let novoVlTot = (qtd * vlUnit).toFixed(2);
-    
-    inVlTot.value = novoVlTot;
-
-    if(!xmlDocAtual) return;
-    const tiposGuias = ["guiaConsulta", "guiaSP-SADT", "guiaResumoInternacao", "guiaHonorarioIndividual", "guiaOdontologia"];
-    let guiaNode = null;
-    for(let tipo of tiposGuias) {
-        let guias = Array.from(buscarVariasTags(xmlDocAtual, tipo));
-        guiaNode = guias.find(g => extrairTexto(g, "numeroGuiaPrestador") === numeroGuia);
-        if(guiaNode) break;
-    }
-    if(!guiaNode) return;
-
-    let tagColecao = tipoItem === 'PROCEDIMENTO' ? "procedimentoExecutado" : "despesa";
-    let itens = buscarVariasTags(guiaNode, tagColecao);
-    if(itens[indexItem]) {
-        let itemNode = itens[indexItem];
-        let tQtd = buscarTagUnica(itemNode, "quantidadeExecutada"); if(tQtd) tQtd.textContent = qtd;
-        let tUnit = buscarTagUnica(itemNode, "valorUnitario"); if(tUnit) tUnit.textContent = vlUnit;
-        let tTot = buscarTagUnica(itemNode, "valorTotal"); if(tTot) tTot.textContent = novoVlTot;
-    }
-
-    recalcularTotaisGuiaVisuais(numeroGuia);
+function validarGuiaRegras(g) {            // regras no nível da guia (valorTotalGeral)
+    return _regrasDoTipo(g.tipo).filter(r => r.campoValidado === 'valorTotalGeral' && _compara(String(g.total), r.condicao, r.valorEsperado)).map(_msgRegra);
 }
 
-function recalcularTotaisGuiaVisuais(numeroGuia) {
-    let totalProc = 0; let totalDesp = 0;
-    document.querySelectorAll(`.vltot-proc-${numeroGuia}`).forEach(el => totalProc += parseFloat(el.value) || 0);
-    document.querySelectorAll(`.vltot-desp-${numeroGuia}`).forEach(el => totalDesp += parseFloat(el.value) || 0);
-    
-    let totalGuia = totalProc + totalDesp;
-    
-    const elTProc = document.getElementById(`sum-proc-${numeroGuia}`);
-    if(elTProc) elTProc.innerText = `R$ ${totalProc.toFixed(2).replace('.', ',')}`;
-    
-    const elTDesp = document.getElementById(`sum-desp-${numeroGuia}`);
-    if(elTDesp) elTDesp.innerText = `R$ ${totalDesp.toFixed(2).replace('.', ',')}`;
-    
-    const elTGuia = document.getElementById(`sum-guia-${numeroGuia}`);
-    if(elTGuia) elTGuia.innerText = `R$ ${totalGuia.toFixed(2).replace('.', ',')}`;
-
-    let totalLote = 0;
-    document.querySelectorAll('.input-readonly').forEach(el => totalLote += parseFloat(el.value) || 0);
-    const elTLote = document.getElementById('sum-lote');
-    if(elTLote) elTLote.innerText = totalLote.toFixed(2).replace('.', ',');
+// ---------- modal de glosa (texto, nunca HTML) ----------
+function verGlosa(i) { mostrarGlosaModal(encodeURIComponent((_glosas[i] || []).join('\n\n'))); }
+function _pintarGlosa(it) {
+    const lista = validarItemTISS(it);
+    limpar(it.celGlosa);
+    if (!lista.length) { it.celGlosa.append(el('span', { style: 'color:#28a745;', title: 'Sem críticas' }, '✅')); return; }
+    _glosas.push(lista);
+    it.celGlosa.append(el('button', { type: 'button', class: 'btn-glosa blink-glosa', title: 'Ver críticas', 'aria-label': 'Ver críticas do item',
+        'data-onclick': `verGlosa(${_glosas.length - 1})`, style: 'background:none;border:0;cursor:pointer;color:#c82333;font-size:16px;' }, '⚠️'));
 }
 
-// --- MONETIZAÇÃO E EXPORTAÇÃO (FREEMIUM) ---
-async function exportarXMLCorrigido() {
-    if (!xmlDocAtual) { alert("Nenhum ficheiro XML processado."); return; }
-    
-    if (!usuarioLogado) {
-        alert("🔒 A funcionalidade de correção e exportação do ficheiro sem glosas requer uma conta ativa.");
-        abrirModal('modalAuth'); 
-        return;
+// ---------- TUSS (lote, autenticado) ----------
+async function validarCodigosTUSS(codigos) {
+    if (!Sessao.usuario) return null;
+    const unicos = [...new Set(codigos)], validos = new Set();
+    for (let i = 0; i < unicos.length; i += 500) {
+        const r = await api('/api/dominio_tuss', { acao: 'validar_lote', codigos: unicos.slice(i, i + 500) });
+        if (!r.ok) return null;
+        r.dados.validos.forEach(c => validos.add(c));
     }
-
-    let limiteDegustacao = usuarioLogado.exportacoesRestantes ?? 3; 
-    let isPremium = usuarioLogado.plano === 'PREMIUM';
-
-    if (!isPremium) {
-        if (limiteDegustacao <= 0) {
-            alert("⚠️ Atingiu o limite do plano Freemium. Adquira o Plano Premium Mensal para correções ilimitadas.");
-            abrirModal('modalLojaTokens'); 
-            return;
-        } else {
-            let confirma = confirm(`Restam-lhe ${limiteDegustacao} exportações gratuitas. Deseja utilizar uma agora?`);
-            if(!confirma) return;
-            usuarioLogado.exportacoesRestantes = limiteDegustacao - 1;
-            sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
-        }
-    }
-
-    const serializer = new XMLSerializer();
-    let xmlString = serializer.serializeToString(xmlDocAtual);
-    if (!xmlString.startsWith("<?xml")) {
-        xmlString = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xmlString;
-    }
-
-    const blob = new Blob([xmlString], { type: 'text/xml;charset=iso-8859-1;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Lote_Corrigido_${usuarioLogado.nome}.xml`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return validos;
+}
+function _iconeTUSS(tabela, codigo) {
+    if (!TABELAS_TUSS.includes(tabela)) return el('span', { title: 'Tabela própria/sem verificação TUSS', style: 'color:#999;margin-right:5px;' }, '•');
+    if (_tussValidos === null) return el('span', { title: 'Entre na sua conta para conferir os códigos na TUSS', style: 'color:#999;margin-right:5px;' }, '•');
+    return _tussValidos.has(codigo)
+        ? el('span', { title: 'Código encontrado na base TUSS', style: 'color:green;margin-right:5px;' }, '✅')
+        : el('span', { title: 'Código não encontrado na base TUSS cadastrada', style: 'color:#c82333;margin-right:5px;cursor:help;' }, '❌');
 }
 
-function exportarExcel() {
-    if (dadosParaExportacao.length === 0) return;
-    let csvContent = "\uFEFF"; 
-    csvContent += "Tipo de Guia;Número da Guia;Nome do Beneficiário;Data Atendimento;Tabela;Código Item;Descrição do Item;Tipo Despesa;Quantidade;Valor Unitário;Valor Total\r\n";
-    dadosParaExportacao.forEach(l => { csvContent += `${l.tipoGuia};${l.numeroGuia};${l.beneficiario};${l.data};${l.tabela};${l.codigoItem};${l.descricaoItem.replace(/;/g, ",")};${l.tipoDespesa};${l.qtdItem};${l.valorUnitario};${l.valorItem}\r\n`; });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "Relatorio_TISS_Completo.csv");
-    link.click();
-}
+// ---------- IA ----------
+async function analisarGuiaIA(gi, provedor) {
+    const g = _guias[gi], u = Sessao.usuario;
+    if (!g) return;
+    if (!u) { abrirModal('modalAuth'); return; }
+    if (u.tipo !== 'CLIENTE') return avisar('A auditoria por IA é exclusiva de contas de cliente.', 'erro');
+    if (u.statusPagamento === 'INATIVO' || u.statusConta !== 'ATIVO') return avisar('Plano inativo. Contacte o suporte.', 'erro');
+    if (u.tokensRestantes <= 0) { abrirModal('modalPremium'); return; }
 
-// Função para validar no backend
-async function validarCodigosTUSS(arrayDeCodigos) {
+    const nomes = { gemini: '✨ Gemini', chatgpt: '✨ ChatGPT', deepseek: '✨ DeepSeek' };
+    const btn = document.getElementById(`btn-ia-${provedor}-${gi}`), caixa = document.getElementById(`resultado-ia-${gi}`);
+    if (!btn || !caixa || btn.disabled) return;
+    const rotulo = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳ Analisando…';
+    caixa.style.display = 'block'; limpar(caixa).append(el('strong', {}, 'Aguarde… analisando.'));
     try {
-        const res = await fetch('/api/dominio_tuss', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'validar_lote', codigos: arrayDeCodigos })
-        });
-        if (res.ok) return await res.json(); // Retorna array ['10101012', '20101015', ...]
-        return [];
-    } catch (e) { return []; }
+        // Minimização (LGPD): nenhum nome de paciente/profissional vai para o provedor de IA.
+        const itens = dadosParaExportacao.filter(i => i.gi === gi).map(i => ({
+            tipoDespesa: i.tipoDespesa, codigoItem: i.codigoItem, descricaoItem: i.descricaoItem, qtdItem: i.qtdItem, valorItem: i.valorItem }));
+        const contexto = { tipoGuia: g.tipo, caraterAtendimento: extrairTexto(g.no, 'caraterAtendimento', ''), tipoAtendimento: extrairTexto(g.no, 'tipoAtendimento', '') };
+        const r = await api('/api/auditoria', { provedor, guia: g.numero, itens, contexto });
+        limpar(caixa);
+        if (!r.ok) {
+            if (r.status === 402) abrirModal('modalPremium');
+            caixa.append(el('span', { style: 'color:#d8000c;' }, el('strong', {}, 'Erro: '), erroDe(r)));
+            return;
+        }
+        definirUsuario({ ...Sessao.usuario, tokensRestantes: r.dados.tokensRestantes });
+        const alerta = r.dados.status === 'ALERTA';
+        caixa.append(el('strong', { style: 'color:#333;font-size:14px;' }, `Auditor IA (${nomes[provedor] || provedor})`), el('br'), el('br'),
+            el('strong', {}, 'Status: '), el('span', { style: `color:${alerta ? 'red' : 'green'}` }, alerta ? '⚠️ ALERTA' : '✅ OK'), el('br'), el('br'),
+            el('strong', {}, 'Achados:'),
+            el('ul', {}, (Array.isArray(r.dados.achados) ? r.dados.achados : []).map(a => el('li', {}, String(a)))));
+        if (r.dados.aviso) caixa.append(el('small', { style: 'color:#666;' }, r.dados.aviso));
+    } finally { btn.disabled = false; btn.textContent = rotulo; }
 }
 
-// EXEMPLO DE APLICAÇÃO NO SEU LOOP DE RENDERIZAÇÃO DE ITENS:
-// Suponha que `listaCodigosXML` tenha os códigos extraídos do arquivo.
-// const validosTUSS = await validarCodigosTUSS(listaCodigosXML);
+// ---------- leitura do arquivo respeitando o encoding declarado ----------
+async function lerArquivoXML(file) {
+    const buf = await file.arrayBuffer();
+    const cab = new TextDecoder('latin1').decode(buf.slice(0, 200));
+    const m = /<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i.exec(cab);
+    let enc = (m ? m[1] : 'utf-8').toLowerCase();
+    try { return new TextDecoder(enc).decode(buf); } catch { return new TextDecoder('utf-8').decode(buf); }
+}
 
-function renderizarItemComTUSS(codigoItem, descricaoItem, textoGlosa) {
-    // 1. Lógica do TUSS (Verde ou Vermelho)
-    const existeNaTUSS = validosTUSS.includes(codigoItem);
-    const iconeTUSS = existeNaTUSS 
-        ? `<span title="Código validado no padrão TUSS" style="color: green; margin-right: 5px;">✅</span>` 
-        : `<span title="Código não encontrado na TUSS" style="color: red; margin-right: 5px; cursor: help;">❌</span>`;
-
-    // 2. Lógica da Glosa (Limpa e sem check verde falso)
-    let iconeGlosa = '';
-    if (textoGlosa && textoGlosa.trim() !== '') {
-        // Mostra o alerta apenas se houver erro
-        const glosaEncoded = encodeURIComponent(textoGlosa);
-        iconeGlosa = `<button class="btn-glosa" onclick="mostrarGlosaModal('${glosaEncoded}')" title="Ver detalhe da glosa">⚠️ Ver Glosa</button>`;
+// ---------- construção da interface ----------
+function _tabelaItens(gi, tipo, itens, titulo, cols, filtros) {
+    const tid = `tb-${tipo === 'PROCEDIMENTO' ? 'proc' : 'desp'}-${gi}`;
+    const cab = el('tr', { style: 'background-color:#f0f0f0;' }, cols.map(c => el('th', c === 'Glosa' ? { style: 'text-align:center;' } : {}, c)));
+    const tb = el('table', { class: 'tabela-dados', id: tid }, cab);
+    itens.forEach(it => tb.append(it.tr));
+    const soma = el('div', { id: `sum-${tipo === 'PROCEDIMENTO' ? 'proc' : 'desp'}-${gi}`, style: 'text-align:right;margin-top:5px;color:#0056b3;font-weight:bold;' });
+    const barra = el('div', { style: 'margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;' },
+        filtros.map(([rot, col]) => el('input', { type: 'text', placeholder: '🔍 ' + rot, class: 'form-control', 'aria-label': rot,
+            style: 'width:150px;padding:4px;font-size:12px;', 'data-tb': tid, 'data-col': col, 'data-oninput': `filtrarTabelaTISS(this, '${tid}')` })));
+    return el('details', { style: 'margin-top:15px;border:1px solid #cce5ff;border-radius:6px;overflow:hidden;background:#fff;' },
+        el('summary', { style: 'cursor:pointer;font-weight:bold;padding:10px;background-color:#e6f2ff;color:#004085;' }, `${titulo} (${itens.length})`),
+        el('div', { style: 'padding:10px;' }, barra, tb, soma));
+}
+function _inputNum(it, campo, valor, readonly) {
+    const a = { type: 'number', class: 'input-calc' + (readonly ? ' input-readonly' : ''), step: '0.01', min: '0', value: valor, 'aria-label': campo };
+    if (readonly) a.readOnly = true; else a['data-onchange'] = `atualizarItemXML(${it.gi}, '${it.tipo}', ${it.idx}, this)`;
+    return el('input', a);
+}
+function _montarItem(g, gi, tipo, no, idx) {
+    const tabela = extrairTexto(no, 'codigoTabela'), codigo = extrairTexto(no, 'codigoProcedimento'), descricao = extrairTexto(no, 'descricaoProcedimento');
+    const qtdS = extrairTexto(no, 'quantidadeExecutada'), unS = extrairTexto(no, 'valorUnitario'), totS = extrairTexto(no, 'valorTotal');
+    const qtd = qtdS !== NI ? numero(qtdS) : 0;
+    let vlUnit, vlTot;
+    if (tipo === 'PROCEDIMENTO') { vlUnit = unS !== NI ? numero(unS) : 0; vlTot = totS !== NI ? numero(totS) : qtd * vlUnit; }
+    else { vlTot = totS !== NI ? numero(totS) : 0; vlUnit = unS !== NI ? numero(unS) : (qtd > 0 ? vlTot / qtd : 0); }
+    const it = { gi, tipo, idx, no, tipoGuia: g.tipo, qtd, vlUnit, vlTot, codDespesa: tipo === 'DESPESA' ? extrairTexto(no, 'codigoDespesa') : '', tabela, codigo, descricao, grauPart: NI, nomeProf: NI };
+    if (tipo === 'PROCEDIMENTO') {
+        it.grauPart = extrairTexto(no, 'grauParticipacao'); if (it.grauPart === NI) it.grauPart = extrairTexto(no, 'grauPart');
+        it.nomeProf = extrairTexto(no, 'nomeProfissional'); if (it.nomeProf === NI) it.nomeProf = extrairTexto(no, 'nomeProf');
     }
+    it.inQtd = _inputNum(it, 'Quantidade', String(qtd), false);
+    it.inUn = _inputNum(it, 'Valor unitário', vlUnit.toFixed(2), false);
+    it.inTot = _inputNum(it, 'Valor total', vlTot.toFixed(2), true);
+    it.celGlosa = el('td', { style: 'text-align:center;vertical-align:middle;' });
+    it.celCodigo = el('td', {}, _iconeTUSS(tabela, codigo), codigo);
+    const cels = [];
+    if (tipo === 'PROCEDIMENTO') {
+        const prof = (it.nomeProf !== NI || it.grauPart !== NI)
+            ? el('details', { style: 'background:#fdfdfd;padding:2px;border-radius:4px;border:1px solid #eee;' },
+                el('summary', { style: 'cursor:pointer;color:#0056b3;font-weight:bold;font-size:11px;' }, 'Ver Equipe'),
+                el('div', { style: 'margin-top:5px;font-size:11px;color:#333;' }, el('strong', {}, 'Nome: '), it.nomeProf, el('br'), el('strong', {}, 'Grau Part.: '), it.grauPart))
+            : el('span', { style: 'color:#999;font-size:11px;' }, NI);
+        cels.push(el('td', {}, tabela), it.celCodigo, el('td', {}, descricao), el('td', {}, prof));
+    } else {
+        cels.push(el('td', {}, el('span', { class: 'badge', style: 'background:#6c757d;' }, `${it.codDespesa} - ${nomeDespesa(it.codDespesa)}`)), el('td', {}, tabela), it.celCodigo, el('td', {}, descricao));
+    }
+    cels.push(el('td', {}, it.inQtd), el('td', {}, it.inUn), el('td', {}, it.inTot), it.celGlosa);
+    it.tr = el('tr', {}, cels);
+    _itens.set(`${gi}-${tipo}-${idx}`, it);
+    const nomeGuia = g.tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
+    dadosParaExportacao.push({ gi, tipoGuia: nomeGuia, numeroGuia: g.numero, beneficiario: g.beneficiario, data: g.data, tabela, codigoItem: codigo, descricaoItem: descricao,
+        tipoDespesa: tipo === 'PROCEDIMENTO' ? 'Procedimentos' : nomeDespesa(it.codDespesa), profissional: it.nomeProf, grauParticipacao: it.grauPart,
+        qtdItem: qtd, valorUnitario: vlUnit, valorItem: vlTot, _it: it });
+    return it;
+}
 
-    return `
-        <tr>
-            <td>${iconeTUSS} ${codigoItem}</td>
-            <td>${descricaoItem}</td>
-            <td style="text-align: center;">${iconeGlosa}</td>
-        </tr>
-    `;
+async function processarXML() {
+    const file = document.getElementById('xmlInput').files[0];
+    const saida = limpar(document.getElementById('resultado'));
+    const fim = () => { _ocupado = false; alterarPasso(3); };
+    const erroBox = (cls, ...f) => saida.append(el('div', { class: cls }, f));
+    _ocupado = true;
+    try {
+        if (!file) return fim();
+        if (file.size > LIMITE_XML) { erroBox('erro-box', el('strong', {}, 'Arquivo muito grande: '), `o limite é ${LIMITE_XML / 1048576} MB por arquivo. Divida o lote em arquivos menores.`); return fim(); }
+        const xmlContent = await lerArquivoXML(file);
+        const xmlDoc = new DOMParser().parseFromString(xmlContent, 'application/xml');
+        if (buscarTagUnica(xmlDoc, 'parsererror')) { erroBox('erro-box', el('strong', {}, 'Erro: '), 'O arquivo não é um XML válido.'); return fim(); }
+        xmlDocAtual = xmlDoc;
+
+        let versao = '', operadora = 'Não identificada', prestador = NI;
+        const cab = buscarTagUnica(xmlDoc, 'cabecalho');
+        if (cab) {
+            const tp = buscarTagUnica(cab, 'Padrao') || buscarTagUnica(cab, 'versaoPadrao'); if (tp) versao = tp.textContent.trim();
+            const dest = buscarTagUnica(cab, 'destino');
+            if (dest) {
+                const ans = buscarTagUnica(dest, 'registroANS'), cnpj = buscarTagUnica(dest, 'cnpj');
+                if (ans) operadora = 'Registro ANS: ' + ans.textContent.trim(); else if (cnpj) operadora = 'CNPJ: ' + cnpj.textContent.trim();
+            }
+            const ori = buscarTagUnica(cab, 'origem');
+            if (ori) { const p = buscarTagUnica(ori, 'CNPJ') || buscarTagUnica(ori, 'codigoPrestadorNaOperadora'); if (p) prestador = p.textContent.trim(); }
+        }
+        // hash: só regravamos na exportação se o hash ORIGINAL bate com o nosso algoritmo
+        const hNo = buscarTagUnica(xmlDoc, 'hash');
+        try { hashConfereOriginal = !!(hNo && hNo.textContent.trim().toLowerCase() === calcularHashTISS(xmlDoc.documentElement)); } catch { hashConfereOriginal = false; }
+
+        if (Sessao.usuario && Sessao.usuario.tipo === 'CLIENTE') {
+            const rr = await api('/api/regras');
+            regrasAtivasCliente = rr.ok && Array.isArray(rr.dados) ? rr.dados.filter(r => !r.status || r.status === 'ATIVO') : [];
+        } else regrasAtivasCliente = [];
+
+        const corpo = { xml: xmlContent }; if (/^\d\.\d{2}\.\d{2}$/.test(versao)) corpo.versao = versao;
+        const r = await api('/api/validador', corpo);
+        if (!(r.ok && r.dados.valido)) {
+            const erros = Array.isArray(r.dados.erros) ? r.dados.erros : [erroDe(r)];
+            erroBox('erro-box', el('strong', {}, '❌ Erro XSD: '), el('ul', {}, erros.map(e => el('li', {}, String(e)))));
+            return fim();
+        }
+
+        // ---- extrai guias/itens ----
+        _guias.length = 0; _itens.clear(); _glosas.length = 0; dadosParaExportacao = [];
+                for (const tipo of TIPOS_GUIAS) for (const no of buscarVariasTags(xmlDoc, tipo)) {
+            const gi = _guias.length;
+            const g = { gi, no, tipo, numero: extrairTexto(no, 'numeroGuiaPrestador'), beneficiario: extrairTexto(no, 'nomeBeneficiario'), total: 0, itens: [] };
+            g.data = extrairTexto(no, 'dataAtendimento'); if (g.data === NI) g.data = extrairTexto(no, 'dataExecucao');
+            _guias.push(g);
+            [...buscarVariasTags(no, 'procedimentoExecutado')].forEach((n, i) => g.itens.push(_montarItem(g, gi, 'PROCEDIMENTO', n, i)));
+            [...buscarVariasTags(no, 'despesa')].forEach((n, i) => g.itens.push(_montarItem(g, gi, 'DESPESA', n, i)));
+            g.total = g.itens.reduce((s, i) => s + i.vlTot, 0);
+        }
+
+        // ---- TUSS em lote (1 chamada, só logado) ----
+        const cods = _guias.flatMap(g => g.itens.filter(i => TABELAS_TUSS.includes(i.tabela) && i.codigo !== NI).map(i => i.codigo));
+        _tussValidos = cods.length ? await validarCodigosTUSS(cods) : null;
+        for (const g of _guias) for (const i of g.itens) { i.celCodigo.replaceChild(_iconeTUSS(i.tabela, i.codigo), i.celCodigo.firstChild); }
+
+        // ---- monta a tela ----
+        const nodes = [];
+        for (const g of _guias) {
+            const regras = validarRegrasNegocio(g.no, g.tipo, g.data);
+            g.elTotal = el('span', { style: 'color:#0056b3;' });
+            g.elAlertasDin = el('div');
+            const procs = g.itens.filter(i => i.tipo === 'PROCEDIMENTO'), desps = g.itens.filter(i => i.tipo === 'DESPESA');
+            g.itens.forEach(_pintarGlosa);
+            let exec = NI;
+            if (buscarTagUnica(g.no, 'dadosExecutante')) {
+                let cod = extrairTexto(g.no, 'codigoPrestadorNaOperadora'); if (cod === NI) cod = extrairTexto(g.no, 'cnpjContratado');
+                let nome = extrairTexto(g.no, 'nomeContratado'); if (nome === NI) nome = extrairTexto(g.no, 'nomeContratadoExecutante');
+                if (nome !== NI) exec = `(${cod}) ${nome}`;
+            }
+            const nomeGuia = g.tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
+            const botIA = (prov, cor, rot) => el('button', { type: 'button', id: `btn-ia-${prov}-${g.gi}`, 'data-onclick': `analisarGuiaIA(${g.gi}, '${prov}')`,
+                style: `background-color:${cor};color:white;padding:8px 15px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;` }, rot);
+            nodes.push(el('details', { style: 'margin-bottom:10px;border:1px solid #b8daff;border-radius:6px;background:#fff;overflow:hidden;' },
+                el('summary', { style: 'cursor:pointer;font-weight:bold;padding:12px;background-color:#e2eef9;color:#004085;display:flex;justify-content:space-between;' },
+                    el('span', {}, `📄 ${g.numero} | ${g.beneficiario} `, regras.badges.map(b => el('span', { class: 'badge ' + b.cls }, b.texto))), g.elTotal),
+                el('div', { style: 'padding:15px;' },
+                    regras.alertas.map(a => el('div', { class: a.nivel === 'erro' ? 'erro-box' : 'alerta-box' }, a.nivel === 'erro' ? '❌ ' : '⚠️ ', a.cod ? el('strong', {}, `[${a.cod}] `) : null, a.texto)),
+                    g.elAlertasDin,
+                    el('h4', { style: 'margin:0 0 10px 0;color:#333;' }, 'O que está sendo cobrado:'),
+                    el('table', { class: 'tabela-dados', style: 'margin-top:0;' },
+                        el('tr', {}, el('th', {}, 'Executante'), el('td', {}, exec)),
+                        el('tr', {}, el('th', {}, 'Guia / Data'), el('td', {}, `${nomeGuia} - ${g.data}`))),
+                    procs.length ? _tabelaItens(g.gi, 'PROCEDIMENTO', procs, '💵 Procedimentos Executados', ['Tabela', 'Código', 'Descrição', 'Profissional', 'Qtd', 'V. Unit', 'V. Total', 'Glosa'], [['Filtrar Código...', 1], ['Filtrar Grau Part...', 3]]) : null,
+                    desps.length ? _tabelaItens(g.gi, 'DESPESA', desps, '📦 Outras Despesas / OPME', ['Tipo', 'Tabela', 'Código', 'Descrição', 'Qtd', 'V. Unit', 'V. Total', 'Glosa'], [['Filtrar Tipo (Ex: 08)...', 0], ['Filtrar Tabela...', 1], ['Filtrar Código...', 2]]) : null,
+                    el('div', { style: 'margin-top:15px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;' }, botIA('gemini', '#1a73e8', '✨ Analisar com Gemini'), botIA('chatgpt', '#10a37f', '✨ Analisar com ChatGPT')),
+                    el('div', { id: `resultado-ia-${g.gi}`, role: 'status', style: 'display:none;margin-top:10px;background:#f8f9fa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:13px;' }))));
+        }
+        const linhaCat = (rot, chave) => el('tr', {}, el('th', {}, rot), el('td', {}, el('strong', { style: 'color:red;', id: `cat-${chave}` })));
+        const resumo = el('div', { style: 'background:#f8f9fa;padding:20px;border-radius:6px;margin-bottom:20px;border:1px solid #ddd;' },
+            el('h4', { style: 'margin:0 0 10px 0;color:#333;' }, 'Resumo Financeiro do Lote'),
+            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, prestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
+            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Total de Guias: '), el('span', { style: 'color:blue;font-weight:bold;' }, String(_guias.length))),
+            el('p', { style: 'margin:5px 0;font-size:16px;' }, el('strong', {}, 'Valor Total a Pagar: '), el('span', { style: 'color:red;font-weight:bold;' }, 'R$ ', el('span', { id: 'sum-lote' }))),
+            el('button', { type: 'button', class: 'btn btn-success', 'data-onclick': 'exportarXMLCorrigido()', style: 'margin-top:15px;width:100%;font-size:14px;padding:12px;' }, '💾 Baixar XML corrigido'),
+            el('details', { style: 'background:#ededff;padding:10px;border-radius:4px;border:1px solid #eee;margin-top:15px;' },
+                el('summary', { style: 'cursor:pointer;color:#0056b3;font-weight:bold;' }, 'Ver Detalhamento por Tipo de Despesa'),
+                el('table', { class: 'tabela-dados', style: 'margin-top:10px;' }, linhaCat('Total de Procedimentos:', 'proc'), linhaCat('Total de Diárias:', '05'), linhaCat('Total de Taxas e Alugueis:', '07'),
+                    linhaCat('Total de Materiais:', '03'), linhaCat('Total de Medicamentos:', '02'), linhaCat('Total de Gasoterapia:', '01'), linhaCat('Total de OPME:', '08'))));
+        saida.append(resumo);
+        (r.dados.avisos || []).forEach(a => saida.append(el('div', { class: 'alerta-box' }, '⚠️ ', String(a))));
+        saida.append(el('h4', { style: 'color:#333;margin-bottom:10px;' }, 'Análise Individual das Guias'));
+        if (nodes.length) nodes.forEach(n => saida.append(n)); else saida.append(el('p', {}, 'Nenhuma guia detalhada encontrada.'));
+        _recalcular();
+        document.getElementById('btnExportar').style.display = 'inline-block';
+        fim();
+    } catch (e) {
+        limpar(saida).append(el('div', { class: 'erro-box' }, el('strong', {}, 'Não foi possível processar o arquivo: '), 'verifique o XML e tente novamente.'));
+        console.error(e); fim();
+    }
+}
+
+// ---------- recálculo (a partir do modelo, não do DOM) ----------
+function _recalcular() {
+    let lote = 0; const cat = { proc: 0, '01': 0, '02': 0, '03': 0, '05': 0, '07': 0, '08': 0 };
+    for (const g of _guias) {
+        let tp = 0, td = 0;
+        for (const i of g.itens) {
+            lote += i.vlTot;
+            if (i.tipo === 'PROCEDIMENTO') { tp += i.vlTot; cat.proc += i.vlTot; } else { td += i.vlTot; if (i.codDespesa in cat) cat[i.codDespesa] += i.vlTot; }
+        }
+        g.total = tp + td;
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = 'R$ ' + fmtBR(v); };
+        set(`sum-proc-${g.gi}`, tp); set(`sum-desp-${g.gi}`, td); g.elTotal.textContent = 'R$ ' + fmtBR(g.total);
+        limpar(g.elAlertasDin);
+        validarGuiaRegras(g).forEach(t => g.elAlertasDin.append(el('div', { class: 'alerta-box' }, t)));
+    }
+    const lt = document.getElementById('sum-lote'); if (lt) lt.textContent = fmtBR(lote);
+    for (const [k, v] of Object.entries(cat)) { const e = document.getElementById(`cat-${k}`); if (e) e.textContent = 'R$ ' + fmtBR(v); }
+}
+
+function atualizarItemXML(gi, tipoItem, idx) {
+    const it = _itens.get(`${gi}-${tipoItem}-${idx}`); if (!it) return;
+    const q = numero(it.inQtd.value), u = numero(it.inUn.value);
+    if (!(q >= 0) || !(u >= 0) || it.inQtd.value === '' || it.inUn.value === '') {      // valor inválido: volta ao anterior
+        it.inQtd.value = String(it.qtd); it.inUn.value = it.vlUnit.toFixed(2);
+        return avisar('Informe valores numéricos maiores ou iguais a zero.', 'erro');
+    }
+    it.qtd = q; it.vlUnit = dinheiro2(u); it.vlTot = dinheiro2(q * u);
+    it.inTot.value = it.vlTot.toFixed(2);
+    const set = (tag, v) => { const t = buscarTagUnica(it.no, tag); if (t) t.textContent = v; };
+    set('quantidadeExecutada', String(q)); set('valorUnitario', it.vlUnit.toFixed(2)); set('valorTotal', it.vlTot.toFixed(2));
+    const linha = dadosParaExportacao.find(d => d._it === it);
+    if (linha) { linha.qtdItem = q; linha.valorUnitario = it.vlUnit; linha.valorItem = it.vlTot; }
+    _pintarGlosa(it);
+    _recalcular();
+}
+
+// ---------- exportação ----------
+function _paraLatin1(str) {             // Blob(string) sempre grava UTF-8: precisamos dos bytes ISO-8859-1
+    const out = [];
+    for (const ch of str) { const c = ch.codePointAt(0); if (c < 256) out.push(c); else for (const b of `&#${c};`) out.push(b.charCodeAt(0)); }
+    return new Uint8Array(out);
+}
+function _baixar(blob, nome) {
+    const url = URL.createObjectURL(blob), a = el('a', { href: url, download: nome });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function exportarXMLCorrigido() {
+    if (!xmlDocAtual) return avisar('Nenhum arquivo XML processado.', 'erro');
+    const u = Sessao.usuario;
+    if (!u) { avisar('A exportação do arquivo corrigido requer uma conta ativa.', 'erro'); abrirModal('modalAuth'); return; }
+    if (u.tipo === 'CLIENTE') {
+        if (u.plano !== 'PREMIUM' && !confirm(`Você tem ${u.exportacoesRestantes ?? 0} exportação(ões) gratuita(s). Deseja usar uma agora?`)) return;
+        const r = await api('/api/exportacao', {});          // o servidor decide e debita (não o navegador)
+        if (!r.ok) { if (r.status === 402) abrirModal('modalPremium'); return avisar(erroDe(r), 'erro'); }
+        if (r.dados.restantes !== null) definirUsuario({ ...Sessao.usuario, exportacoesRestantes: r.dados.restantes });
+    }
+    if (hashConfereOriginal) {
+        const h = buscarTagUnica(xmlDocAtual, 'hash');
+        if (h) h.textContent = calcularHashTISS(xmlDocAtual.documentElement);
+    } else if (buscarTagUnica(xmlDocAtual, 'hash')) {
+        avisar('Atenção: o hash do epílogo não foi recalculado (o original não conferia com o algoritmo padrão). Confirme com a operadora.', 'info');
+    }
+    let xml = new XMLSerializer().serializeToString(xmlDocAtual).replace(/^<\?xml[^>]*\?>\s*/, '');
+    xml = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xml;
+    const nome = String(u.nome || 'cliente').replace(/[^\w\-]+/g, '_').slice(0, 40);
+    _baixar(new Blob([_paraLatin1(xml)], { type: 'text/xml;charset=iso-8859-1' }), `Lote_Corrigido_${nome}.xml`);
+}
+
+function _celulaCSV(v) {
+    let s = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;                    // neutraliza fórmulas do Excel (CSV injection)
+    return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function exportarExcel() {
+    if (!dadosParaExportacao.length) return;
+    const num = n => String(dinheiro2(n)).replace('.', ',');
+    const linhas = [['Tipo de Guia', 'Número da Guia', 'Nome do Beneficiário', 'Data Atendimento', 'Tabela', 'Código Item', 'Descrição do Item', 'Tipo Despesa', 'Quantidade', 'Valor Unitário', 'Valor Total']];
+    dadosParaExportacao.forEach(l => linhas.push([l.tipoGuia, l.numeroGuia, l.beneficiario, l.data, l.tabela, l.codigoItem, l.descricaoItem, l.tipoDespesa, String(l.qtdItem).replace('.', ','), num(l.valorUnitario), num(l.valorItem)]));
+    const csv = '﻿' + linhas.map(l => l.map(_celulaCSV).join(';')).join('\r\n') + '\r\n';
+    _baixar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'Relatorio_TISS_Completo.csv');
 }

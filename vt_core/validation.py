@@ -43,12 +43,17 @@ def url_http(valor, campo="Link", maximo=500, obrigatorio=True):
             raise _erro(f"{campo} é obrigatório.")
         return ""
     v = _CTRL.sub("", str(valor)).strip()
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.\-]*:(?!//|\d+(?:/|$))", v):   # javascript:, data:, mailto: ... nunca viram https://
+        raise _erro(f"{campo} deve ser uma URL http(s) válida.")
     if "://" not in v:
         v = "https://" + v
     if len(v) > maximo:
         raise _erro(f"{campo} muito longo.")
-    p = urlparse(v)
-    if p.scheme not in ("http", "https") or not p.hostname or p.username or p.password:
+    try:
+        p = urlparse(v); _ = p.port
+    except ValueError:
+        raise _erro(f"{campo} deve ser uma URL http(s) válida.")
+    if p.scheme not in ("http", "https") or not p.hostname or "." not in p.hostname or p.username or p.password:
         raise _erro(f"{campo} deve ser uma URL http(s) válida.")
     return v
 

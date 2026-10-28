@@ -1,522 +1,187 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Master Admin - Portal TISS</title>
+    <title>ValidaTISS - Portal do Faturista</title>
     <link rel="stylesheet" href="css/style.css">
-    <!-- AUTH GUARD: Proteção de Rota -->
-    <script>
-        const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-        if (!sessao || sessao.perfil !== "ADMIN") {
-            alert("Acesso Negado. Faça login com credenciais administrativas.");
-            window.location.href = "index.html";
-        }
-    </script>
 </head>
+
 <body>
-<div class="dashboard">
-        <div class="header">
-            <h2 style="margin: 0;">⚙️ Centro de Operações (Backoffice)</h2>
-            <button class="btn btn-danger" onclick="efetuarLogout()">Sair do Sistema</button>
-        </div>
+<a class="skip-link" href="#main">Ir para o conteúdo</a>
+<header class="topbar">
+    <span id="user-status" class="muted" aria-live="polite">Visitante (não autenticado)</span>
+    <button id="btn-login-top" class="btn btn-primary" data-onclick="abrirModal('modalAuth')">🔒 Acesso Cliente</button>
+    <button class="link-admin" data-onclick="abrirModal('modalAdminAuth')">⚙️ Painel Admin</button>
+</header>
 
-        <div class="action-bar">
-			
-			<button class="btn btn-warning" onclick="abrirModalGestaoAcessos()">🔐 Gestão de Acessos (IAM)</button>
-			<button class="btn btn-success" onclick="abrirModalAssinaturas()" style="background-color: #6f42c1;">💳 Gerir Assinaturas (SaaS)</button>
-			<button class="btn btn-primary" onclick="abrirModal('modalAcaoTUSS')">📦 Domínios TISS/TUSS</button>
-			<button class="btn btn-success" onclick="abrirModalRegrasAdmin()">⚙️ Visualizar Regras de Clientes</button>
-            <button class="btn btn-primary" onclick="abrirModal('modalFuncionario')">👤 Cadastrar Utilizador Interno</button>
-            <button class="btn btn-success" onclick="abrirModalTokens()">💰 Gerir Tokens de IA</button>
-			<button class="btn btn-warning" onclick="abrirGestaoAdsAdminGeral()">📢 Gerir Publicidade</button>
-			<button class="btn btn-warning" onclick="abrirPedidoPublicidadeAvulsoAdmin()">📢 Lançar Anúncio Avulso</button>
-        </div>
-		
-<!-- MODAL: IMPORTAÇÃO TUSS (O que criámos antes, agora num modal) -->
-<div id="modalImportacaoTUSS" class="modal-overlay">
-    <div class="modal-content" style="width: 500px;">
-        <h3 style="margin-top: 0; color: #333;">📥 Importação de Domínios</h3>
-        <div class="form-group">
-            <label>Tabela TUSS</label>
-            <select id="tabela-importacao" class="form-control">
-				<option value="18">18 - Diárias e Taxas</option> <!-- Unificado -->
-				<option value="19">19 - Materiais e OPME</option>
-				<option value="20">20 - Medicamentos</option>
-				<option value="22">22 - Procedimentos</option>
-			</select>
-        </div>
-        <div class="form-group">
-            <label>Arquivo CSV</label>
-            <input type="file" id="arquivo-csv-tuss" accept=".csv" class="form-control" onchange="verificarArquivoSelecionado()">
-        </div>
-        <button id="btn-upload-tuss" class="btn btn-primary" onclick="processarCargaTUSS()" style="width: 100%;">Fazer Upload</button>
-        <div id="resultado-carga" style="margin-top: 15px; font-weight: bold; font-size: 14px;"></div>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333" onclick="fecharModal('modalImportacaoTUSS')">Fechar</button>
+    <!-- Banner Cabeçalho (Venda de Publicidade) -->
+    <div id="ads_cabecalho" class="ad-banner-animated">
+        <h3 style="margin: 0;">🚀 O seu software médico visto por milhares de faturistas!</h3>
+        <span class="pulse-text">Clique aqui e anuncie no portal</span>
     </div>
+
+  <!-- Banner Publicitário Vertical (Sempre Visível) -->
+<div id="ads_lateral" class="ad-banner-vertical">
+    <h4>Anuncie Aqui</h4>
+    <p>O seu software visto por quem decide.</p>
+    <div class="pulse-text" style="background: none; color: #ffc107; padding: 1; margin-bottom: 1px; font-size: 30px;">📢</div>
+    <span class="btn-ad">Ver Formatos</span>
 </div>
 
-<!-- MODAL: CONSULTA E EDIÇÃO DE DOMÍNIOS -->
-<div id="modalConsultaTUSS" class="modal-overlay">
-    <div class="modal-content" style="width: 680px; max-height: 240vh;">
-        <h3 style="margin-top: 0; color: #333;">🔍 Consultar Domínios</h3>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="text" id="filtro-codigo-tuss" placeholder="Código (Ex: 10101012)" class="form-control" style="flex: 1;">
-            <input type="text" id="filtro-termo-tuss" placeholder="Descrição (Parte do nome)" class="form-control" style="flex: 2;">
-            <button class="btn btn-primary" onclick="pesquisarDominiosTUSS()">Pesquisar</button>
-        </div>
-        <div style="max-height: 400px; overflow-y: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <thead style="background: #f8f9fa;">
-                    <tr><th>Tab</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th></tr>
-                </thead>
-                <tbody id="tbody-dominios">
-                    <tr><td colspan="5" style="text-align: center;">Faça uma pesquisa para exibir resultados.</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee; color: #333" onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
-    </div>
-</div>
 
-<!-- MODAL: EDIÇÃO INDIVIDUAL (Abre por cima do anterior) -->
-<div id="modalEdicaoDominio" class="modal-overlay" style="z-index: 2000;">
-    <div class="modal-content" style="width: 400px;">
-        <h3 style="margin-top: 0; color: #f39c12;">✏️ Editar Domínio</h3>
-        <input type="hidden" id="edit-tuss-id">
-        <div class="form-group">
-			<label>Tabela</label>
-			<input type="text" id="edit-tuss-tabela" class="form-control">
-		</div>
-        <div class="form-group"><label>Código</label><input type="text" id="edit-tuss-codigo" class="form-control"></div>
-        <!---
-		<div class="form-group"><label>Descrição / Termo</label><input type="text" id="edit-tuss-termo" class="form-control"></div>
-        <div class="form-group"><label>Reg. ANVISA</label><input type="text" id="edit-tuss-anvisa" class="form-control"></div>
-		--->
-		</div>
-	<div style="display: flex; gap: 10px; margin-top: 10px;">
-		<div style="flex: 2;">
-			<label><strong>Termo / Descrição:</strong></label>
-			<input type="text" id="edit-tuss-termo" class="form-control">
-		</div>
-		<div style="flex: 1;">
-			<label><strong>Apresentação / Modelo:</strong></label>
-			<input type="text" id="edit-tuss-modelo" class="form-control">
-		</div>
-		<div style="flex: 1;">
-			<label><strong>Classe de Risco:</strong></label>
-			<input type="text" id="edit-tuss-risco" class="form-control">
-		</div>
-	</div>
-	<div style="display: flex; gap: 10px; margin-top: 10px;">
-		<div style="flex: 1;">
-			<label><strong>Fabricante / Laboratório:</strong></label>
-			<input type="text" id="edit-tuss-fabricante" class="form-control">
-		</div>
-		<div style="flex: 1;">
-			<label><strong>Reg. ANVISA (Para 19):</strong></label>
-			<input type="text" id="edit-tuss-anvisa" class="form-control">
-		</div>
-	</div>
-        <button class="btn btn-success" style="width: 100%;" onclick="salvarEdicaoDominio()">Guardar Alterações</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalEdicaoDominio')">Cancelar</button>
-</div>
-
-<!-- MODAL: VISUALIZAR REGRAS DOS CLIENTES (Suporte) -->
-<div id="modalRegrasAdmin" class="modal-overlay">
-    <div class="modal-content" style="width: 800px; max-height: 90vh;">
-        <h3 style="margin-top: 0; color: #333;">⚙️ Regras de Negócio dos Clientes</h3>
-        <p style="font-size: 13px; color: #666;">Selecione um cliente para visualizar (Modo Somente Leitura).</p>
-        <div class="form-group">
-            <select id="select-clientes-regras" class="form-control" onchange="carregarRegrasClienteAdmin(this.value)">
-                <option value="">A carregar clientes...</option>
-            </select>
-        </div>
-        <div style="max-height: 400px; overflow-y: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <thead style="background: #f8f9fa;">
-                    <tr><th>Nome da Regra</th><th>Guia / Campo</th><th>Condição / Valor</th><th>Ação</th></tr>
-                </thead>
-                <tbody id="tbody-regras-admin">
-                    <tr><td colspan="4" style="text-align: center;">Selecione um cliente.</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee;" onclick="fecharModal('modalRegrasAdmin')">Fechar</button>
-    </div>
-</div>
-
-        <h3 style="margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">Gestão de Contratos de IA</h3>
-        
-        <!-- Filtros de Pesquisa -->
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-            <div style="flex: 1; min-width: 200px;">
-                <label style="font-size: 11px; font-weight: bold; color: #666;">Buscar por Nome ou CNPJ</label>
-                <input type="text" id="filtro-cli-nome" class="form-control" placeholder="Nome do Cliente">
-            </div>
-            <div style="flex: 1; min-width: 200px;">
-                <label style="font-size: 11px; font-weight: bold; color: #666;">Buscar por E-mail</label>
-                <input type="text" id="filtro-cli-email" class="form-control" placeholder="faturamento@empresa.com">
-            </div>
-            <div style="flex: 1; min-width: 150px;">
-                <label style="font-size: 11px; font-weight: bold; color: #666;">Status Financeiro</label>
-                <select id="filtro-cli-status" class="form-control">
-                    <option value="">TODOS</option>
-                    <option value="ATIVO">Pagamento em Dia (Ativo)</option>
-                    <option value="INATIVO">Bloqueado / Inadimplente</option>
-                </select>
-            </div>
-            <div style="display: flex; align-items: flex-end;">
-                <button class="btn btn-primary" style="height: 42px; padding: 0 25px;" onclick="pesquisarContratos()">🔍 Pesquisar</button>
-            </div>
-        </div>
-
-        <div class="table-responsive">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cliente</th>
-                        <th>E-mail</th>
-                        <th>Status</th>
-                        <th>Plano</th>
-                        <th>Tokens</th>
-                        <th style="min-width: 320px;">Ações Rápidas</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody-contratos">
-                    <tr><td colspan="6" style="text-align: center; color: #666; padding: 20px;">Utilize os filtros acima e clique em Pesquisar para listar os contratos.</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-    <!-- Modal: Cadastro de Utilizadores Internos -->
-    <div id="modalFuncionario" class="modal-overlay">
-        <div class="modal-content">
-            <h3>👤 Novo Utilizador Interno</h3>
-            <div class="form-group">
-                <label>Nome Completo</label>
-                <input type="text" id="cad-nome-interno" class="form-control" oninput="this.value = this.value.toUpperCase()" placeholder="EX: JOÃO SILVA">
-            </div>
-            <div class="form-group">
-                <label>Perfil de Acesso</label>
-                <select id="cad-perfil-interno" class="form-control">
-                    <option value="ADMIN">Administrador Geral</option>
-                    <option value="OPERACAO">Operação de Faturamento</option>
-                    <option value="PUBLICIDADE">Gestor de Publicidade</option>
-                    <option value="GESTAO">Gestão de Contas (Viewer)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>E-mail Corporativo</label>
-                <input type="email" id="cad-email-interno" class="form-control" placeholder="nome@empresa.com">
-            </div>
-            <div class="form-group">
-                <label>Senha Provisória</label>
-                <input type="password" id="cad-senha-interno" class="form-control" value="Mudar@123">
-            </div>
-            <button class="btn btn-primary" style="width: 100%;" onclick="cadastrarUsuarioInterno()">Salvar Utilizador</button>
-            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalFuncionario')">Cancelar</button>
-        </div>
-    </div>
-
-<!-- Modal: Gestão de Tokens -->
-<div id="modalTokens" class="modal-overlay">
-    <div class="modal-content" style="width: 450px;">
-        <h3 style="color: #28a745; margin-top: 0;">💰 Creditar / Debitar Tokens IA</h3>
-        
-        <div class="form-group">
-            <label>Selecione o Cliente</label>
-            <select id="select-cliente-token" class="form-control" onchange="carregarDadosTokenCliente(this.value)">
-                <option value="">Carregando clientes...</option>
-            </select>
-        </div>
-        
-        <div id="area-edicao-token" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
-            <p style="font-size: 13px; color: #333; margin-top: 0;">Saldo Atual: <strong id="token-saldo-atual" style="color: #0056b3; font-size: 18px;">0</strong> tokens</p>
-            
-            <div class="form-group">
-                <label>Quantidade a Adicionar</label>
-                <p style="font-size: 11px; color: #666; margin: 0 0 5px 0;">Use número negativo (ex: -100) para debitar.</p>
-                <input type="number" id="token-qtd-add" class="form-control" placeholder="Ex: 500">
-            </div>			
-            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarTokensCliente()">Atualizar Saldo</button>
-        </div>
-        
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalTokens')">Cancelar</button>
-    </div>
-</div>
-
-    <!-- Modal: Gestão de Publicidade -->
-    <div id="modalAds" class="modal-overlay">
-        <div class="modal-content">
-            <h3>📢 Configurar Campanha de Publicidade</h3>
-            <div class="form-group">
-                <label>Selecione o Cliente Anunciante</label>
-                <select class="form-control">
-                    <option>TechHealth Sistemas ERP</option>
-                    <option>Pós-Graduação Auditoria</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Título do Anúncio (O que vai rodar no Banner)</label>
-                <input type="text" class="form-control" placeholder="Ex: ERP Saúde Plus">
-            </div>
-            <div class="form-group">
-                <label>Link de Destino (Site, App Store, Instagram)</label>
-                <input type="url" class="form-control" placeholder="https://...">
-            </div>
-            <div class="form-group" style="display: flex; gap: 10px;">
-                <div style="flex: 1;">
-                    <label>Data Início</label>
-                    <input type="date" class="form-control">
-                </div>
-                <div style="flex: 1;">
-                    <label>Data Fim (Validade)</label>
-                    <input type="date" class="form-control">
-                </div>
-            </div>
-            <button class="btn btn-warning" style="width: 100%;" onclick="fecharModal('modalAds')">Publicar Campanha</button>
-            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalAds')">Cancelar</button>
-        </div>
-    </div>
-
-	<!-- CARREGAMENTO GLOBAL DO MOTOR JAVASCRIPT -->
-	<!-- Modal: Gestão de Identidade e Acessos -->
-    <div id="modalGestaoAcessos" class="modal-overlay">
-        <div class="modal-content" style="width: 850px; max-width: 95%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: #6f42c1;">👥 Gestão de Identidade (Logins)</h3>
-                <button class="btn btn-danger" style="padding: 5px 10px;" onclick="fecharModal('modalGestaoAcessos')">X</button>
+    <main id="main" class="container">
+        <div id="step-1" class="wizard-step active">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #002233;">💻⚙️ Validador e Extrator TISS</h2>
+                <p style="color: #666; font-size: 14px;">Identifique desvios estruturais e obtenha o resumo financeiro das cobranças.</p>
             </div>
             
-            <div style="margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 6px;">
-                <label style="font-weight: bold; margin-right: 10px;">Visualizar Lista de:</label>
-                <select id="filtro-tipo-usuario" class="form-control" style="width: 250px; display: inline-block;" onchange="carregarListaUsuarios()">
-                    <option value="INTERNO">Equipa Interna (Backoffice)</option>
-                    <option value="CLIENTE">Clientes Externos (SaaS)</option>
-                </select>
-            </div>
-
-            <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>E-mail</th>
-                            <th>Status / Perfil</th>
-                            <th>Ações Administrativas</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lista-usuarios-body">
-                        <tr><td colspan="4" style="text-align: center;">Selecione o tipo de utilizador...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-	
-	<!-- MODAL: ESCOLHER AÇÃO TUSS -->
-	<div id="modalAcaoTUSS" class="modal-overlay">
-		<div class="modal-content" style="width: 400px; text-align: center;">
-        <h3 style="margin-top: 0; color: #0056b3;">Gestão de Domínios TUSS</h3>
-        <p style="color: #666; font-size: 14px;">O que deseja fazer?</p>
-        <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalImportacaoTUSS')">📥 Importar CSV (Carga em Lote)</button>
-        <button class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="fecharModal('modalAcaoTUSS'); abrirModal('modalConsultaTUSS')">🔍 Consultar e Editar Registos</button>
-        <button class="btn" style="width: 100%; background: #eee; color: #333;" onclick="fecharModal('modalAcaoTUSS')">Cancelar</button>
-		</div>
-	</div>
-	
-	<!-- MODAL: GESTÃO DE ASSINATURAS SAAS -->
-<div id="modalAssinaturas" class="modal-overlay">
-    <div class="modal-content" style="width: 500px;">
-        <h3 style="margin-top: 0; color: #6f42c1;">💳 Gestão de Assinaturas</h3>
-        <p style="font-size: 13px; color: #666;">Faça o upgrade de clientes para o plano Premium (Exportações Ilimitadas).</p>
-        
-        <div class="form-group">
-            <label>Selecione o Cliente</label>
-            <select id="select-cliente-assinatura" class="form-control" onchange="carregarDadosAssinaturaCliente(this.value)">
-                <option value="">Carregando clientes...</option>
-            </select>
-        </div>
-        
-        <div id="area-edicao-assinatura" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
-            <div class="form-group">
-                <label>Plano Contratado</label>
-                <select id="edit-plano-cliente" class="form-control">
-                    <option value="FREEMIUM">FREEMIUM (Limitado a 3 exportações)</option>
-                    <option value="PREMIUM">PREMIUM (Exportações Ilimitadas + IA)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Status do Pagamento</label>
-                <select id="edit-status-pagamento" class="form-control">
-                    <option value="ATIVO">Pagamento em Dia (Ativo)</option>
-                    <option value="INATIVO">Inadimplente (Bloqueado)</option>
-                </select>
-            </div>
-            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarAssinaturaCliente()">Guardar Assinatura</button>
-        </div>
-        
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalAssinaturas')">Fechar</button>
-    </div>
-</div>
-
-<!-- Modal Gestão Publicidade ADMIN -->
-<div id="modalGestaoAdsAdmin" class="modal-overlay">
-    <div class="modal-content" style="width: 800px; max-height: 90vh;">
-        <h3 style="color: #f39c12; margin-top: 0;">📢 Gestão de Pedidos de Publicidade</h3>
-        
-        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-            <input type="text" id="filtro-ad-cliente" class="form-control" placeholder="Buscar Cliente..." style="flex: 1; min-width: 150px;">
-            <select id="filtro-ad-status" class="form-control" style="flex: 1; min-width: 150px;">
-                <option value="">Status (Todos)</option>
-                <option value="PENDENTE">Pendentes</option>
-                <option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</option>
-                <option value="ATIVO">Ativos</option>
-            </select>
-            <input type="date" id="filtro-ad-data" class="form-control" style="flex: 1;">
-            <button class="btn btn-primary" onclick="pesquisarPedidosAdAdmin()">Pesquisar</button>
-        </div>
-        
-        <div class="table-responsive">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cliente</th>
-                        <th>Tema</th>
-                        <th>Status</th>
-                        <th style="min-width: 150px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody-gestao-ads-admin">
-                    <!-- JS preenche aqui -->
-                </tbody>
-            </table>
-        </div>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalGestaoAdsAdmin')">Fechar</button>
-    </div>
-</div>
-
-<!-- Modal Resposta/Avaliação ADMIN -->
-<div id="modalAvaliarAdAdmin" class="modal-overlay" style="z-index: 1050;">
-    <div class="modal-content" style="width: 680px;">
-        <h3 style="color: #0056b3; margin-top: 0;">⚖️ Avaliar / Editar Pedido</h3>
-        <input type="hidden" id="aval-ad-id">
-        
-        <div class="form-group">
-            <label>Tema / Pedido do Cliente</label>
-            <textarea id="aval-ad-tema" class="form-control" rows="2" readonly></textarea>
-        </div>
-        
-        <div class="form-group">
-            <label>Observações / Resposta ao Cliente</label>
-            <textarea id="aval-ad-obs" class="form-control" rows="3" placeholder="Escreva a contraproposta ou detalhes do formato..."></textarea>
-        </div>
-        
-        <div class="form-group">
-            <label>Valor do Orçamento (R$)</label>
-            <input type="number" id="aval-ad-valor" class="form-control" step="0.01">
-        </div>
-        <div style="margin-top: 10px;">
-			<label><strong>Data de Início da Exibição:</strong></label>
-			<input type="date" id="aval-ad-inicio" class="form-control" style="width: 100%;">
-		</div>
-		<div style="margin-top: 10px;">
-			<label><strong>Data Fim (Validade):</strong></label>
-			<input type="date" id="aval-ad-fim" class="form-control" style="width: 100%;">
-		</div>
-		<div style="margin-top: 10px;">
-			<label><strong>Local de Exibição:</strong></label>
-			<select id="aval-ad-local" class="form-control" style="width: 100%;">
-				<option value="CABECALHO">Cabeçalho Principal (Horizontal)</option>
-				<option value="LATERAL">Barra Lateral (Vertical)</option>
-			</select>
-		</div>
-        <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-            <button class="btn btn-warning" style="flex: 1;" onclick="salvarAvaliacaoAd('AGUARDANDO_PAGAMENTO')">Enviar Orçamento</button>
-            
-            <!-- Aprova e joga pro carrossel -->
-            <button class="btn btn-success" style="flex: 1;" onclick="salvarAvaliacaoAd('ATIVO')">Aprovar / Ativar Exibição</button>
-            
-            <!-- Encerra o pedido -->
-            <button class="btn btn-danger" style="flex: 1;" onclick="salvarAvaliacaoAd('CANCELADO')">Cancelar Pedido</button>        </div>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333; " onclick="fecharModal('modalAvaliarAdAdmin')">Fechar</button>
-    </div>
-</div>
-
-<!-- CLIENTE: Pagar Orçamento PIX (Adicione no dashboard_cliente.html) -->
-<div id="modalPagarAds" class="modal-overlay">
-    <div class="modal-content" style="width: 400px; text-align: center;">
-        <h3 style="color: #28a745; margin-top: 0;">💲 Pagamento da Campanha</h3>
-        <p>Orçamento aprovado no valor de <strong>R$ </strong></p>
-        <div style="background: #eee; width: 200px; height: 200px; margin: 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
-            [QR CODE PIX GERADO AQUI]
-        </div>
-        <input type="text" value="00020126580014br.gov.bcb.pix0136..." class="form-control" readonly style="margin-bottom: 15px; text-align: center; font-size: 11px;">
-        <button class="btn btn-success" style="width: 100%;">Copiar Código PIX</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalPagarAds')">Fechar</button>
-    </div>
-</div>
-
-<!-- ADMIN: Formulário de Pedido de Publicidade -->
-<div id="modalPublicidade" class="modal-overlay">
-    <div class="modal-content" style="width: 500px;">
-        <h3 style="color: #0056b3; margin-top: 0;">📢 Registrar Campanha para o Cliente</h3>
-        <p style="font-size: 13px; color: #666;">Crie um pedido de publicidade em nome do cliente selecionado.</p>
-        
-        <input type="hidden" id="pub-cliente-id">
-        <input type="text" id="pub-empresa" class="form-control" style="margin-bottom: 10px; background: #e9ecef;" readonly>
-        <input type="email" id="pub-email" class="form-control" style="margin-bottom: 10px; background: #e9ecef;" readonly>
-        <input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
-        <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico..." style="margin-bottom: 15px; resize: none;"></textarea>
-        
-        <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
-        <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
-        
-        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Registrar Pedido</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalPublicidade')">Cancelar</button>
-    </div>
-</div>
-
-<!-- ADMIN: Modal Dados do Cliente (Com Cancelamento) -->
-<div id="modalDadosCliente" class="modal-overlay">
-    <div class="modal-content" style="width: 450px;">
-        <h3 style="color: #17a2b8; margin-top: 0;">✏️ Dados Cadastrais</h3>
-        
-        <input type="hidden" id="dados-cli-id">
-        <div class="form-group">
-            <label>Nome / Razão Social</label>
-            <input type="text" id="dados-cli-nome" class="form-control">
-        </div>
-        <div class="form-group">
-            <label>E-mail de Acesso</label>
-            <input type="email" id="dados-cli-email" class="form-control" readonly style="background: #e9ecef;">
-        </div>
-        
-        <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; margin-top: 20px;">
-            <label style="color: #856404; font-weight: bold; display: flex; align-items: center; gap: 10px;">
-                <input type="checkbox" id="chk-cancelar-conta" onchange="toggleDataCancelamento()">
-                Suspender / Cancelar Acesso
+            <label class="upload-area" for="xmlInput">
+                <h1 style="margin: 0; color: #0056b3; font-size: 40px;">📁</h1>
+                <h3 style="margin: 10px 0;">Clique ou arraste o arquivo XML</h3>
+                <input type="file" id="xmlInput" accept=".xml,text/xml,application/xml" data-onchange="iniciarProcessamento()">
             </label>
-            
-            <div id="div-data-cancelamento" style="display: none; margin-top: 10px;">
-                <label style="font-size: 12px;">Data Efetiva do Cancelamento:</label>
-                <input type="date" id="dados-cli-data-cancelamento" class="form-control">
-                <p style="font-size: 11px; color: #dc3545; margin-top: 5px;">O cliente não conseguirá fazer login a partir desta data.</p>
-            </div>
         </div>
 
-        <button class="btn btn-info" style="width: 100%; margin-top: 20px; background: #17a2b8; color: white;" onclick="salvarDadosCliente()">Salvar Alterações</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalDadosCliente')">Fechar</button>
+        <div id="step-2" class="wizard-step" style="text-align: center; padding: 40px 0;">
+            <h3 style="color: #0056b3;">A processar faturamento...</h3>
+            <p style="font-size: 14px; color: #555;">Validando XSD, cruzando regras de negócio e extraindo itens.</p>
+            <div class="loader"></div>
+        </div>
+
+        <div id="step-3" class="wizard-step">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                <h2 style="margin: 0; color: #002233;">Painel de Auditoria</h2>
+                <div>
+                    <button class="btn-success" id="btnExportar" data-onclick="exportarExcel()" style="display: none;">📊 Exportar Excel</button>
+                    <button class="btn-primary" data-onclick="reiniciarWizard()">Novo Arquivo</button>
+                </div>
+            </div>
+            <div id="resultado"></div>
+        </div>
+    </main>
+
+    <!-- Modal Paywall -->
+    <div id="modalPremium" class="modal-overlay">
+        <div class="modal-content">
+            <h3 style="color: #6f42c1; margin-top: 0;">✨ Auditoria IA Avançada</h3>
+            <p style="font-size: 14px;">A análise inteligente de pertinência clínica cruzando procedimentos, OPME e taxas exige o plano <strong>Auditor Premium</strong>.</p>
+            <ul style="text-align: left; font-size: 13px; color: #555; background: #f9f9f9; padding: 15px 30px; border-radius: 8px;">
+                <li>Identificação de cobranças abusivas.</li>
+                <li>Deteção de anomalias por especialidade.</li>
+                <li>Motores Gemini, ChatGPT e DeepSeek.</li>
+            </ul>
+            <button class="btn-premium" data-onclick="redirecionarCheckout()">Conhecer Plano Premium</button>
+            <button class="close-modal" data-onclick="fecharModal()">Agora não, continuarei com a auditoria manual</button>
+        </div>
     </div>
+
+	<!-- Modal Auth -->
+    <div id="modalAuth" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3 style="color: #0056b3;">Acesso Premium IA</h3>
+            <p style="font-size: 13px; color: #666;">Faça login para consumir os seus tokens de IA ou crie uma conta.</p>
+            
+            <div id="form-login">
+                <input type="email" id="login-email" aria-label="E-mail de acesso" autocomplete="username" data-enter="efetuarLogin" placeholder="E-mail de acesso" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="password" id="login-senha" aria-label="Senha" autocomplete="current-password" data-enter="efetuarLogin" placeholder="Senha" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <button id="btn-login-submit" class="btn-primary" data-onclick="efetuarLogin()" style="width: 100%; margin-top: 15px;">Entrar no Sistema</button>
+                <p style="font-size: 12px; margin-top: 15px;">Não tem conta? <a href="#" data-onclick="alternarFormAuth('registro')" style="color: #0056b3;">Registe-se aqui</a></p>
+            </div>
+
+            <div id="form-registro" style="display: none;">
+                <input type="text" id="reg-nome" aria-label="Nome da empresa" autocomplete="organization" placeholder="Nome da Empresa / Utilizador" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="email" id="reg-email" aria-label="E-mail" autocomplete="email" placeholder="E-mail de Contato (Chave de Acesso)" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="password" id="reg-senha" aria-label="Senha" autocomplete="new-password" minlength="10" placeholder="Senha (mín. 10 caracteres; 3 tipos de caractere)" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <label style="display:flex;gap:8px;font-size:12px;margin-top:12px;align-items:flex-start"><input type="checkbox" id="reg-aceite"> <span>Li e aceito os Termos de Uso e a Política de Privacidade (LGPD).</span></label>
+                <button id="btn-registro-submit" class="btn-success" data-onclick="solicitarConta()" style="width: 100%; margin-top: 15px;">Solicitar Conta e Tokens</button>
+                <p style="font-size: 12px; margin-top: 15px;">Já possui conta? <a href="#" data-onclick="alternarFormAuth('login')" style="color: #0056b3;">Faça Login</a></p>
+            </div>
+            <button class="close-modal" data-onclick="fecharModalAuth()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal Venda de Publicidade -->
+    <div id="modalPublicidade" class="modal-overlay">
+        <div class="modal-content" style="width: 500px;">
+            <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
+            <p style="font-size: 13px; color: #666;">Descreva a sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
+            
+            <!-- INTEGRAÇÃO: O ID Oculto GUEST restaurado -->
+            <input type="hidden" id="pub-cliente-id">
+            
+            <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px;">
+            <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px;">
+            <input type="url" id="pub-link" placeholder="Link de Destino (Onde o clique vai dar)" class="form-control" style="margin-bottom: 15px;">
+            
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Tema ou Frase da Campanha (Obrigatório):</label>
+            <textarea id="pub-tema" class="form-control" rows="3" placeholder="Ex: Somos um ERP médico focado em clínicas oftalmológicas..." style="margin-bottom: 15px; resize: none;"></textarea>
+            
+            <label for="pub-local" style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Local de exibição:</label>
+            <select id="pub-local" class="form-control" style="margin-bottom: 15px;"><option value="CABECALHO">Cabeçalho principal (horizontal)</option><option value="LATERAL">Barra lateral (vertical)</option></select>
+            <label style="font-size: 12px; font-weight: bold; margin-bottom: 5px; display: block;">Arte Pronta? (Opcional - JPG/PNG 160x600):</label>
+            <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
+            
+            <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" data-onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModais()">Cancelar</button>
+        </div>
+    </div>
+	
+	<!-- Modal Acesso Restrito (Admin) -->
+    <div id="modalAdminAuth" class="modal-overlay">
+        <div class="modal-content" style="max-width: 350px;">
+            <h3 style="color: #dc3545; margin-top: 0;">⚙️ Acesso Restrito</h3>
+            <p style="font-size: 12px; color: #666;">Área exclusiva para colaboradores e gestão.</p>
+            
+            <input type="email" id="admin-email" aria-label="E-mail corporativo" autocomplete="username" data-enter="efetuarLoginAdmin" placeholder="E-mail Corporativo" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            <input type="password" id="admin-senha" aria-label="Senha" autocomplete="current-password" data-enter="efetuarLoginAdmin" placeholder="Senha" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            
+            <button id="btn-admin-submit" data-onclick="efetuarLoginAdmin()" style="width: 100%; margin-top: 15px; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Entrar no Backoffice</button>
+            <button class="close-modal" data-onclick="fecharModais()">Cancelar</button>
+        </div>
+    </div>
+	<!-- MODAL: DETALHE DA GLOSA POR ITEM -->
+	<div id="modalGlosaItem" class="modal-overlay" style="z-index: 2000;">
+		<div class="modal-content" style="width: 450px; text-align: center;">
+			<h3 style="color: #dc3545; margin-top: 0;">⚠️ Detalhe da Glosa / Regra</h3>
+			<div id="texto-glosa-item" style="font-size: 14px; color: #333; margin: 20px 0; padding: 15px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 6px; text-align: left;">
+			</div>
+			<button class="btn btn-primary" style="width: 100%;" data-onclick="fecharModal('modalGlosaItem')">Estou Ciente</button>
+		</div>
 	</div>
-</div>
+	
+	<!-- MODAL: CONVITE DE PUBLICIDADE (NÃO LOGADO) - INTEGRAÇÃO DE MARKETING MANTIDA -->
+    <div id="modalBoasVindasPub" class="modal-overlay">
+        <div class="modal-content" style="width: 450px; text-align: center;">
+            <h3 style="color: #0056b3; margin-top: 0;">Impulsione o seu negócio no ValidaTISS 🚀</h3>
+            <p style="font-size: 14px; color: #555; margin-bottom: 20px;">
+                Milhares de faturistas, gestores e auditores médicos utilizam a nossa plataforma todos os dias. 
+                <strong>Conecte a sua marca diretamente a quem decide.</strong> Como deseja prosseguir?
+            </p>
+            
+            <button class="btn btn-success" style="width: 100%; margin-bottom: 10px; padding: 12px; font-size: 14px;" data-onclick="abrirPedidoPublicidade('VISITANTE')">
+                🎯 Quero apenas anunciar (Anunciante Avulso)
+            </button>
+            
+            <div style="display: flex; align-items: center; margin: 15px 0;">
+                <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
+                <span style="color: #999; font-size: 12px; padding: 0 10px;">Já utiliza os nossos serviços?</span>
+                <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" data-onclick="fecharModal('modalBoasVindasPub'); abrirModal('modalAuth'); alternarFormAuth('login');">
+                Fazer Login na minha Conta
+            </button>
+            
+            <button class="btn" style="width: 100%; margin-top: 5px; background: #eee; color: #333;" data-onclick="fecharModal('modalBoasVindasPub')">Cancelar</button>
+        </div>
+    </div>
+
 	 <!-- Scripts Modularizados no final do body -->
+    <script src="js/modulos/core.js"></script>
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>
-    <script src="js/modulos/admin.js"></script>
-	
+    <script src="js/modulos/validador.js"></script>
 </body>
 </html>

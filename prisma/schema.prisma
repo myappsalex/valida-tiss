@@ -1,3 +1,5 @@
+// schema.prisma MESCLADO: o seu schema original + colunas/tabelas exigidas pelo código novo.
+// Tudo marcado com "// NOVO" é acréscimo; nada do que existia foi removido ou renomeado.
 generator client {
   provider = "prisma-client-py"
   interface = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
@@ -5,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")
+  url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")   // use a URL do POOLER (pgbouncer=true&connection_limit=1)
 }
 
 // Tabela 1: Clientes Externos (SaaS)
@@ -15,8 +17,25 @@ model Cliente {
   emailAcesso   String         @unique
   senhaHash     String
   tokensIA      Int            @default(0)
-  statusConta   String         @default("PENDENTE") 
+  statusConta   String         @default("PENDENTE")
   criadoEm      DateTime       @default(now())
+
+  // NOVO – assinatura (antes não existia em nenhum modelo; o admin lia/gravava campos inexistentes)
+  plano             String    @default("FREEMIUM")   // FREEMIUM | PREMIUM
+  statusPagamento   String    @default("ATIVO")      // ATIVO | INATIVO
+  planoValidoAte    DateTime?
+  // NOVO – segurança de sessão e conta
+  tokenVersion      Int       @default(0)            // incrementa => revoga sessões
+  tentativasFalhas  Int       @default(0)
+  bloqueadoAte      DateTime?
+  ultimoLoginEm     DateTime?
+  mustChangePassword Boolean  @default(false)
+  aceiteTermosEm    DateTime?                         // LGPD
+  dataCancelamento  DateTime?
+  exportacoesGratis Int       @default(3)            // NOVO – degustação FREEMIUM controlada no servidor (antes: sessionStorage, burlável)
+  // NOVO – cobrança Asaas
+  cpfCnpj           String?
+  asaasCustomerId   String?
 
   // Relacionamentos (O que o cliente "possui")
   logsIA        LogIA[]
@@ -30,8 +49,16 @@ model Usuario {
   nome      String
   email     String   @unique
   senhaHash String
-  perfil    String   
+  perfil    String                                   // ADMIN | OPERACAO | PUBLICIDADE | GESTAO
   criadoEm  DateTime @default(now())
+
+  // NOVO
+  status             String    @default("ATIVO")     // ATIVO | BLOQUEADO | CANCELADO (antes o bloqueio sobrescrevia `perfil`)
+  mustChangePassword Boolean   @default(false)
+  tokenVersion       Int       @default(0)
+  tentativasFalhas   Int       @default(0)
+  bloqueadoAte       DateTime?
+  ultimoLoginEm      DateTime?
 }
 
 // Tabela 3: Registo de auditorias (Controlo de custos)
@@ -39,39 +66,40 @@ model LogIA {
   id            String   @id @default(uuid())
   clienteId     String
   numeroGuia    String
-  motorUsado    String   
+  motorUsado    String
   tokensGastos  Int      @default(1)
   dataUso       DateTime @default(now())
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@index([clienteId, dataUso])                     // NOVO
 }
 
 // Tabela 5: Motor de Regras Customizáveis por Cliente
 model RegraCliente {
   id            String   @id @default(uuid())
   clienteId     String
-  nomeRegra     String   
-  tipoGuia      String   
-  campoValidado String   
-  condicao      String   
-  valorEsperado String   
-  acao          String   
-  mensagemErro  String   
-  status        String   @default("ATIVO") 
+  nomeRegra     String
+  tipoGuia      String
+  campoValidado String
+  condicao      String
+  valorEsperado String
+  acao          String
+  mensagemErro  String
+  status        String   @default("ATIVO")
   criadoEm      DateTime @default(now())
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  @@index([clienteId, criadoEm])                    // NOVO
 }
-//Redeploy
 
 // --- TABELAS DE DOMÍNIO TUSS E GLOSAS (Versão 2.0.0) ---
 
 model DominioTUSS {
   id                 String    @id @default(uuid())
-  codigoTabela       String    
-  codigoTermo        String    
-  termo              String    
-  registroAnvisa     String?   
+  codigoTabela       String
+  codigoTermo        String
+  termo              String
+  registroAnvisa     String?
   vigenciaInicio     DateTime?
   vigenciaFim        DateTime?
   ativo              Boolean   @default(true)
@@ -101,7 +129,7 @@ model HistoricoAutorizacoes {
 
 model CampanhaAds {
   id              String    @id @default(cuid())
-  usuarioId       String    
+  usuarioId       String                                   // = Cliente.id (nome mantido por compatibilidade)
   empresa_nome    String
   email_contato   String
   link_destino    String
@@ -109,11 +137,43 @@ model CampanhaAds {
   bannerUrl       String?
   valorOrcamento  Float?
   observacaoAdmin String?
-  status          String    @default("PENDENTE") 
+  status          String    @default("PENDENTE")           // PENDENTE|ORCADO|AGUARDANDO_PAGAMENTO|ATIVO|CANCELADO|REJEITADO|EXPIRADO
   criadoEm        DateTime  @default(now())
-  dataInicio      DateTime? 
-  dataFim         DateTime? 
-  localExibicao   String?   @default("CABECALHO") // NOVO CAMPO
-  
-  cliente         Cliente   @relation(fields: [usuarioId], references: [id]) 
+  dataInicio      DateTime?
+  dataFim         DateTime?
+  localExibicao   String?   @default("CABECALHO")
+
+  // NOVO
+  bannerMime      String?
+  bannerDados     String?                                  // PNG/JPEG em base64 (validado, máx. 300 KB)
+  asaasPaymentId  String?   @unique
+  pagoEm          DateTime?
+
+  cliente         Cliente   @relation(fields: [usuarioId], references: [id])
+  @@index([usuarioId, status])                             // NOVO
+  @@index([status, dataInicio, dataFim])                   // NOVO
+}
+
+// NOVO – idempotência do webhook do Asaas (PK = id da cobrança)
+model PagamentoProcessado {
+  id         String   @id
+  referencia String
+  valor      Float
+  criadoEm   DateTime @default(now())
+}
+
+// NOVO – trilha de auditoria das ações administrativas (sem senhas)
+model LogAdmin {
+  id        String   @id @default(uuid())
+  atorTipo  String
+  atorId    String
+  atorEmail String
+  acao      String
+  alvoTipo  String
+  alvoId    String
+  detalhes  String
+  ip        String
+  criadoEm  DateTime @default(now())
+  @@index([criadoEm])
+  @@index([alvoTipo, alvoId])
 }

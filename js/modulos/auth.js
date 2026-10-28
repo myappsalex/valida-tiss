@@ -1,181 +1,75 @@
-// js/modulos/auth.js
-
-// Variável Global Única para o utilizador
-let usuarioLogado = null;
+// js/modulos/auth.js – login/registro/logout e barra superior (requer core.js e ui.js)
+'use strict';
 
 function alternarFormAuth(tipo) {
     document.getElementById('form-login').style.display = tipo === 'login' ? 'block' : 'none';
     document.getElementById('form-registro').style.display = tipo === 'registro' ? 'block' : 'none';
+    const alvo = document.getElementById(tipo === 'login' ? 'login-email' : 'reg-nome'); if (alvo) alvo.focus();
 }
-
-function fecharModalAuth() { 
-    const modal = document.getElementById('modalAuth');
-    if (modal) modal.style.display = 'none'; 
-}
-
+function fecharModalAuth() { fecharModal('modalAuth'); }
 
 function atualizarTopoSite() {
-    if(!usuarioLogado) return;
-    const elStatus = document.getElementById('user-status');
-    const btnTop = document.getElementById('btn-login-top');
-    
-    if (elStatus && btnTop) {
-        if (usuarioLogado.tipo === "INTERNO") {
-            elStatus.innerText = `👤 ${usuarioLogado.nome} | Perfil: ${usuarioLogado.perfil}`;
-            elStatus.style.color = "#dc3545"; 
-            btnTop.innerText = "⚙️ Área Master";
-            btnTop.onclick = () => { window.location.href = "admin.html"; };
-        } else {
-            elStatus.innerText = `👤 ${usuarioLogado.nome} | Saldo: ${usuarioLogado.tokensRestantes} IA`;
-            elStatus.style.color = "#0056b3"; 
-            btnTop.innerText = "📊 Meu Painel";	
-            btnTop.onclick = () => { 
-                // Proteção extra: garante que não abre admin.html acidentalmente
-                if (usuarioLogado.tipo !== "INTERNO") {
-                    window.location.href = "dashboard_cliente.html"; 
-                }
-            };
-        }
+    const s = document.getElementById('user-status'), b = document.getElementById('btn-login-top');
+    if (!s || !b) return;
+    const u = Sessao.usuario;
+    if (!u) {
+        s.textContent = 'Visitante (não autenticado)'; s.style.color = '';
+        b.textContent = '🔒 Acesso Cliente'; b.setAttribute('data-onclick', "abrirModal('modalAuth')"); return;
     }
-}
-
-function efetuarLogout() { 
-    sessionStorage.removeItem('sessaoTISS'); 
-    window.location.href = "index.html"; 
-}
-// --- FUNÇÃO AUXILIAR DE FEEDBACK VISUAL (GAUGE) ---
-function toggleLoadingButton(btnId, isLoading, originalText) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    if (isLoading) {
-        btn.disabled = true;
-        btn.style.opacity = '0.7';
-        // Insere o Gauge adaptado para dentro do botão
-        btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> Em processamento ...`;
+    if (u.tipo === 'INTERNO') {
+        s.textContent = `👤 ${u.nome} | Perfil: ${u.perfil}`; s.style.color = '#b02a37';
+        b.textContent = '⚙️ Área Master'; b.setAttribute('data-onclick', "irPara('admin.html')");
     } else {
-        btn.disabled = false;
-        btn.style.opacity = '1';
-        btn.innerHTML = originalText;
+        s.textContent = `👤 ${u.nome} | Saldo: ${u.tokensRestantes} IA`; s.style.color = '#0056b3';
+        b.textContent = '📊 Meu Painel'; b.setAttribute('data-onclick', "irPara('dashboard_cliente.html')");
     }
+}
+Sessao.ouvintes.push(atualizarTopoSite);
+
+async function efetuarLogout() {
+    await api('/api/auth', { acao: 'logout' });   // invalida o cookie no servidor
+    definirUsuario(null);
+    irPara('index.html');
 }
 
 async function efetuarLogin() {
-    const email = document.getElementById('login-email').value;
-    const senha = document.getElementById('login-senha').value;
-    if (!email || !senha) { alert("Preencha todos os campos."); return; }
-
-    toggleLoadingButton('btn-login-submit', true, 'Entrar no Sistema');
-
-    try {
-        const response = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'login', email: email, senha: senha })
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) {
-            usuarioLogado = data.usuario; 
-            sessionStorage.setItem('sessaoTISS', JSON.stringify(usuarioLogado));
-            fecharModalAuth();
-            atualizarTopoSite();
-            // Se for cliente e estiver no dashboard, carrega as regras
-            if (typeof carregarRegrasCliente === 'function') carregarRegrasCliente();
-        } else {
-            alert(`Falha no login: ${data.erro}`);
-        }
-    } catch (error) { 
-        alert("Erro ao comunicar com o servidor."); 
-    } finally {
-        toggleLoadingButton('btn-login-submit', false, 'Entrar no Sistema');
-    }
+    const email = document.getElementById('login-email').value.trim(), senha = document.getElementById('login-senha').value;
+    if (!email || !senha) return avisar('Informe e-mail e senha.', 'erro');
+    await comCarga('btn-login-submit', 'Entrando…', async () => {
+        const r = await api('/api/auth', { acao: 'login', email, senha });
+        if (!r.ok) return avisar(erroDe(r), 'erro');
+        document.getElementById('login-senha').value = '';
+        definirUsuario(r.dados.usuario); fecharModalAuth();
+        if (r.dados.usuario.mustChangePassword) abrirTrocaSenha();
+        if (typeof carregarPainelCliente === 'function') carregarPainelCliente();
+    });
 }
 
 async function efetuarLoginAdmin() {
-    const email = document.getElementById('admin-email').value; 
-    const senha = document.getElementById('admin-senha').value;
-    if (!email || !senha) { alert("Preencha as credenciais."); return; }
-    
-    toggleLoadingButton('btn-admin-submit', true, 'Entrar no Backoffice');
-
-    try {
-        const response = await fetch('/api/auth', { 
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ acao: 'login_admin', email: email, senha: senha }) 
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) { 
-            sessionStorage.setItem('sessaoTISS', JSON.stringify(data.usuario)); 
-            window.location.href = "admin.html"; 
-        } else { 
-            alert(`Falha: ${data.erro}`); 
-        }
-    } catch (error) { 
-        alert("Erro de conexão."); 
-    } finally {
-        toggleLoadingButton('btn-admin-submit', false, 'Entrar no Backoffice');
-    }
+    const email = document.getElementById('admin-email').value.trim(), senha = document.getElementById('admin-senha').value;
+    if (!email || !senha) return avisar('Informe as credenciais.', 'erro');
+    await comCarga('btn-admin-submit', 'Entrando…', async () => {
+        const r = await api('/api/auth', { acao: 'login_admin', email, senha });
+        if (!r.ok) return avisar(erroDe(r), 'erro');
+        definirUsuario(r.dados.usuario); irPara('admin.html');
+    });
 }
 
 async function solicitarConta() {
-    const nome = document.getElementById('reg-nome').value;
-    const email = document.getElementById('reg-email').value;
-    const senha = document.getElementById('reg-senha').value;
-    
-    if (!/(?=.*[!@#$%^&*]).{8,}/.test(senha)) { alert("A senha deve ter pelo menos 8 caracteres e um caractere especial (!@#$...)."); return; }
-    if (!nome || !email) { alert("Preencha todos os campos obrigatórios."); return; }
-
-    toggleLoadingButton('btn-registro-submit', true, 'Solicitar Conta e Tokens');
-
-    try {
-        const response = await fetch('/api/auth', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ acao: 'registro', nome: nome, email: email, senha: senha })
-        });
-        const data = await response.json();
-        
-        if (response.ok && data.sucesso) { 
-            alert(data.mensagem); 
-            alternarFormAuth('login'); 
-        } else { 
-            alert(`Erro no registo: ${data.erro}`); 
-        }
-    } catch (error) { 
-        alert("Erro ao enviar o pedido de registo."); 
-    } finally {
-        toggleLoadingButton('btn-registro-submit', false, 'Solicitar Conta e Tokens');
-    }
+    const nome = document.getElementById('reg-nome').value.trim(), email = document.getElementById('reg-email').value.trim();
+    const senha = document.getElementById('reg-senha').value, aceite = document.getElementById('reg-aceite').checked;
+    if (!nome || !email) return avisar('Preencha nome e e-mail.', 'erro');
+    if (senha.length < 10) return avisar('A senha deve ter ao menos 10 caracteres.', 'erro');
+    if (!aceite) return avisar('É necessário aceitar os Termos de Uso e a Política de Privacidade.', 'erro');
+    await comCarga('btn-registro-submit', 'Enviando…', async () => {
+        const r = await api('/api/auth', { acao: 'registro', nome, email, senha, aceite_termos: true });
+        if (r.ok) { avisar(r.dados.mensagem, 'ok'); document.getElementById('reg-senha').value = ''; alternarFormAuth('login'); }
+        else avisar(erroDe(r), 'erro');
+    });
 }
 
-// --- INICIALIZAÇÃO GLOBAL ---
-window.addEventListener('DOMContentLoaded', () => {
-    const sessaoSalva = sessionStorage.getItem('sessaoTISS');
-    if (sessaoSalva) { 
-        usuarioLogado = JSON.parse(sessaoSalva); 
-        atualizarTopoSite(); 
-    }
-    if(typeof iniciarRotacaoPublicidade === 'function') iniciarRotacaoPublicidade();
+Pronto.then(u => {
+    atualizarTopoSite();
+    carregarPublicidadesAtivas();
+    if (u && u.mustChangePassword) abrirTrocaSenha();
 });
-
-// Inicialização
-        window.onload = () => {
-            console.log("ValidaTISS 2.0.0 Inicializado");
-			document.addEventListener('DOMContentLoaded', () => {
-			// Tecla Enter no Login de Cliente
-			const inputSenhaLogin = document.getElementById('login-senha');
-			if (inputSenhaLogin) {
-				inputSenhaLogin.addEventListener('keypress', (e) => {
-					if (e.key === 'Enter') efetuarLogin();
-				});
-			}
-
-			// Tecla Enter no Login Admin
-			const inputSenhaAdmin = document.getElementById('admin-senha');
-			if (inputSenhaAdmin) {
-				inputSenhaAdmin.addEventListener('keypress', (e) => {
-					if (e.key === 'Enter') efetuarLoginAdmin();
-				});
-			}
-		});
-   };

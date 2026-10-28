@@ -1,369 +1,213 @@
-// js/modulos/ui.js
-	
-// --- GESTÃO DE MODAIS ---
-function abrirModal(idModal) { 
-    const modal = document.getElementById(idModal);
-    if (modal) modal.style.display = 'flex'; 
-}
+// js/modulos/ui.js – componentes de interface compartilhados (requer core.js)
+'use strict';
 
-function fecharModais() { 
-    document.querySelectorAll('.modal-overlay').forEach(modal => modal.style.display = 'none'); 
-}
-
-function fecharModal(idModal) { 
-    const alvo = idModal || 'modalPremium'; 
-    const modal = document.getElementById(alvo); 
-    if (modal) modal.style.display = 'none'; 
-}
-
-// --- NAVEGAÇÃO DO WIZARD (Movido do validador.js) ---
+// --- Wizard do validador ---
 function alterarPasso(passo) {
-    document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
-    const step = document.getElementById(`step-${passo}`);
-    if (step) step.classList.add('active');
+    document.querySelectorAll('.wizard-step').forEach(e => e.classList.remove('active'));
+    const s = document.getElementById(`step-${passo}`); if (s) s.classList.add('active');
 }
-
 function reiniciarWizard() {
-    document.getElementById('xmlInput').value = '';
-    document.getElementById('resultado').innerHTML = '';
-    document.getElementById('btnExportar').style.display = 'none';
-    if (typeof xmlDocAtual !== 'undefined') xmlDocAtual = null; // Limpa a variável global do validador
+    const i = document.getElementById('xmlInput'); if (i) i.value = '';
+    const r = document.getElementById('resultado'); if (r) limpar(r);
+    const b = document.getElementById('btnExportar'); if (b) b.style.display = 'none';
+    if (typeof xmlDocAtual !== 'undefined') xmlDocAtual = null;
     alterarPasso(1);
 }
 
-// --- UX / ALERTAS VISUAIS ---
-function solicitarCompra(tipo, pacote) { 
-    alert(`Redirecionando para o Gateway de Pagamento...\nItem: ${pacote}`); 
-    fecharModais(); 
-}
-
-function redirecionarCheckout() { 
-    alert("Redirecionando para página de pagamento..."); 
-}
-
 function mostrarGlosaModal(textoCodificado) {
-    document.getElementById('texto-glosa-item').innerHTML = decodeURIComponent(textoCodificado);
+    let t = textoCodificado; try { t = decodeURIComponent(textoCodificado); } catch { }
+    const d = document.createElement('div'); d.innerHTML = String(t).replace(/<br\s*\/?>/gi, '\n');
+    document.getElementById('texto-glosa-item').textContent = d.textContent;
     abrirModal('modalGlosaItem');
 }
 
-async function enviarPedidoPub() {
-    // Pega o ID oculto (preenchido pelo sistema quando logado ou quando o Admin clica no Grid)
-    const clienteId = document.getElementById('pub-cliente-id').value;
-    const empresa = document.getElementById('pub-empresa').value;
-    const email = document.getElementById('pub-email').value;
-    const link = document.getElementById('pub-link').value;
-    const tema = document.getElementById('pub-tema').value;
-    const arquivoInput = document.getElementById('pub-arquivo');
-	const localExibicao = document.getElementById('aval-ad-local').value;
+function redirecionarCheckout() {
+    if (!Sessao.usuario) { fecharModais(); abrirModal('modalAuth'); return; }
+    if (Sessao.usuario.tipo !== 'CLIENTE') return avisar('Disponível apenas para contas de cliente.', 'erro');
+    irPara('dashboard_cliente.html#assinatura');
+}
 
-    if(!empresa || !email || !link || !tema) {
-        alert("Preencha todos os campos obrigatórios (Empresa, E-mail, Link e Tema).");
-        return;
-    }
+// --- Banners (Carrossel Híbrido Seguro) ---
+let _anuncios = [], _idx = { CABECALHO: 0, LATERAL: 0 };
 
-    const btn = document.getElementById('btn-pub-submit');
-    btn.disabled = true; 
-    btn.innerHTML = `<div class="gauge-loader" style="width: 14px; height: 14px; border-width: 2px; border-top-color: white; vertical-align: middle; margin-right: 8px;"></div> Enviando...`;
+function _abrirAnuncio(ad) {
+    // INTEGRAÇÃO: Se for anúncio padrão (null/sem link), chama como VISITANTE
+    if (!ad || !ad.link || ad.link === 'modal') return abrirPedidoPublicidade('VISITANTE');
+    const u = urlSegura(/^https?:\/\//i.test(ad.link) ? ad.link : 'https://' + ad.link);
+    if (u) window.open(u, '_blank', 'noopener,noreferrer'); else abrirPedidoPublicidade('VISITANTE');
+}
 
-    const processarEnvio = async (base64String) => {
-        try {
-            // Chamada REAL para a API Python gravar no Prisma (Tabela CampanhaAds)
-            const response = await fetch('/api/publicidade', {
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    acao: 'criar',
-                    usuarioId: clienteId, // Vincula o pedido ao cliente correto
-                    empresa_nome: empresa, 
-                    email_contato: email, 
-                    link_destino: link, 
-                    tema: tema, 
-					localExibicao: localExibicao,
-                    arquivo_base64: base64String 
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok && data.sucesso) {
-                alert(`Pedido registrado com sucesso!\nA equipe comercial avaliará a campanha e enviará um orçamento em breve.`);
-                fecharModais();
-                // Se o admin fez o pedido, atualiza a grid por trás
-                if (typeof pesquisarContratos === "function") pesquisarContratos(); 
-            } else {
-                alert(`Erro ao gravar pedido: ${data.erro}`);
-            }
-        } catch (error) {
-            alert("Erro de conexão com o servidor. O pedido não foi salvo.");
-        } finally {
-            btn.disabled = false; 
-            btn.innerText = "Solicitar Orçamento";
-        }
-    };
-
-    if (arquivoInput && arquivoInput.files.length > 0) {
-        const file = arquivoInput.files[0];
-        const reader = new FileReader();
-        reader.onloadend = function() {
-            processarEnvio(reader.result); 
-        };
-        reader.readAsDataURL(file);
+function _pintarCabecalho(ad) {
+    const d = document.getElementById('ads_cabecalho'); if (!d) return;
+    limpar(d);
+    d.style.transition = "opacity 0.5s ease-in-out";
+    
+    if (ad) {
+        d.append(el('h3', { style: 'margin:0' }, '🚀 ' + ad.titulo), el('span', { class: 'pulse-text' }, ad.texto));
+        d.style.background = ad.cor ? ad.cor : "";
     } else {
-        processarEnvio(null); 
+        d.append(el('h3', { style: 'margin:0' }, '🚀 O seu software médico visto por milhares de faturistas!'), el('span', { class: 'pulse-text' }, 'Clique aqui e anuncie no portal'));
+        d.style.background = "";
+    }
+    d.onclick = () => _abrirAnuncio(ad);
+    d.setAttribute('role', 'link'); d.tabIndex = 0;
+    d.onkeydown = e => { if (e.key === 'Enter') d.onclick(); };
+}
+
+function _pintarLateral(ad) {
+    const d = document.getElementById('ads_lateral'); if (!d) return;
+    limpar(d);
+    d.style.transition = "opacity 0.5s ease-in-out";
+    
+    if (ad) {
+        d.append(el('h4', {}, ad.titulo), el('p', {}, ad.texto));
+        if (ad.banner && ad.banner.startsWith('/api/banner?id='))
+            d.append(el('img', { src: ad.banner, alt: 'Anúncio: ' + ad.titulo, width: 150, loading: 'lazy' }));
+        d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
+        d.append(el('span', { class: 'btn-ad' }, 'Acessar'));
+        d.style.background = ad.cor ? ad.cor : "";
+    } else {
+        d.append(el('h4', {}, 'Anuncie Aqui'), el('p', {}, 'O seu software visto por quem decide.'));
+        d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
+        d.append(el('span', { class: 'btn-ad' }, 'Ver Formatos'));
+        d.style.background = "";
+    }
+    d.onclick = () => _abrirAnuncio(ad);
+    d.setAttribute('role', 'link'); d.tabIndex = 0;
+    d.onkeydown = e => { if (e.key === 'Enter') d.onclick(); };
+}
+
+function _girar() {
+    if (document.hidden) return;
+    for (const [local, pintar] of [['CABECALHO', _pintarCabecalho], ['LATERAL', _pintarLateral]]) {
+        const lista = _anuncios.filter(a => a.local === local || a.local === 'TODOS');
+        if (!lista.length) { if (_idx[local] !== -1) { pintar(null); _idx[local] = -1; } continue; }
+        _idx[local] = (_idx[local] + 1) % lista.length;
+        pintar(lista[_idx[local]]);
     }
 }
 
-function abrirPedidoPublicidade(modo = 'LOGADO') {
-    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
+async function carregarPublicidadesAtivas() {
+    if (!document.getElementById('ads_cabecalho') && !document.getElementById('ads_lateral')) return;
+    const r = await api('/api/campanhas');
+    _anuncios = r.ok && Array.isArray(r.dados) ? r.dados : [];
     
-    // Elementos do formulário
-    const elClienteId = document.getElementById('pub-cliente-id');
+    // Injetamos um null na fila para garantir que a publicidade padrão rode no meio dos pagantes
+    _anuncios.unshift({ local: 'CABECALHO', isPadrão: true }, { local: 'LATERAL', isPadrão: true });
+    
+    _idx = { CABECALHO: -1, LATERAL: -1 }; _girar();
+    if (_anuncios.length > 2 && !matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(_girar, 6000);
+}
+const iniciarRotacaoPublicidade = carregarPublicidadesAtivas;
+
+// --- Pedido de publicidade (Integrado com VISITANTES/GUEST) ---
+function abrirPedidoPublicidade(modo = 'LOGADO') {
+    const u = Sessao.usuario;
     const elEmpresa = document.getElementById('pub-empresa');
     const elEmail = document.getElementById('pub-email');
-    const elLocalExibicao = document.getElementById('aval-ad-local');
+    const elClienteId = document.getElementById('pub-cliente-id');
     
-    // Limpa os campos por padrão
+    // Reset de campos para visitantes
     if(elEmpresa) { elEmpresa.value = ''; elEmpresa.readOnly = false; elEmpresa.style.background = '#fff'; }
     if(elEmail) { elEmail.value = ''; elEmail.readOnly = false; elEmail.style.background = '#fff'; }
-    if(elClienteId) elClienteId.value = 'GUEST'; // Flag para Anunciante Avulso
+    if(elClienteId) elClienteId.value = 'GUEST';
 
-    // 1. SE NÃO ESTIVER LOGADO E NÃO ESCOLHEU O MODO -> Mostra o menu de opções
-    if (!sessao && modo === 'LOGADO') {
-        abrirModal('modalBoasVindasPub');
-        return;
+    if (!u && modo === 'LOGADO') return abrirModal('modalBoasVindasPub');
+    if (u && u.tipo !== 'CLIENTE') return avisar('Pedidos de publicidade são feitos pela conta do cliente.', 'info');
+    if (u && !document.getElementById('modalPublicidade')) return irPara('dashboard_cliente.html?abrirPub=1');
+
+    if (u && modo === 'LOGADO') {
+        if(elClienteId) elClienteId.value = u.id;
+        if(elEmpresa) { elEmpresa.value = u.nome; elEmpresa.readOnly = true; elEmpresa.style.background = '#f4f7f6'; }
+        if(elEmail) { elEmail.value = u.email; elEmail.readOnly = true; elEmail.style.background = '#f4f7f6'; }
     }
     
-    // 2. SE ESTIVER LOGADO MAS ESTIVER NO INDEX -> Redireciona para o Painel
-    if (sessao && !window.location.href.includes('dashboard_cliente.html')) {
-        window.location.href = 'dashboard_cliente.html?abrirPub=true';
-        return;
-    }
-
-    // 3. PREENCHIMENTO DE DADOS (Logado vs Visitante)
-    if (sessao && modo === 'LOGADO') {
-        if (elClienteId && elEmpresa && elEmail) {
-            elClienteId.value = sessao.id;
-            elEmpresa.value = sessao.nome;
-            elEmpresa.readOnly = true; 
-            elEmpresa.style.background = '#f4f7f6';
-            
-            elEmail.value = sessao.email;
-            elEmail.readOnly = true;
-            elEmail.style.background = '#f4f7f6';
-            
-            if (elLocalExibicao && sessao.localExibicao) {
-                elLocalExibicao.value = sessao.localExibicao;
-            }
-        }
-    }
-    
-    // Fecha o modal de boas vindas e abre o formulário
     fecharModal('modalBoasVindasPub');
     abrirModal('modalPublicidade');
 }
 
-// Interceptador global para abrir o modal automaticamente ao chegar do Index
-window.addEventListener('DOMContentLoaded', () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('abrirPub') === 'true') {
-        // Pequeno delay para garantir que o HTML do dashboard carregou
-        setTimeout(() => abrirPedidoPublicidade(), 500);
-    }
+function _lerArquivo(f) {
+    return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
+}
+
+async function enviarPedidoPub() {
+    const link = document.getElementById('pub-link').value.trim();
+    const tema = document.getElementById('pub-tema').value.trim();
+    const f = document.getElementById('pub-arquivo').files[0];
+    const clienteId = document.getElementById('pub-cliente-id').value;
+    const local = document.getElementById('aval-ad-local') ? document.getElementById('aval-ad-local').value : 'CABECALHO';
+    const empresa = document.getElementById('pub-empresa').value.trim();
+    const email = document.getElementById('pub-email').value.trim();
+
+    if(!empresa || !email) return avisar('Informe o Nome da Empresa e E-mail de contato.', 'erro');
+    if (!urlSegura(link)) return avisar('Informe um link válido começando com http:// ou https://', 'erro');
+    if (tema.length < 10) return avisar('Descreva a campanha em pelo menos 10 caracteres.', 'erro');
+    if (f && f.size > 300 * 1024) return avisar('A arte deve ter no máximo 300 KB (PNG ou JPG).', 'erro');
+    
+    await comCarga('btn-pub-submit', 'Enviando…', async () => {
+        const r = await api('/api/publicidade', {
+            acao: 'criar', usuarioId: clienteId, empresa_nome: empresa, email_contato: email,
+            link_destino: link, tema, localExibicao: local,
+            arquivo_base64: f ? await _lerArquivo(f) : null
+        });
+        if (r.ok) {
+            avisar('Pedido registrado! A equipe comercial enviará um orçamento em breve.', 'ok');
+            fecharModais();
+            if (typeof carregarMinhasCampanhas === 'function') carregarMinhasCampanhas();
+        } else avisar(erroDe(r), 'erro');
+    });
+}
+document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(location.search).get('abrirPub') === '1')
+        Pronto.then(() => abrirPedidoPublicidade());
 });
 
-// --- FUNÇÕES DE PAGAMENTO PIX ---
-function abrirPagamentoPIX(campanhaId, valor) {
-    const display = document.getElementById('pix-valor-display');
-    if (display) display.innerText = `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
-    
-    // No futuro: chamada fetch('/api/gerar_pix') aqui
+// --- PIX ---
+function mostrarPix(d) {
+    document.getElementById('pix-valor-display').textContent = brl(d.valor);
+    const img = document.getElementById('pix-qrcode-img');
+    img.src = d.imagem_qrcode ? 'data:image/png;base64,' + d.imagem_qrcode : '';
+    img.alt = 'QR Code PIX no valor de ' + brl(d.valor);
+    document.getElementById('pix-copia-cola').value = d.payload_pix || '';
     abrirModal('modalPagarAds');
 }
-
-function copiarPix() {
-    const copyText = document.getElementById("pix-copia-cola");
-    if (!copyText) return;
-    copyText.select();
-    document.execCommand("copy");
-    alert("Código PIX copiado com sucesso!");
+async function gerarPix(corpo, btn) {
+    const exec = async () => {
+        let r = await api('/api/gerar_pix', corpo);
+        if (!r.ok && r.dados && r.dados.codigo === 'cpf_cnpj_necessario') {
+            const doc = prompt('Informe o CPF ou CNPJ do pagador (exigido pelo PIX):');
+            if (!doc) return;
+            r = await api('/api/gerar_pix', { ...corpo, cpfCnpj: doc });
+        }
+        if (r.ok) mostrarPix(r.dados); else avisar(erroDe(r), 'erro');
+    };
+    return btn ? comCarga(btn, 'Gerando PIX…', exec) : exec();
+}
+async function copiarPix() {
+    const campo = document.getElementById('pix-copia-cola');
+    try { await navigator.clipboard.writeText(campo.value); }
+    catch { campo.select(); document.execCommand('copy'); }
+    avisar('Código PIX copiado.', 'ok');
 }
 
-// --- SISTEMA DE ROTAÇÃO DE PUBLICIDADE (CARROSSEL HÍBRIDO) ---
-
-// 1. Definimos o "Anúncio Padrão" que chama o Modal como o primeiro item da fila
-let adsCabecalho = [
-    {
-        titulo: "🚀 O seu software médico visto por milhares de faturistas!",
-        texto: "Clique aqui e anuncie no portal",
-        link: "modal",
-        isDefault: true
-    }
-];
-
-let adsLateral = [
-    {
-        titulo: "🚀 Anuncie Aqui",
-        texto: "O seu software visto por quem decide. 💲",
-        link: "modal",
-        isDefault: true
-    }
-];
-
-let idxCabecalho = 0;
-let idxLateral = 0;
-
-async function iniciarRotacaoPublicidade() {
-    // 2. Busca as campanhas ativas no banco de dados
-    try {
-        const response = await fetch('/api/campanhas');
-        if (response.ok) {
-            const anunciosAtivos = await response.json();
-            
-            // Adiciona os anúncios pagos à fila
-            anunciosAtivos.forEach(ad => {
-                if (ad.local === 'CABECALHO' || ad.local === 'TODOS') adsCabecalho.push(ad);
-                if (ad.local === 'LATERAL' || ad.local === 'TODOS') adsLateral.push(ad);
-            });
-        }
-    } catch (error) {
-        console.error("Erro ao buscar campanhas pagas. Mantendo apenas anúncios padrão.");
-    }
-
-    // 3. Motor de Renderização do Cabeçalho
-    const renderCabecalho = () => {
-        const div = document.getElementById('ads_cabecalho');
-        if (!div) return;
-        const ad = adsCabecalho[idxCabecalho];
-        
-        div.style.transition = "opacity 0.5s ease-in-out";
-        div.innerHTML = `
-            <h3 style="margin: 0;">${ad.titulo}</h3>
-            <span class="pulse-text">${ad.texto}</span>
-        `;
-        
-        // Se for anúncio pago, aplica o gradiente. Se for padrão, remove para usar o CSS original
-        div.style.background = ad.cor ? ad.cor : ""; 
-
-        div.onclick = () => {
-            if (ad.link === 'modal') abrirPedidoPublicidade('VISITANTE');
-            else window.open(ad.link.startsWith('http') ? ad.link : `https://${ad.link}`, '_blank');
-        };
-        
-        idxCabecalho = (idxCabecalho + 1) % adsCabecalho.length;
-    };
-
-    // 4. Motor de Renderização da Lateral
-    const renderLateral = () => {
-        const div = document.getElementById('ads_lateral');
-        if (!div) return;
-        const ad = adsLateral[idxLateral];
-
-        div.style.transition = "opacity 0.5s ease-in-out";
-        div.innerHTML = `
-            <h4>${ad.titulo}</h4>
-            <p>${ad.texto}</p>
-            <div class="pulse-text" style="background: none; color: #ffc107; padding: 0; margin-bottom: 10px; font-size: 30px;"><img src=${ad.bannerUrl}; width="120px"></div>
-            <span class="btn-ad">${ad.isDefault ? 'Ver Formatos' : 'Acessar'}</span>
-        `;
-
-        div.style.background = ad.cor ? ad.cor : ""; 
-
-        div.onclick = () => {
-            if (ad.link === 'modal') abrirPedidoPublicidade('VISITANTE');
-            else window.open(ad.link.startsWith('http') ? ad.link : `https://${ad.link}`, '_blank');
-        };
-
-        idxLateral = (idxLateral + 1) % adsLateral.length;
-    };
-
-    // 5. Arranque Imediato
-    renderCabecalho();
-    renderLateral();
-
-    // 6. Rotação (Apenas se houver anúncios pagos além do padrão. A cada 6 segundos)
-    if (adsCabecalho.length > 1) setInterval(renderCabecalho, 6000);
-    if (adsLateral.length > 1) setInterval(renderLateral, 6000);
-}
-
-// Inicia a rotação assim que a página terminar de carregar
-document.addEventListener('DOMContentLoaded', iniciarRotacaoPublicidade);
-
-// --- ATALHO GLOBAL DO TECLADO (ENTER PARA LOGIN) ---
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const focoAtual = document.activeElement.id;
-        // Se o foco estiver nos campos do modal de cliente
-        if (focoAtual === 'login-senha' || focoAtual === 'login-email') {
-            if (typeof efetuarLogin === 'function') efetuarLogin();
-        } 
-        // Se o foco estiver nos campos do modal de admin
-        else if (focoAtual === 'admin-senha' || focoAtual === 'admin-email') {
-            if (typeof efetuarLoginAdmin === 'function') efetuarLoginAdmin();
-        }
-    }
-});
-
-
-// --- PESQUISA TUSS COM PROTEÇÃO DE BOTÕES ---
+// --- Consulta TUSS ---
 async function pesquisarDominiosTUSS() {
-    const cod = document.getElementById('filtro-codigo-tuss').value;
-    const termo = document.getElementById('filtro-termo-tuss').value;
-    const tbody = document.getElementById('tbody-dominios');
-    
-    if (!cod && termo.length < 3) {
-        alert("Digite um código ou pelo menos 3 letras da descrição para pesquisar.");
-        return;
-    }
-
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">⏳ A pesquisar...</td></tr>';
-    
-    // VERIFICAÇÃO DE SEGURANÇA: Lê a sessão para saber se é Admin
-    const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-    const isInterno = sessao && sessao.tipo === "INTERNO";
-
-    try {
-        const res = await fetch(`/api/dominio_tuss?codigo=${cod}&termo=${termo}`);
-        const data = await res.json();
-        
-        if (res.ok) {
-            tbody.innerHTML = '';
-            if(data.length === 0) { 
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Sem resultados.</td></tr>'; 
-                return; 
-            }
-            data.forEach(d => {
-                const termoEscapado = d.termo.replace(/'/g, "");
-                const anvisa = d.registroAnvisa || '-';
-                const fabricante = d.fabricante || '-';
-                const modelo = d.apresentacaoModelo || '-';
-                const risco = d.classeRisco || '';
-
-                // CONTROLE DE ACESSO VISUAL AOS BOTÕES
-                let botoesAcao = '-';
-                if (isInterno) {
-                    botoesAcao = `
-                        <button class="btn btn-warning" style="padding: 4px; font-size: 10px;" onclick="prepararEdicaoDominio('${d.id}', '${d.codigoTabela}', '${d.codigoTermo}', '${termoEscapado}', '${anvisa}', '${fabricante}', '${modelo}', '${risco}')">✏️</button>
-                        <button class="btn btn-danger" style="padding: 4px; font-size: 10px;" onclick="excluirDominioTUSS('${d.id}')">🗑️</button>
-                    `;
-                }
-
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td>${d.codigoTabela}</td>
-                        <td><strong>${d.codigoTermo}</strong></td>
-                        <td>${d.termo}</td>
-                        <td>${modelo}</td>
-                        <td>${fabricante}</td>
-                        <td>${anvisa}</td>
-                        <td>${botoesAcao}</td>
-                    </tr>
-                `;
-            });		
-        }
-    } catch(e) { 
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:red;">Erro de rede.</td></tr>'; 
+    const cod = document.getElementById('filtro-codigo-tuss').value.trim();
+    const termo = document.getElementById('filtro-termo-tuss').value.trim();
+    const tb = document.getElementById('tbody-dominios');
+    if (!cod && termo.length < 3) return avisar('Digite um código ou ao menos 3 letras da descrição.', 'erro');
+    limpar(tb).append(linhaMsg(7, '⏳ Pesquisando…'));
+    const r = await api(`/api/dominio_tuss?codigo=${encodeURIComponent(cod)}&termo=${encodeURIComponent(termo)}`);
+    limpar(tb);
+    if (!r.ok) return tb.append(linhaMsg(7, erroDe(r), '#c00'));
+    if (!r.dados.length) return tb.append(linhaMsg(7, 'Sem resultados.'));
+    const staff = pode('tuss:editar');
+    for (const d of r.dados) {
+        const acoes = staff ? el('td', {},
+            el('button', { class: 'btn btn-warning', 'aria-label': 'Editar ' + d.codigoTermo, style: 'padding:4px;font-size:11px', 'data-acao': 'prepararEdicaoDominio', 'data-json': JSON.stringify(d) }, '✏️'), ' ',
+            el('button', { class: 'btn btn-danger', 'aria-label': 'Inativar ' + d.codigoTermo, style: 'padding:4px;font-size:11px', 'data-acao': 'excluirDominioTUSS', 'data-id': d.id }, '🗑️')) : el('td', {}, '-');
+        tb.append(el('tr', {}, el('td', {}, d.codigoTabela), el('td', {}, el('strong', {}, d.codigoTermo)),
+            el('td', {}, d.termo, d.ativo ? '' : ' (inativo)'), el('td', {}, d.apresentacaoModelo || '-'),
+            el('td', {}, d.fabricante || '-'), el('td', {}, d.registroAnvisa || '-'), acoes));
     }
 }
-
-// Executa a busca assim que a página terminar de carregar
-document.addEventListener('DOMContentLoaded', carregarPublicidadesAtivas);

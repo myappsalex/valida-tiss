@@ -1,30 +1,22 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, ">
     <title>Meu Painel - ValidaTISS</title>
-    <!-- Importação do CSS Centralizado -->
     <link rel="stylesheet" href="css/style.css">
-    <script>
-        const sessao = JSON.parse(sessionStorage.getItem('sessaoTISS'));
-        if (!sessao || sessao.tipo === "INTERNO") {
-            alert("Acesso exclusivo para clientes. Redirecionando...");
-            window.location.href = "index.html";
-        }
-    </script>
 </head>
 <body>
-    <div class="dashboard">
+<a class="skip-link" href="#principal">Ir para o conteúdo</a>
+    <div class="dashboard" id="principal">
         <div class="header">
             <div>
                 <h2 style="margin: 0;">📊 Meu Painel - <span id="nome-empresa-painel">Empresa</span></h2>
-                <!--<p style="margin: 5px 0 0 0; color: #666;">Saldo Atual: <strong id="saldo-tokens-painel" style="color: #0056b3; font-size: 18px;">0</strong> Tokens IA</p>-->
             </div>
             <div>
-                <button class="btn btn-primary" onclick="window.location.href='index.html'">Voltar ao Validador</button>
-                <button class="btn btn-success" onclick="abrirModal('modalConsultaTUSS')">📦 Consulta tabelas TISS/TUSS</button>
-				<button class="btn btn-danger" onclick="efetuarLogout()">Sair</button>				
+                <button class="btn btn-primary" data-onclick="irPara('index.html')">Voltar ao Validador</button>
+                <button class="btn btn-success" data-onclick="abrirModal('modalConsultaTUSS')">📦 Consulta tabelas TISS/TUSS</button>
+				<button class="btn btn-danger" data-onclick="efetuarLogout()">Sair</button>				
             </div>
         </div>
 		<!-- PAINEL FINANCEIRO DO CLIENTE -->
@@ -36,7 +28,7 @@
                     <span id="dash-plano" style="font-size: 28px; font-weight: bold; color: #333;">FREEMIUM</span>
                 </div>
                 <p style="font-size: 13px; color: #666; margin: 10px 0;">Status Financeiro: <span id="dash-status" style="font-weight:bold; padding: 3px 8px; border-radius: 12px; font-size: 11px;">A CARREGAR...</span></p>
-                <button class="btn btn-success" style="width:100%; margin-top: 15px; font-size: 13px;" onclick="alert('Redirecionando para o Gateway de Pagamento (Stripe/Asaas)...')">⭐ Assinar Premium / Pagar Mensalidade</button>
+                <button class="btn btn-success" style="width:100%; margin-top: 15px; font-size: 13px;" id="btn-assinar" data-onclick="assinarPremium">⭐ Assinar Premium / Pagar Mensalidade</button>
             </div>
 
             <!-- Card de Tokens IA -->
@@ -47,13 +39,13 @@
                     <span style="font-size: 13px; color: #666;">Tokens</span>
                 </div>
                 <p style="font-size: 13px; color: #666; margin: 10px 0;">Utilizados para auditoria profunda de pertinência médica.</p>
-                <button class="btn btn-primary" style="width:100%; margin-top: 15px; background-color: #6f42c1; font-size: 13px;" onclick="window.location.href='index.html'">🛒 Comprar Mais Tokens</button>
+                <button class="btn btn-primary" style="width:100%; margin-top: 15px; background-color: #6f42c1; font-size: 13px;" data-onclick="irPara('index.html')">🛒 Comprar Mais Tokens</button>
             </div>
         </div>
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px;">
     <h3 style="margin: 0; color: #333;">📢 Minhas Campanhas de Publicidade</h3>
-    <button class="btn btn-primary" onclick="abrirPedidoPublicidade()">+ Nova Campanha</button>
+    <button class="btn btn-primary" data-onclick="abrirPedidoPublicidade()">+ Nova Campanha</button>
 </div>
 <div class="table-responsive">
     <table>
@@ -66,16 +58,7 @@
             </tr>
         </thead>
         <tbody id="lista-minhas-campanhas">
-            <!-- Simulação visual da resposta do Admin -->
-            <tr>
-                <td>Lançamento ERP Novo</td>
-                <td><span class="badge" style="background:#f39c12;">ORÇAMENTO RECEBIDO</span></td>
-                <td><span style="font-size: 11px; color: #666;">Faremos o banner lateral por R$ 500,00</span></td>
-                <td>
-                    <button class="btn btn-success" style="padding: 5px; font-size:11px;" onclick="abrirPagamentoPIX(1, 500.00)">💲 Pagar PIX</button>
-                    <button class="btn btn-danger" style="padding: 5px; font-size:11px;" onclick="alert('Pedido cancelado')">Cancelar</button>
-                </td>
-            </tr>
+            <tr><td colspan="4" style="text-align:center">Carregando…</td></tr>
         </tbody>
     </table>
 </div>
@@ -86,21 +69,20 @@
         <h3 style="color: #28a745; margin-top: 0;">💲 Pagamento via PIX</h3>
         <p>Valor a pagar: <strong id="pix-valor-display">R$ 0,00</strong></p>
         
-        <!-- API de Geração de QR Code (Google Chart API para simulação) -->
-        <img id="pix-qrcode-img" src="https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=00020126580014br.gov.bcb.pix...&choe=UTF-8" alt="QR Code PIX" style="margin: 15px auto; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
+        <img id="pix-qrcode-img" src="" alt="QR Code PIX" width="200" height="200" style="margin:15px auto;display:block;border:1px solid #ddd;padding:10px;border-radius:8px">
         
         <p style="font-size: 11px; color: #666;">PIX Copia e Cola:</p>
-        <input type="text" id="pix-copia-cola" value="00020126580014br.gov.bcb.pix0136..." class="form-control" readonly style="margin-bottom: 15px; text-align: center; font-size: 11px;">
+        <input type="text" id="pix-copia-cola" aria-label="PIX copia e cola" class="form-control" readonly style="margin-bottom: 15px; text-align: center; font-size: 11px;">
         
-        <button class="btn btn-success" style="width: 100%;" onclick="copiarPix()">Copiar Código PIX</button>
-        <p style="font-size: 11px; color: #dc3545; margin-top: 10px;">Após o pagamento, o administrador ativará a campanha.</p>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalPagarAds')">Fechar</button>
+        <button class="btn btn-success" style="width: 100%;" data-onclick="copiarPix()">Copiar Código PIX</button>
+        <p style="font-size: 11px; color: #dc3545; margin-top: 10px;">A campanha é ativada automaticamente após a confirmação do pagamento.</p>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalPagarAds')">Fechar</button>
     </div>
 </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
             <h3 style="margin: 0; color: #333;">⚙️ As Minhas Regras de Negócio Customizadas</h3>
-            <button class="btn btn-success" onclick="abrirModalNovaRegra()">+ Criar Nova Regra</button>
+            <button class="btn btn-success" data-onclick="abrirModalNovaRegra()">+ Criar Nova Regra</button>
         </div>
         <p style="font-size: 13px; color: #666;">Crie gatilhos para que o validador bloqueie ou alerte guias que saiam do padrão do seu contrato antes do envio.</p>
 
@@ -185,8 +167,8 @@
                 <input type="text" id="regra-mensagem" class="form-control" placeholder="Ex: Revisar com a diretoria médica!">
             </div>
 
-            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" onclick="salvarRegra()">Guardar Regra</button>
-            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModal('modalNovaRegra')">Cancelar</button>
+            <button class="btn btn-success" style="width: 100%; margin-top: 10px;" data-onclick="salvarRegra()">Guardar Regra</button>
+            <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModal('modalNovaRegra')">Cancelar</button>
         </div>
     </div>
 
@@ -211,10 +193,10 @@
         </div>
         
         <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button id="btn-aprovar-orc" class="btn btn-success" style="flex: 1;" onclick="aprovarOrcamentoPIX()">Aprovar e Pagar PIX</button>
-            <button id="btn-cancelar-orc" class="btn btn-danger" style="flex: 1;" onclick="cancelarPedidoCliente()">Cancelar Pedido</button>
+            <button id="btn-aprovar-orc" class="btn btn-success" style="flex: 1;" data-onclick="aprovarOrcamentoPIX">Aprovar e Pagar PIX</button>
+            <button id="btn-cancelar-orc" class="btn btn-danger" style="flex: 1;" data-onclick="cancelarPedidoCliente">Cancelar Pedido</button>
         </div>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee;" data-onclick="fecharModal('modalAcompanharAdCliente')">Fechar</button>
     </div>
 </div>
 
@@ -224,7 +206,9 @@
         <h3 style="color: #0056b3; margin-top: 0;">📢 Anuncie no Portal</h3>
         <p style="font-size: 13px; color: #666;">Descreva sua campanha. Avaliaremos o formato e enviaremos um orçamento. Após o pagamento via PIX, o banner vai para o ar!</p>
         
+        <!-- INTEGRAÇÃO: O ID Oculto GUEST restaurado -->
         <input type="hidden" id="pub-cliente-id">
+        
         <input type="text" id="pub-empresa" placeholder="Nome da sua Empresa" class="form-control" style="margin-bottom: 10px; background: #f4f7f6;" readonly>
         <input type="email" id="pub-email" placeholder="E-mail de Contato" class="form-control" style="margin-bottom: 10px; background: #f4f7f6;" readonly>
         <input type="url" id="pub-link" placeholder="Link de Destino (Ex: https://seusite.com)" class="form-control" style="margin-bottom: 15px;">
@@ -236,45 +220,44 @@
         <input type="file" id="pub-arquivo" accept="image/png, image/jpeg" class="form-control" style="margin-bottom: 15px;">
         <div style="margin-top: 10px;">
 			<label><strong>Local de Exibição:</strong></label>
-			<select id="aval-ad-local" class="form-control" style="width: 100%;">
+			<select id="pub-local" class="form-control" style="width: 100%;">
 				<option value="CABECALHO">Cabeçalho Principal (Horizontal)</option>
 				<option value="LATERAL">Barra Lateral (Vertical)</option>
 			</select>
 		</div>
-        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" onclick="enviarPedidoPub()">Solicitar Orçamento</button>
-        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" onclick="fecharModais()">Cancelar</button>
+        <button id="btn-pub-submit" class="btn btn-primary" style="width: 100%;" data-onclick="enviarPedidoPub()">Solicitar Orçamento</button>
+        <button class="btn" style="width: 100%; margin-top: 10px; background: #eee; color: #333;" data-onclick="fecharModais()">Cancelar</button>
     </div>
 </div>
 
-	
 <!-- MODAL: CONSULTA E EDIÇÃO DE DOMÍNIOS -->
 <div id="modalConsultaTUSS" class="modal-overlay">
-    <div class="modal-content" style="width: 800px; max-height: 240vh;">
+    <div class="modal-content" style="width: 800px; max-height: 90vh;">
         <h3 style="margin-top: 0; color: #333;">🔍 Consultar Tabelas de Domínio - TUSS</h3>
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="text" id="filtro-codigo-tuss" placeholder="Código (Ex: 10101012)" class="form-control" style="flex: 1;">
-            <input type="text" id="filtro-termo-tuss" placeholder="Descrição (Parte do nome)" class="form-control" style="flex: 2;">
-            <button class="btn btn-primary" onclick="pesquisarDominiosTUSS()">Pesquisar</button>
+            <input type="text" id="filtro-codigo-tuss" data-enter="pesquisarDominiosTUSS" aria-label="Código" placeholder="Código (Ex: 10101012)" class="form-control" style="flex: 1;">
+            <input type="text" id="filtro-termo-tuss" data-enter="pesquisarDominiosTUSS" aria-label="Descrição" placeholder="Descrição (Parte do nome)" class="form-control" style="flex: 2;">
+            <button class="btn btn-primary" data-onclick="pesquisarDominiosTUSS()">Pesquisar</button>
         </div>
-        <div style="max-height: 800px; overflow-y: auto;">
+        <div style="max-height: 420px; overflow-y: auto;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <thead style="background: #f8f9fa;">
-                    <tr><th>Tab</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th></tr>
+                    <tr><th>Tab.</th><th>Código</th><th>Descrição</th><th>Apresentação/Modelo</th><th>Fabricante</th><th>ANVISA</th></tr>
                 </thead>
                 <tbody id="tbody-dominios">
                     <tr><td colspan="5" style="text-align: center;">Faça uma pesquisa para exibir resultados.</td></tr>
                 </tbody>
             </table>
         </div>
-        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee; color: #333;" onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
+        <button class="btn" style="width: 100%; margin-top: 15px; background: #eee; color: #333;" data-onclick="fecharModal('modalConsultaTUSS')">Fechar</button>
     </div>
 </div>
 
 	 <!-- Scripts Modularizados no final do body -->
+    <script src="js/modulos/core.js"></script>
     <script src="js/modulos/ui.js"></script>
     <script src="js/modulos/auth.js"></script>
 	<script src="js/modulos/cliente.js"></script>
-    <!--<script src="app.js"></script>-->
 	
 </body>
 </html>
