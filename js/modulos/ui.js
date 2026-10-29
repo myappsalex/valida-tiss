@@ -44,7 +44,7 @@ function _pintarCabecalho(ad) {
     // CORREÇÃO 1: Adicionado !ad.isPadrão
     if (ad && !ad.isPadrão) {
         d.append(el('h3', { style: 'margin:0' }, '🚀 ' + ad.titulo), el('span', { class: 'pulse-text' }, ad.texto));
-        d.style.background = ad.cor ? ad.cor : "";
+        d.style.background = '';
     } else {
         d.append(el('h3', { style: 'margin:0' }, '🚀 O seu software médico visto por milhares de faturistas!'), el('span', { class: 'pulse-text' }, 'Clique aqui e anuncie no portal'));
         d.style.background = "";
@@ -64,15 +64,15 @@ function _pintarLateral(ad) {
         
         if (ad.banner && ad.banner.startsWith('/api/banner?id=')) {
             d.append(el('img', { src: ad.banner, alt: 'Anúncio: ' + ad.titulo, width: 150, loading: 'lazy' }));
-        } else if (ad.banner && ad.banner.startsWith('http')) {
+        } else if (ad.banner && /^https:\/\//i.test(ad.banner) && urlSegura(ad.banner)) {
             // CORREÇÃO 2: Exibe a Logo através de URL no lugar do emoji
-            d.append(el('img', { src: ad.banner, alt: 'Logo ' + ad.titulo, style: 'max-width:120px; max-height:120px; margin: 10px auto; display: block; border-radius: 4px;' }));
+            d.append(el('img', { src: urlSegura(ad.banner), alt: 'Logo ' + ad.titulo, referrerpolicy: 'no-referrer', loading: 'lazy', style: 'max-width:120px; max-height:120px; margin: 10px auto; display: block; border-radius: 4px;' }));
         } else {
             d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
         }
         
         d.append(el('span', { class: 'btn-ad' }, 'Acessar'));
-        d.style.background = ad.cor ? ad.cor : "";
+        d.style.background = '';
     } else {
         d.append(el('h4', {}, 'Anuncie Aqui'), el('p', {}, 'O seu software visto por quem decide.'));
         d.append(el('div', { class: 'pulse-text', style: 'background:none;color:#ffc107;padding:0;margin-bottom:10px;font-size:30px' }, '📢'));
@@ -201,6 +201,12 @@ async function gerarPix(corpo, btn) {
         if (r.ok) mostrarPix(r.dados); else avisar(erroDe(r), 'erro');
     };
     return btn ? comCarga(btn, 'Gerando PIX…', exec) : exec();
+}
+async function copiarCampo(id) {
+    const campo = document.getElementById(id); if (!campo) return;
+    try { await navigator.clipboard.writeText(campo.value); }
+    catch { campo.select(); document.execCommand('copy'); }
+    avisar('Copiado.', 'ok');
 }
 async function copiarPix() {
     const campo = document.getElementById('pix-copia-cola');

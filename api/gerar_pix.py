@@ -31,7 +31,7 @@ class handler(ApiHandler):
     def post(self, ctx):
         p = ctx.exigir(tipo="CLIENTE")
         d = ctx.json()
-        tipo = v.escolha(d.get("tipo"), ("AD", "ASSINATURA"), "Tipo")
+        tipo = v.escolha(d.get("tipo"), ("AD", "ASSINATURA", "TOKENS"), "Tipo")
         db = get_db()
 
         if tipo == "AD":
@@ -52,6 +52,28 @@ class handler(ApiHandler):
             if n == 0:
                 raise ApiError(409, "O pedido mudou de estado. Atualize a página.", "estado")
             return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
+
+        if tipo == "TOKENS":
+            preco_tok = config.env("PRECO_TOKEN", "0.15")
+            try:
+                preco_tok = float(preco_tok)
+            except ValueError:
+                raise ApiError(503, "Compra de tokens indisponível no momento.", "indisponivel")
+            qtd = v.inteiro(d.get("quantidade"), "Quantidade", config.TOKENS_MIN, config.TOKENS_MAX)
+            valor = round(qtd * preco_tok, 2)          # o valor é SEMPRE calculado aqui, nunca vem do navegador
+            if valor < 1:
+                raise ApiError(422, "Valor mínimo da cobrança: R$ 1,00.", "validacao")
+            if db.compratokens.count(where={"clienteId": p.id, "status": "AGUARDANDO"}) >= 5:
+                raise ApiError(429, "Você já tem 5 compras aguardando pagamento. Pague ou aguarde a expiração.", "limite")
+            cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
+            compra = db.compratokens.create(data={"clienteId": p.id, "quantidade": qtd, "valor": valor})
+            try:
+                cob = asaas.criar_cobranca_pix(cid, valor, f"{qtd} tokens de IA ValidaTISS", f"TOK_{compra.id}")
+            except ApiError:
+                db.compratokens.update(where={"id": compra.id}, data={"status": "CANCELADO"})
+                raise
+            db.compratokens.update(where={"id": compra.id}, data={"asaasPaymentId": cob["id"]})
+            return {"sucesso": True, "valor": valor, "quantidade": qtd, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
 
         preco = config.env("PRECO_PREMIUM_MENSAL")
         if not preco:

@@ -1,4 +1,4 @@
-"""
+"""/api/gestao_usuarios – IAM interno e carteira de clientes (somente staff).
 
 Corrige: endpoint sem autenticação; reset para senha fixa; `atualizar_tokens`
 chamado pelo front mas inexistente; filtros ignorados; listagem de clientes sem
@@ -6,8 +6,6 @@ plano/tokens/statusPagamento (a grade mostrava sempre FREEMIUM/0); bloqueio que
 sobrescrevia `perfil`; `editar` com valor arbitrário; reativação acidental ao
 editar nome; data de cancelamento ignorada; sem paginação nem auditoria.
 """
-"""/api/gestao_usuarios – IAM interno e carteira de clientes (somente staff)."""
-
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,6 +14,7 @@ from vt_core import audit, config, security, validation as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
+
 def _item_cliente(c):
     return {"id": c.id, "nome": c.nomeEmpresa, "email": c.emailAcesso,
             "statusConta": c.statusConta, "plano": security.plano_efetivo(c),
@@ -23,26 +22,35 @@ def _item_cliente(c):
             "tokensRestantes": c.tokensIA, "criadoEm": getattr(c, "criadoEm", None),
             "dataCancelamento": getattr(c, "dataCancelamento", None)}
 
+
 def _item_interno(u):
     return {"id": u.id, "nome": u.nome, "email": u.email, "perfil": u.perfil,
             "status": security.status_interno(u), "criadoEm": getattr(u, "criadoEm", None)}
 
+
+EMAIL_AVULSO = "anunciante.avulso@validatiss.com"
+
+
+def _conta_sistema(rec):
+    return getattr(rec, "statusConta", None) == "GUEST" or getattr(rec, "emailAcesso", None) == EMAIL_AVULSO
+
+
 def _tabela(db, tipo):
     return db.usuario if tipo == "INTERNO" else db.cliente
+
 
 def _alvo(db, tipo, id_):
     rec = _tabela(db, tipo).find_unique(where={"id": str(id_ or "")})
     if not rec:
         raise ApiError(404, "Registro não encontrado.")
-    # -----------------------------------------------------------------
-    # INTEGRAÇÃO: Oculta e protege a conta de anúncios avulsos do Admin
-    # -----------------------------------------------------------------
-    if tipo == "CLIENTE" and rec.emailAcesso == "anunciante.avulso@validatiss.com":
-        raise ApiError(403, "Esta é uma conta de sistema (GUEST) e não pode ser alterada manualmente.")
+    if tipo == "CLIENTE" and _conta_sistema(rec):
+        raise ApiError(403, "Esta é uma conta de sistema (anunciantes avulsos) e não pode ser alterada.")
     return rec
+
 
 def _admins_ativos(db):
     return db.usuario.count(where={"perfil": "ADMIN", "status": "ATIVO"})
+
 
 class handler(ApiHandler):
     def get(self, ctx):
@@ -51,7 +59,6 @@ class handler(ApiHandler):
         db = get_db()
         pagina = max(1, int(ctx.query.get("page", 1) or 1)) if str(ctx.query.get("page", "1")).isdigit() else 1
         tam = min(200, max(1, int(ctx.query.get("pageSize", 50)))) if str(ctx.query.get("pageSize", "50")).isdigit() else 50
-        
         if tipo == "INTERNO":
             total = db.usuario.count()
             itens = [_item_interno(u) for u in db.usuario.find_many(
@@ -62,14 +69,11 @@ class handler(ApiHandler):
                 where["nomeEmpresa"] = {"contains": ctx.query["nome"][:100], "mode": "insensitive"}
             if ctx.query.get("email"):
                 where["emailAcesso"] = {"contains": ctx.query["email"][:100].lower()}
+            where["statusConta"] = {"not": "GUEST"}           # esconde a conta de sistema dos anunciantes avulsos
             if ctx.query.get("status"):
                 where["statusPagamento"] = v.escolha(ctx.query["status"], config.STATUS_PAGAMENTO, "Status")
             if ctx.query.get("statusConta"):
                 where["statusConta"] = v.escolha(ctx.query["statusConta"], config.STATUS_CLIENTE, "Status da conta")
-            
-            # INTEGRAÇÃO: Ignora a conta fictícia nas pesquisas
-            where["emailAcesso"] = {"not": "anunciante.avulso@validatiss.com", **where.get("emailAcesso", {})}
-            
             total = db.cliente.count(where=where)
             itens = [_item_cliente(c) for c in db.cliente.find_many(
                 where=where, order={"criadoEm": "desc"}, take=tam, skip=(pagina - 1) * tam)]
@@ -100,17 +104,17 @@ class handler(ApiHandler):
                          ("INTERNO", "CLIENTE"), "Tipo")
         perm = "usuarios:gerir" if tipo == "INTERNO" else (
             "tokens:ajustar" if acao == "atualizar_tokens" else ("assinatura:editar" if acao == "editar_assinatura" else "clientes:editar"))
-            
         if not p.pode(perm):
             raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
-            
         alvo = _alvo(db, tipo, corpo.get("id"))
         tabela = _tabela(db, tipo)
         eh_si = tipo == "INTERNO" and alvo.id == p.id
 
         def proteger_admin(descricao):
-            if tipo != "INTERNO": return
-            if eh_si: raise ApiError(409, f"Você não pode {descricao} a própria conta.")
+            if tipo != "INTERNO":
+                return
+            if eh_si:
+                raise ApiError(409, f"Você não pode {descricao} a própria conta.")
             if alvo.perfil == "ADMIN" and security.status_interno(alvo) == "ATIVO" and _admins_ativos(db) <= 1:
                 raise ApiError(409, "É preciso manter ao menos um administrador ativo.")
 
@@ -149,7 +153,8 @@ class handler(ApiHandler):
             novo = str(corpo.get("novo_dado") or "").strip().upper()
             if tipo == "INTERNO":
                 novo = v.escolha(novo, config.PERFIS_INTERNOS, "Perfil")
-                if novo != "ADMIN": proteger_admin("rebaixar")
+                if novo != "ADMIN":
+                    proteger_admin("rebaixar")
                 tabela.update(where={"id": alvo.id}, data={"perfil": novo, "tokenVersion": {"increment": 1}})
             else:
                 novo = v.escolha(novo, config.STATUS_CLIENTE, "Status")
@@ -158,7 +163,8 @@ class handler(ApiHandler):
             return {"sucesso": True, "mensagem": f"Registro atualizado para: {novo}"}
 
         if acao == "editar_dados":
-            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE":
+                raise ApiError(400, "Disponível apenas para clientes.")
             data = {"nomeEmpresa": v.texto(corpo.get("nome"), "Nome", 2, 120)}
             cancelar = corpo.get("cancelar") is True
             if cancelar:
@@ -175,32 +181,35 @@ class handler(ApiHandler):
             return {"sucesso": True, "mensagem": "Dados cadastrais atualizados com sucesso."}
 
         if acao == "atualizar_tokens":
-            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE":
+                raise ApiError(400, "Disponível apenas para clientes.")
             q = v.inteiro(corpo.get("quantidade"), "Quantidade", -100000, 100000)
-            if q == 0: raise ApiError(422, "Informe uma quantidade diferente de zero.", "validacao")
+            if q == 0:
+                raise ApiError(422, "Informe uma quantidade diferente de zero.", "validacao")
             motivo = v.texto(corpo.get("motivo"), "Motivo", 0, 200, obrigatorio=False)
             if q > 0:
                 tabela.update(where={"id": alvo.id}, data={"tokensIA": {"increment": q}})
-            else:
+            else:  # débito atômico: nunca deixa o saldo negativo
                 n = tabela.update_many(where={"id": alvo.id, "tokensIA": {"gte": -q}},
                                        data={"tokensIA": {"decrement": -q}})
-                if n == 0: raise ApiError(409, "Saldo insuficiente para este débito.", "saldo")
+                if n == 0:
+                    raise ApiError(409, "Saldo insuficiente para este débito.", "saldo")
             saldo = tabela.find_unique(where={"id": alvo.id}).tokensIA
             audit.registrar(db, p, "TOKENS_AJUSTADOS", "CLIENTE", alvo.id, {"delta": q, "motivo": motivo, "saldo": saldo}, ctx.ip)
             return {"sucesso": True, "mensagem": "Saldo atualizado.", "tokensRestantes": saldo}
-            
+
         if acao == "editar_assinatura":
-            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE":
+                raise ApiError(400, "Disponível apenas para clientes.")
             plano = v.escolha(corpo.get("plano"), config.PLANOS, "Plano")
             status_pag = v.escolha(corpo.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
-            data_upd = {"plano": plano, "statusPagamento": status_pag}
-            
+            data = {"plano": plano, "statusPagamento": status_pag}
             if plano == "PREMIUM" and corpo.get("planoValidoAte"):
-                data_upd["planoValidoAte"] = v.data_iso(corpo["planoValidoAte"], "Validade do plano", fim_do_dia=True)
-            
-            tabela.update(where={"id": alvo.id}, data=data_upd)
+                data["planoValidoAte"] = v.data_iso(corpo["planoValidoAte"], "Validade do plano", fim_do_dia=True)
+            tabela.update(where={"id": alvo.id}, data=data)
             audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", alvo.id,
-                            {"depois": [plano, status_pag]}, ctx.ip)
-            return {"sucesso": True, "mensagem": "Assinatura atualizada."}    
+                            {"antes": [getattr(alvo, "plano", None), getattr(alvo, "statusPagamento", None)],
+                             "depois": [plano, status_pag]}, ctx.ip)
+            return {"sucesso": True, "mensagem": "Assinatura atualizada."}
 
-        raise ApiError(400, f"Comando desconhecido.")
+        raise ApiError(400, "Comando desconhecido.")

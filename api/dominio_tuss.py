@@ -1,10 +1,9 @@
-"""
+"""/api/dominio_tuss – consulta (logado) e manutenção (staff) dos domínios TUSS.
+
 Corrige: POST de editar/excluir sem autenticação; `acao` desconhecida não
 respondia nada; exclusão física (agora inativa, reversível e auditada); busca
 sem filtro de tabela, `contains` por código (varredura) e sem paginação.
 """
-"""/api/dominio_tuss – consulta (logado), validação de XML (público) e manutenção (staff)."""
-
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,6 +20,17 @@ def _item(r):
             "classeRisco": getattr(r, "classeRisco", None)}
 
 
+def _validar_lote(codigos):
+    """Devolve quais códigos existem (e estão ativos) em DominioTUSS. Máx. 500 por chamada."""
+    if not isinstance(codigos, list) or len(codigos) > 500:
+        raise ApiError(422, "Envie uma lista de até 500 códigos.", "validacao")
+    lim = sorted({c.strip() for c in codigos if isinstance(c, str) and 0 < len(c.strip()) <= 20})
+    if not lim:
+        return []
+    rows = get_db().dominiotuss.find_many(where={"codigoTermo": {"in": lim}, "ativo": True}, take=5000)
+    return sorted({r.codigoTermo for r in rows})
+
+
 class handler(ApiHandler):
     def get(self, ctx):
         p = ctx.exigir()
@@ -32,7 +42,7 @@ class handler(ApiHandler):
         if ctx.query.get("tabela"):
             where["codigoTabela"] = v.escolha(ctx.query["tabela"], config.TABELAS_TUSS, "Tabela")
         if codigo:
-            where["codigoTermo"] = {"startswith": codigo}
+            where["codigoTermo"] = {"starts_with": codigo}
         if termo:
             where["termo"] = {"contains": termo, "mode": "insensitive"}
         if p.tipo != "INTERNO":
@@ -43,39 +53,18 @@ class handler(ApiHandler):
     def post(self, ctx):
         d = ctx.json()
         acao = d.get("acao")
-        db = get_db()
-        
-        # ---------------------------------------------------------------------
-        # RECURSO INTEGRADO: Validação em Lote para o Front-end (Check Verde/Vermelho)
-        # ---------------------------------------------------------------------
-        if acao == "validar_lote":
-            codigos_para_validar = d.get("codigos")
-            if not isinstance(codigos_para_validar, list) or not codigos_para_validar:
-                return []
-            
-            # Limita a quantidade para evitar abusos no banco (1000 por requisição)
-            codigos_para_validar = [str(c) for c in codigos_para_validar[:1000]]
-            
-            encontrados = db.dominiotuss.find_many(
-                where={"codigoTermo": {"in": codigos_para_validar}},
-                select={"codigoTermo": True}
-            )
-            return [item.codigoTermo for item in encontrados]
-
-        # ---------------------------------------------------------------------
-        # Ações Administrativas (Restritas a Staff)
-        # ---------------------------------------------------------------------
+        if acao == "validar_lote":            # público (a tabela TUSS é pública); só leitura, até 500 códigos por chamada
+            return {"validos": _validar_lote(d.get("codigos"))}
         p = ctx.exigir(tipo="INTERNO", permissao="tuss:editar")
+        db = get_db()
         reg = db.dominiotuss.find_unique(where={"id": str(d.get("id") or "")})
         if not reg:
             raise ApiError(404, "Registro não encontrado.")
-            
         if acao in ("excluir", "reativar"):
             ativo = acao == "reativar"
             db.dominiotuss.update(where={"id": reg.id}, data={"ativo": ativo})
             audit.registrar(db, p, "TUSS_" + acao.upper(), "TUSS", reg.id, {"codigo": reg.codigoTermo}, ctx.ip)
             return {"sucesso": True}
-            
         if acao == "editar":
             data = {
                 "codigoTabela": v.escolha(d.get("codigoTabela"), config.TABELAS_TUSS, "Tabela"),
@@ -88,6 +77,4 @@ class handler(ApiHandler):
             db.dominiotuss.update(where={"id": reg.id}, data=data)
             audit.registrar(db, p, "TUSS_EDITAR", "TUSS", reg.id, {"codigo": data["codigoTermo"]}, ctx.ip)
             return {"sucesso": True}
-            
         raise ApiError(400, "Ação desconhecida.")
-        

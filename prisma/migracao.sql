@@ -56,6 +56,19 @@ CREATE TABLE IF NOT EXISTS "LogAdmin" (
 CREATE INDEX IF NOT EXISTS "LogAdmin_criadoEm_idx"          ON "LogAdmin"("criadoEm");
 CREATE INDEX IF NOT EXISTS "LogAdmin_alvoTipo_alvoId_idx"   ON "LogAdmin"("alvoTipo","alvoId");
 
+-- Compra de tokens via PIX ----------------------------------------------------
+CREATE TABLE IF NOT EXISTS "CompraTokens" (
+  "id"             TEXT PRIMARY KEY,
+  "clienteId"      TEXT NOT NULL REFERENCES "Cliente"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  "quantidade"     INTEGER NOT NULL,
+  "valor"          DOUBLE PRECISION NOT NULL,
+  "status"         TEXT NOT NULL DEFAULT 'AGUARDANDO',
+  "asaasPaymentId" TEXT UNIQUE,
+  "criadoEm"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "pagoEm"         TIMESTAMP(3)
+);
+CREATE INDEX IF NOT EXISTS "CompraTokens_clienteId_status_idx" ON "CompraTokens"("clienteId","status");
+
 COMMIT;
 
 -- ---------------------------------------------------------------------------

@@ -30,7 +30,10 @@ def _schema(arquivo):
         caminho = Path(os.getcwd()) / "schemas" / arquivo
     if not caminho.exists():
         return None
-    return etree.XMLSchema(etree.parse(str(caminho)))  # caminho: resolve xs:include relativo
+    try:
+        return etree.XMLSchema(etree.parse(str(caminho)))  # caminho: resolve xs:include relativo
+    except (etree.XMLSchemaParseError, OSError):
+        return None   # pacote XSD incompleto (ex.: 3.02.x da ANS referencia um tipo que não vem nos arquivos)
 
 
 def _parser():
@@ -64,7 +67,7 @@ class handler(ApiHandler):
             aviso_versao = f"O arquivo declara a versão {declarada}; validado contra ela (você selecionou {solicitada})."
         schema = _schema(config.VERSOES_TISS[versao])
         if schema is None:
-            raise ApiError(500, "Schema desta versão indisponível no servidor.")
+            raise ApiError(503, f"A validação da versão {versao} está indisponível no momento (schema incompleto no servidor). Use outra versão ou contate o suporte.", "schema_indisponivel")
 
         avisos = [aviso_versao] if aviso_versao else []
         informado, calculado = tiss.hash_informado(raiz), tiss.calcular_hash(raiz)

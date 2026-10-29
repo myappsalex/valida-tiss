@@ -112,6 +112,8 @@ async function cancelarPedidoCliente() {
     carregarMinhasCampanhas();
 }
 
+const PRECO_TOKEN_EXIBIDO = 0.15;   // só para exibição; o preço real vem de PRECO_TOKEN no servidor
+
 function abrirModalComprarTokens() {
     fecharModais();
     document.getElementById('area-pix-tokens').style.display = 'none';
@@ -123,24 +125,27 @@ function abrirModalComprarTokens() {
 
 function calcularValorTokens() {
     const qtd = parseInt(document.getElementById('qtd-tokens-comprar').value) || 0;
-    const valor = (qtd * 0.15).toFixed(2).replace('.', ','); // R$ 0,15 por token
-    document.getElementById('valor-total-tokens').textContent = 'R$ ' + valor;
+    document.getElementById('valor-total-tokens').textContent = brl(qtd * PRECO_TOKEN_EXIBIDO);   // estimativa; o servidor confirma o valor
 }
 
 async function gerarPixTokens() {
-    const qtd = parseInt(document.getElementById('qtd-tokens-comprar').value);
-    if (!qtd || qtd < 10) return avisar('A quantidade mínima é 10 tokens.', 'erro');
+    const qtd = parseInt(document.getElementById('qtd-tokens-comprar').value, 10);
+    if (!qtd || qtd < 10 || qtd > 5000) return avisar('Informe de 10 a 5.000 tokens.', 'erro');
 
-    await comCarga('btn-gerar-pix-tokens', 'Gerando PIX...', async () => {
-        // Envia o pedido para a API de pagamentos (Asaas)
-        const r = await api('/api/pagamento', { acao: 'comprar_tokens', quantidade: qtd });
-        
+    await comCarga('btn-gerar-pix-tokens', 'Gerando PIX…', async () => {
+        // O valor é calculado no SERVIDOR (PRECO_TOKEN); o navegador só informa a quantidade.
+        let r = await api('/api/gerar_pix', { tipo: 'TOKENS', quantidade: qtd });
+        if (!r.ok && r.dados && r.dados.codigo === 'cpf_cnpj_necessario') {
+            const doc = prompt('Informe o CPF ou CNPJ do pagador (exigido pelo PIX):');
+            if (!doc) return;
+            r = await api('/api/gerar_pix', { tipo: 'TOKENS', quantidade: qtd, cpfCnpj: doc });
+        }
         if (!r.ok) return avisar(erroDe(r), 'erro');
 
-        // Exibe o QR Code e o Copia e Cola retornados pelo back-end
-        document.getElementById('qrcode-pix-tokens').src = `data:image/png;base64,${r.dados.qrCodeBase64}`;
-        document.getElementById('copia-cola-pix-tokens').value = r.dados.copyPaste;
-        
+        const img = document.getElementById('qrcode-pix-tokens');
+        img.src = r.dados.imagem_qrcode ? 'data:image/png;base64,' + r.dados.imagem_qrcode : '';
+        document.getElementById('copia-cola-pix-tokens').value = r.dados.payload_pix || '';
+        document.getElementById('valor-total-tokens').textContent = brl(r.dados.valor);
         document.getElementById('btn-gerar-pix-tokens').style.display = 'none';
         document.getElementById('area-pix-tokens').style.display = 'block';
     });

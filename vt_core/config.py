@@ -24,8 +24,7 @@ def dev_inseguro():
 def session_secret():
     segredo = env("SESSION_SECRET")
     if not segredo or len(segredo) < 32:
-        # Fallback de segurança para evitar Erro 500 se a variável não existir na nuvem
-        return "ValidaTISS-Super-Secret-Key-2026-v2!"
+        raise ConfigError("SESSION_SECRET ausente ou com menos de 32 caracteres.")
     return segredo
 
 
@@ -45,6 +44,8 @@ STATUS_CLIENTE = ("PENDENTE", "ATIVO", "BLOQUEADO", "CANCELADO")
 PLANOS = ("FREEMIUM", "PREMIUM")
 STATUS_PAGAMENTO = ("ATIVO", "INATIVO")
 LOCAIS_ADS = ("CABECALHO", "LATERAL")
+TOKENS_MIN, TOKENS_MAX = 10, 5000
+STATUS_COMPRA_TOKENS = ("AGUARDANDO", "PAGO", "CANCELADO")
 STATUS_ADS = ("PENDENTE", "ORCADO", "AGUARDANDO_PAGAMENTO", "ATIVO",
               "CANCELADO", "REJEITADO", "EXPIRADO")
 STATUS_ADS_ABERTOS = ("PENDENTE", "ORCADO", "AGUARDANDO_PAGAMENTO")

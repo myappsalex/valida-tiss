@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-py"
+  interface = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")
+}
+
+// Tabela 1: Clientes Externos (SaaS)
+model Cliente {
+  id            String         @id @default(uuid())
+  nomeEmpresa   String
+  emailAcesso   String         @unique
+  senhaHash     String
+  tokensIA      Int            @default(0)
+  statusConta   String         @default("PENDENTE") 
+  criadoEm      DateTime       @default(now())
+
+  // Relacionamentos (O que o cliente "possui")
+  logsIA        LogIA[]
+  campanhaads     CampanhaAds[]
+  regras        RegraCliente[]
+}
+
+// Tabela 2: Utilizadores Internos (Admin/Backoffice)
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  perfil    String   
+  criadoEm  DateTime @default(now())
+}
+
+// Tabela 3: Registo de auditorias (Controlo de custos)
+model LogIA {
+  id            String   @id @default(uuid())
+  clienteId     String
+  numeroGuia    String
+  motorUsado    String   
+  tokensGastos  Int      @default(1)
+  dataUso       DateTime @default(now())
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// Tabela 5: Motor de Regras Customizáveis por Cliente
+model RegraCliente {
+  id            String   @id @default(uuid())
+  clienteId     String
+  nomeRegra     String   
+  tipoGuia      String   
+  campoValidado String   
+  condicao      String   
+  valorEsperado String   
+  acao          String   
+  mensagemErro  String   
+  status        String   @default("ATIVO") 
+  criadoEm      DateTime @default(now())
+
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+}
+//Redeploy
+
+// --- TABELAS DE DOMÍNIO TUSS E GLOSAS (Versão 2.0.0) ---
+
+model DominioTUSS {
+  id                 String    @id @default(uuid())
+  codigoTabela       String    
+  codigoTermo        String    
+  termo              String    
+  registroAnvisa     String?   
+  vigenciaInicio     DateTime?
+  vigenciaFim        DateTime?
+  ativo              Boolean   @default(true)
+
+  // --- NOVOS CAMPOS PARA TABELAS 19 E 20 ---
+  fabricante         String?
+  apresentacaoModelo String?
+  classeRisco        String?
+
+  @@index([codigoTabela, codigoTermo])
+}
+
+model TabelaGlosasANS {
+  codigoGlosa     String   @id // Ex: 1001, 1102, 1203, 1311
+  descricao       String   // Ex: Código incompatível com a tabela
+  tipo            String   // Administrativa, Técnica, etc.
+}
+
+model HistoricoAutorizacoes {
+  id              String   @id @default(uuid())
+  senha           String   @unique
+  carteiraBen     String
+  dataValidade    DateTime
+  status          String   // APROVADA, NEGADA, PARCIAL
+  prestadorId     String
+}
+
+model CampanhaAds {
+  id              String    @id @default(cuid())
+  usuarioId       String    
+  empresa_nome    String
+  email_contato   String
+  link_destino    String
+  tema            String
+  bannerUrl       String?
+  valorOrcamento  Float?
+  observacaoAdmin String?
+  status          String    @default("PENDENTE") 
+  criadoEm        DateTime  @default(now())
+  dataInicio      DateTime? 
+  dataFim         DateTime? 
+  localExibicao   String?   @default("CABECALHO") // NOVO CAMPO
+  
+  cliente         Cliente   @relation(fields: [usuarioId], references: [id]) 
+}

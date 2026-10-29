@@ -9,7 +9,12 @@ let dadosParaExportacao = [];
 let hashConfereOriginal = false;      // o hash do arquivo bate com o nosso algoritmo? (só então regravamos)
 
 const NI = 'Não informado';
-const TIPOS_GUIAS = ['guiaConsulta', 'guiaSP-SADT', 'guiaResumoInternacao', 'guiaHonorarioIndividual', 'guiaOdontologia'];
+// elementos reais do XSD TISS 4.x -> nome canônico usado nas regras do cliente
+const TIPOS_GUIAS = { guiaConsulta: 'guiaConsulta', 'guiaSP-SADT': 'guiaSP-SADT', guiaResumoInternacao: 'guiaResumoInternacao',
+    guiaHonorarios: 'guiaHonorarioIndividual', guiaHonorarioIndividual: 'guiaHonorarioIndividual', guiaOdonto: 'guiaOdontologia', guiaOdontologia: 'guiaOdontologia' };
+const TAGS_PROC = ['procedimentoExecutado', 'procedimentoRealizado'];     // SP/SADT e internação | honorário
+const TAGS_TOTAL = { valorProcedimentos: 'proc', valorDiarias: '05', valorTaxasAlugueis: '07', valorMateriais: '03', valorMedicamentos: '02', valorOPME: '08', valorGasesMedicinais: '01' };
+const colecao = (no, tags) => tags.flatMap(t => [...buscarVariasTags(no, t)]);
 const TABELAS_TUSS = ['18', '19', '20', '22'];
 const LIMITE_XML = 4 * 1024 * 1024;
 const _guias = [];                    // índice -> {no, tipo, numero, nome, ...}
@@ -79,10 +84,11 @@ function validarRegrasNegocio(guia, tipoGuia, dataStr) {
             badges.push({ cls: 'bg-obito', texto: 'ÓBITO' });
             aviso('Regra de Negócio', 'Óbito identificado. Conta enviada para Auditoria Médica Concorrente.');
         }
-        if (extrairTexto(guia, 'dataInicioFaturamento') === NI || extrairTexto(guia, 'dataFimFaturamento') === NI)
+        const fim = extrairTexto(guia, 'dataFinalFaturamento') !== NI ? extrairTexto(guia, 'dataFinalFaturamento') : extrairTexto(guia, 'dataFimFaturamento');
+        if (extrairTexto(guia, 'dataInicioFaturamento') === NI || fim === NI)
             erro('Glosa 1801', 'Período de faturamento ausente (Exigência XSD).');
     } else if (tipoGuia === 'guiaHonorarioIndividual') {
-        if (extrairTexto(guia, 'guiaSolicitacaoInternacao') === NI)
+        if (extrairTexto(guia, 'guiaSolicInternacao') === NI && extrairTexto(guia, 'guiaSolicitacaoInternacao') === NI)
             erro('Glosa 1014', 'Guia de Honorário órfã. Obrigatório informar a Guia de Solicitação de Internação (guia mãe).');
     }
     return { badges, alertas };
@@ -144,9 +150,8 @@ function _pintarGlosa(it) {
         'data-onclick': `verGlosa(${_glosas.length - 1})`, style: 'background:none;border:0;cursor:pointer;color:#c82333;font-size:16px;' }, '⚠️'));
 }
 
-// ---------- TUSS (lote, autenticado) ----------
+// ---------- TUSS (lote; consulta pública, só leitura) ----------
 async function validarCodigosTUSS(codigos) {
-    if (!Sessao.usuario) return null;
     const unicos = [...new Set(codigos)], validos = new Set();
     for (let i = 0; i < unicos.length; i += 500) {
         const r = await api('/api/dominio_tuss', { acao: 'validar_lote', codigos: unicos.slice(i, i + 500) });
@@ -157,7 +162,7 @@ async function validarCodigosTUSS(codigos) {
 }
 function _iconeTUSS(tabela, codigo) {
     if (!TABELAS_TUSS.includes(tabela)) return el('span', { title: 'Tabela própria/sem verificação TUSS', style: 'color:#999;margin-right:5px;' }, '•');
-    if (_tussValidos === null) return el('span', { title: 'Entre na sua conta para conferir os códigos na TUSS', style: 'color:#999;margin-right:5px;' }, '•');
+    if (_tussValidos === null) return el('span', { title: 'Base TUSS indisponível no momento', style: 'color:#999;margin-right:5px;' }, '•');
     return _tussValidos.has(codigo)
         ? el('span', { title: 'Código encontrado na base TUSS', style: 'color:green;margin-right:5px;' }, '✅')
         : el('span', { title: 'Código não encontrado na base TUSS cadastrada', style: 'color:#c82333;margin-right:5px;cursor:help;' }, '❌');
@@ -229,18 +234,20 @@ function _inputNum(it, campo, valor, readonly) {
     return el('input', a);
 }
 function _montarItem(g, gi, tipo, no, idx) {
-    const tabela = extrairTexto(no, 'codigoTabela'), codigo = extrairTexto(no, 'codigoProcedimento'), descricao = extrairTexto(no, 'descricaoProcedimento');
+    const consulta = no.localName === 'procedimento' && !!no.parentNode && no.parentNode.localName === 'dadosAtendimento';   // 4.x: consulta não tem quantidade
+    const tabela = extrairTexto(no, 'codigoTabela'), codigo = extrairTexto(no, 'codigoProcedimento'), descricao = consulta ? 'Consulta' : extrairTexto(no, 'descricaoProcedimento');
     const qtdS = extrairTexto(no, 'quantidadeExecutada'), unS = extrairTexto(no, 'valorUnitario'), totS = extrairTexto(no, 'valorTotal');
-    const qtd = qtdS !== NI ? numero(qtdS) : 0;
+    const qtd = consulta ? 1 : (qtdS !== NI ? numero(qtdS) : 0);
     let vlUnit, vlTot;
-    if (tipo === 'PROCEDIMENTO') { vlUnit = unS !== NI ? numero(unS) : 0; vlTot = totS !== NI ? numero(totS) : qtd * vlUnit; }
+    if (consulta) { vlTot = vlUnit = numero(extrairTexto(no, 'valorProcedimento', '0')); }
+    else if (tipo === 'PROCEDIMENTO') { vlUnit = unS !== NI ? numero(unS) : 0; vlTot = totS !== NI ? numero(totS) : qtd * vlUnit; }
     else { vlTot = totS !== NI ? numero(totS) : 0; vlUnit = unS !== NI ? numero(unS) : (qtd > 0 ? vlTot / qtd : 0); }
-    const it = { gi, tipo, idx, no, tipoGuia: g.tipo, qtd, vlUnit, vlTot, codDespesa: tipo === 'DESPESA' ? extrairTexto(no, 'codigoDespesa') : '', tabela, codigo, descricao, grauPart: NI, nomeProf: NI };
+    const it = { gi, tipo, idx, no, consulta, tipoGuia: g.tipo, qtd, vlUnit, vlTot, codDespesa: tipo === 'DESPESA' ? extrairTexto(no, 'codigoDespesa') : '', tabela, codigo, descricao, grauPart: NI, nomeProf: NI };
     if (tipo === 'PROCEDIMENTO') {
         it.grauPart = extrairTexto(no, 'grauParticipacao'); if (it.grauPart === NI) it.grauPart = extrairTexto(no, 'grauPart');
         it.nomeProf = extrairTexto(no, 'nomeProfissional'); if (it.nomeProf === NI) it.nomeProf = extrairTexto(no, 'nomeProf');
     }
-    it.inQtd = _inputNum(it, 'Quantidade', String(qtd), false);
+    it.inQtd = _inputNum(it, 'Quantidade', String(qtd), consulta);
     it.inUn = _inputNum(it, 'Valor unitário', vlUnit.toFixed(2), false);
     it.inTot = _inputNum(it, 'Valor total', vlTot.toFixed(2), true);
     it.celGlosa = el('td', { style: 'text-align:center;vertical-align:middle;' });
@@ -311,12 +318,18 @@ async function processarXML() {
 
         // ---- extrai guias/itens ----
         _guias.length = 0; _itens.clear(); _glosas.length = 0; dadosParaExportacao = [];
-                for (const tipo of TIPOS_GUIAS) for (const no of buscarVariasTags(xmlDoc, tipo)) {
+                for (const [elemento, tipo] of Object.entries(TIPOS_GUIAS)) for (const no of buscarVariasTags(xmlDoc, elemento)) {
             const gi = _guias.length;
-            const g = { gi, no, tipo, numero: extrairTexto(no, 'numeroGuiaPrestador'), beneficiario: extrairTexto(no, 'nomeBeneficiario'), total: 0, itens: [] };
-            g.data = extrairTexto(no, 'dataAtendimento'); if (g.data === NI) g.data = extrairTexto(no, 'dataExecucao');
+            const nomeB = extrairTexto(no, 'nomeBeneficiario'), cart = extrairTexto(no, 'numeroCarteira');   // 4.x não traz mais o nome
+            const g = { gi, no, tipo, numero: extrairTexto(no, 'numeroGuiaPrestador'), beneficiario: nomeB !== NI ? nomeB : (cart !== NI ? 'Carteira ' + cart : NI), total: 0, itens: [], editado: false };
+            g.data = extrairTexto(no, 'dataAtendimento');
+            for (const t of ['dataExecucao', 'dataInicioFaturamento']) if (g.data === NI) g.data = extrairTexto(no, t);
             _guias.push(g);
-            [...buscarVariasTags(no, 'procedimentoExecutado')].forEach((n, i) => g.itens.push(_montarItem(g, gi, 'PROCEDIMENTO', n, i)));
+            if (tipo === 'guiaConsulta') {
+                const pc = [...buscarVariasTags(no, 'procedimento')].find(n => n.parentNode && n.parentNode.localName === 'dadosAtendimento');
+                if (pc) g.itens.push(_montarItem(g, gi, 'PROCEDIMENTO', pc, 0));
+            }
+            colecao(no, TAGS_PROC).forEach(n => g.itens.push(_montarItem(g, gi, 'PROCEDIMENTO', n, g.itens.filter(x => x.tipo === 'PROCEDIMENTO').length)));
             [...buscarVariasTags(no, 'despesa')].forEach((n, i) => g.itens.push(_montarItem(g, gi, 'DESPESA', n, i)));
             g.total = g.itens.reduce((s, i) => s + i.vlTot, 0);
         }
@@ -338,7 +351,7 @@ async function processarXML() {
             if (buscarTagUnica(g.no, 'dadosExecutante')) {
                 let cod = extrairTexto(g.no, 'codigoPrestadorNaOperadora'); if (cod === NI) cod = extrairTexto(g.no, 'cnpjContratado');
                 let nome = extrairTexto(g.no, 'nomeContratado'); if (nome === NI) nome = extrairTexto(g.no, 'nomeContratadoExecutante');
-                if (nome !== NI) exec = `(${cod}) ${nome}`;
+                exec = nome !== NI ? `(${cod}) ${nome}` : (cod !== NI ? cod : NI);
             }
             const nomeGuia = g.tipo.replace('guia', 'Guia ').replace('SP-SADT', 'SP/SADT');
             const botIA = (prov, cor, rot) => el('button', { type: 'button', id: `btn-ia-${prov}-${g.gi}`, 'data-onclick': `analisarGuiaIA(${g.gi}, '${prov}')`,
@@ -411,11 +424,26 @@ function atualizarItemXML(gi, tipoItem, idx) {
     it.qtd = q; it.vlUnit = dinheiro2(u); it.vlTot = dinheiro2(q * u);
     it.inTot.value = it.vlTot.toFixed(2);
     const set = (tag, v) => { const t = buscarTagUnica(it.no, tag); if (t) t.textContent = v; };
-    set('quantidadeExecutada', String(q)); set('valorUnitario', it.vlUnit.toFixed(2)); set('valorTotal', it.vlTot.toFixed(2));
+    if (it.consulta) set('valorProcedimento', it.vlTot.toFixed(2));
+    else { set('quantidadeExecutada', String(q)); set('valorUnitario', it.vlUnit.toFixed(2)); set('valorTotal', it.vlTot.toFixed(2)); }
+    _guias[gi].editado = true;
     const linha = dadosParaExportacao.find(d => d._it === it);
     if (linha) { linha.qtdItem = q; linha.valorUnitario = it.vlUnit; linha.valorItem = it.vlTot; }
     _pintarGlosa(it);
     _recalcular();
+}
+
+// Totais do próprio XML (<valorTotal> da guia / valorTotalHonorarios): só nas guias editadas, para a operadora não glosar divergência.
+function _sincronizarTotaisXML(g) {
+    const cat = { proc: 0, '01': 0, '02': 0, '03': 0, '05': 0, '07': 0, '08': 0 };
+    g.itens.forEach(i => { const k = i.tipo === 'PROCEDIMENTO' ? 'proc' : i.codDespesa; if (k in cat) cat[k] += i.vlTot; });
+    const filhos = [...g.no.children];
+    const vt = filhos.find(c => c.localName === 'valorTotal');
+    if (vt) for (const c of vt.children) {
+        if (c.localName === 'valorTotalGeral') c.textContent = dinheiro2(g.total).toFixed(2);
+        else if (c.localName in TAGS_TOTAL) c.textContent = dinheiro2(cat[TAGS_TOTAL[c.localName]] || 0).toFixed(2);
+    }
+    const vh = filhos.find(c => c.localName === 'valorTotalHonorarios'); if (vh) vh.textContent = dinheiro2(g.total).toFixed(2);
 }
 
 // ---------- exportação ----------
@@ -438,6 +466,7 @@ async function exportarXMLCorrigido() {
         if (!r.ok) { if (r.status === 402) abrirModal('modalPremium'); return avisar(erroDe(r), 'erro'); }
         if (r.dados.restantes !== null) definirUsuario({ ...Sessao.usuario, exportacoesRestantes: r.dados.restantes });
     }
+    _guias.filter(g => g.editado).forEach(_sincronizarTotaisXML);
     if (hashConfereOriginal) {
         const h = buscarTagUnica(xmlDocAtual, 'hash');
         if (h) h.textContent = calcularHashTISS(xmlDocAtual.documentElement);
@@ -458,7 +487,7 @@ function _celulaCSV(v) {
 function exportarExcel() {
     if (!dadosParaExportacao.length) return;
     const num = n => String(dinheiro2(n)).replace('.', ',');
-    const linhas = [['Tipo de Guia', 'Número da Guia', 'Nome do Beneficiário', 'Data Atendimento', 'Tabela', 'Código Item', 'Descrição do Item', 'Tipo Despesa', 'Quantidade', 'Valor Unitário', 'Valor Total']];
+    const linhas = [['Tipo de Guia', 'Número da Guia', 'Beneficiário (nome/carteira)', 'Data Atendimento', 'Tabela', 'Código Item', 'Descrição do Item', 'Tipo Despesa', 'Quantidade', 'Valor Unitário', 'Valor Total']];
     dadosParaExportacao.forEach(l => linhas.push([l.tipoGuia, l.numeroGuia, l.beneficiario, l.data, l.tabela, l.codigoItem, l.descricaoItem, l.tipoDespesa, String(l.qtdItem).replace('.', ','), num(l.valorUnitario), num(l.valorItem)]));
     const csv = '﻿' + linhas.map(l => l.map(_celulaCSV).join(';')).join('\r\n') + '\r\n';
     _baixar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'Relatorio_TISS_Completo.csv');

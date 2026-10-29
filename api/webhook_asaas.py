@@ -64,6 +64,14 @@ class handler(ApiHandler):
                     data={"status": "ATIVO", "pagoEm": agora,
                           "dataInicio": camp.dataInicio or agora,
                           "dataFim": camp.dataFim or (agora + timedelta(days=30))})
+            elif ref.startswith("TOK_"):
+                compra = tx.compratokens.find_unique(where={"id": ref[4:]})
+                if not compra or compra.asaasPaymentId != pid or abs(compra.valor - valor) > 0.01:
+                    _log(f"TOKENS divergente ref={ref} pid={pid} valor={valor}")
+                    return {"recebido": True, "ignorado": "divergente"}
+                if tx.compratokens.update_many(where={"id": compra.id, "status": "AGUARDANDO"},
+                                               data={"status": "PAGO", "pagoEm": agora}):
+                    tx.cliente.update(where={"id": compra.clienteId}, data={"tokensIA": {"increment": compra.quantidade}})
             elif ref.startswith("ASSINATURA_"):
                 preco = float(config.env("PRECO_PREMIUM_MENSAL") or 0)
                 cli = tx.cliente.find_unique(where={"id": ref[len("ASSINATURA_"):]})
