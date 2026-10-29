@@ -10,7 +10,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vt_core import audit, config, security, validation as v
+from vt_core import audit, config, security, settings, validation as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
@@ -54,6 +54,9 @@ def _admins_ativos(db):
 
 class handler(ApiHandler):
     def get(self, ctx):
+        if ctx.query.get("acao") == "config":
+            ctx.exigir(tipo="INTERNO", permissao="config:editar")
+            return (200, settings.listar(get_db()), {"Cache-Control": "no-store"})
         tipo = v.escolha(ctx.query.get("tipo", "INTERNO"), ("INTERNO", "CLIENTE"), "Tipo")
         p = ctx.exigir(tipo="INTERNO", permissao="usuarios:gerir" if tipo == "INTERNO" else "clientes:ler")
         db = get_db()
@@ -84,6 +87,24 @@ class handler(ApiHandler):
         acao = corpo.get("acao")
         p = ctx.exigir(tipo="INTERNO")
         db = get_db()
+
+        if acao == "salvar_config":
+            if not p.pode("config:editar"):
+                raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
+            valores = corpo.get("valores")
+            if not isinstance(valores, dict) or not valores:
+                raise ApiError(422, "Nada para salvar.", "validacao")
+            for chave in valores:                       # valida tudo antes de gravar qualquer coisa
+                if chave not in settings.DEFINICOES:
+                    raise ApiError(422, "Configuração desconhecida.", "validacao")
+            mudancas = {}
+            for chave, novo in valores.items():
+                antes, depois = settings.salvar(db, p.email, chave, novo)
+                if antes != depois:
+                    mudancas[chave] = [antes, depois]
+            if mudancas:
+                audit.registrar(db, p, "CONFIG_ALTERADA", "CONFIG", ",".join(mudancas), mudancas, ctx.ip)
+            return {"sucesso": True, "mensagem": "Configurações salvas." if mudancas else "Nenhuma alteração.", "itens": settings.listar(db)}
 
         if acao == "criar_interno":
             if not p.pode("usuarios:gerir"):

@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS "CompraTokens" (
 );
 CREATE INDEX IF NOT EXISTS "CompraTokens_clienteId_status_idx" ON "CompraTokens"("clienteId","status");
 
+-- Configurações de negócio editáveis no painel (preços)
+CREATE TABLE IF NOT EXISTS "Configuracao" (
+  "chave"         TEXT PRIMARY KEY,
+  "valor"         TEXT NOT NULL,
+  "anterior"      TEXT,
+  "atualizadoPor" TEXT,
+  "atualizadoEm"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 COMMIT;
 
 -- ---------------------------------------------------------------------------

@@ -193,3 +193,11 @@ model CompraTokens {
   cliente         Cliente   @relation(fields: [clienteId], references: [id])
   @@index([clienteId, status])
 }
+
+model Configuracao {
+  chave          String   @id
+  valor          String
+  anterior       String?
+  atualizadoPor  String?
+  atualizadoEm   DateTime @default(now()) @updatedAt
+}

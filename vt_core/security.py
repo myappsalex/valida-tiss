@@ -41,7 +41,7 @@ PERMISSOES = {
 TODAS_PERMISSOES = sorted({
     "usuarios:gerir", "clientes:ler", "clientes:editar", "tokens:ajustar",
     "assinatura:editar", "tuss:ler", "tuss:editar", "tuss:carga", "regras:ler",
-    "ads:ler", "ads:avaliar", "ads:criar", "auditoria:ler",
+    "ads:ler", "ads:avaliar", "ads:criar", "auditoria:ler", "config:editar",
 })
 
 

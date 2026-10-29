@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import timedelta
 
-from vt_core import config, security
+from vt_core import config, security, settings
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
@@ -73,7 +73,7 @@ class handler(ApiHandler):
                                                data={"status": "PAGO", "pagoEm": agora}):
                     tx.cliente.update(where={"id": compra.clienteId}, data={"tokensIA": {"increment": compra.quantidade}})
             elif ref.startswith("ASSINATURA_"):
-                preco = float(config.env("PRECO_PREMIUM_MENSAL") or 0)
+                preco = settings.piso_aceito(tx, "PRECO_PREMIUM_MENSAL") or 0
                 cli = tx.cliente.find_unique(where={"id": ref[len("ASSINATURA_"):]})
                 if not cli or preco <= 0 or valor + 0.01 < preco:
                     _log(f"ASSINATURA divergente ref={ref} pid={pid} valor={valor}")

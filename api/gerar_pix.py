@@ -9,7 +9,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vt_core import asaas, config, validation as v
+from vt_core import asaas, config, settings, validation as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
@@ -28,6 +28,13 @@ def _garantir_cliente_asaas(db, cliente, cpf_cnpj_informado):
 
 
 class handler(ApiHandler):
+    def get(self, ctx):
+        """Preços vigentes (só para exibir na tela; o valor cobrado é recalculado no POST)."""
+        ctx.exigir(tipo="CLIENTE")
+        db = get_db()
+        return (200, {"precoToken": settings.obter(db, "PRECO_TOKEN"), "premiumMensal": settings.obter(db, "PRECO_PREMIUM_MENSAL"),
+                      "tokensMin": config.TOKENS_MIN, "tokensMax": config.TOKENS_MAX}, {"Cache-Control": "no-store"})
+
     def post(self, ctx):
         p = ctx.exigir(tipo="CLIENTE")
         d = ctx.json()
@@ -54,10 +61,8 @@ class handler(ApiHandler):
             return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
 
         if tipo == "TOKENS":
-            preco_tok = config.env("PRECO_TOKEN", "0.15")
-            try:
-                preco_tok = float(preco_tok)
-            except ValueError:
+            preco_tok = settings.obter(db, "PRECO_TOKEN")
+            if not preco_tok:
                 raise ApiError(503, "Compra de tokens indisponível no momento.", "indisponivel")
             qtd = v.inteiro(d.get("quantidade"), "Quantidade", config.TOKENS_MIN, config.TOKENS_MAX)
             valor = round(qtd * preco_tok, 2)          # o valor é SEMPRE calculado aqui, nunca vem do navegador
@@ -75,7 +80,7 @@ class handler(ApiHandler):
             db.compratokens.update(where={"id": compra.id}, data={"asaasPaymentId": cob["id"]})
             return {"sucesso": True, "valor": valor, "quantidade": qtd, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
 
-        preco = config.env("PRECO_PREMIUM_MENSAL")
+        preco = settings.obter(db, "PRECO_PREMIUM_MENSAL")
         if not preco:
             raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
         valor = round(float(preco), 2)

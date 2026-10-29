@@ -17,6 +17,7 @@
     <nav class="action-bar" aria-label="Ações administrativas">
         <button class="btn btn-warning" data-perm="usuarios:gerir" data-onclick="abrirModalGestaoAcessos">🔐 Gestão de Acessos (IAM)</button>
         <button class="btn btn-primary" data-perm="usuarios:gerir" data-onclick="abrirModal('modalFuncionario')">👤 Novo Usuário Interno</button>
+        <button class="btn btn-info" data-perm="config:editar" data-onclick="abrirModalPrecos">⚙️ Preços e Planos</button>
         <button class="btn btn-success" data-perm="assinatura:editar" style="background:#6f42c1" data-onclick="abrirModalAssinaturas">💳 Assinaturas (SaaS)</button>
         <button class="btn btn-success" data-perm="tokens:ajustar" data-onclick="abrirModalTokens">💰 Tokens de IA</button>
         <button class="btn btn-primary" data-perm="tuss:ler" data-onclick="abrirModal('modalAcaoTUSS')">📦 Domínios TISS/TUSS</button>
@@ -104,6 +105,15 @@
         <button id="btn-tokens" class="btn btn-success" style="width:100%;margin-top:10px" data-onclick="salvarTokensCliente">Atualizar saldo</button>
     </div>
     <button class="btn btn-cancel" style="width:100%;margin-top:10px;background:#eee" data-onclick="fecharModal('modalTokens')">Fechar</button>
+</div></div>
+
+<!-- Preços e planos (tabela Configuracao) -->
+<div id="modalPrecos" class="modal-overlay"><div class="modal-content" style="width:480px">
+    <h3 style="color:#0056b3;margin-top:0">⚙️ Preços e planos</h3>
+    <p style="font-size:13px;color:#555;margin-top:0">Vale na hora, sem novo deploy. Cobranças PIX já emitidas continuam aceitas pelo valor antigo.</p>
+    <div id="area-precos"></div>
+    <button id="btn-precos" class="btn btn-success" style="width:100%;margin-top:10px" data-onclick="salvarPrecos">Salvar preços</button>
+    <button class="btn btn-cancel" style="width:100%;margin-top:8px;background:#eee" data-onclick="fecharModal('modalPrecos')">Fechar</button>
 </div></div>
 
 <!-- Assinaturas -->

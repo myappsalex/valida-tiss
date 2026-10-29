@@ -42,7 +42,7 @@ class handler(ApiHandler):
         if ctx.query.get("tabela"):
             where["codigoTabela"] = v.escolha(ctx.query["tabela"], config.TABELAS_TUSS, "Tabela")
         if codigo:
-            where["codigoTermo"] = {"startswith": codigo}
+            where["codigoTermo"] = {"startswith": codigo}   # nome validado em produção pelo usuário (starts_with não funcionou no ambiente dele)
         if termo:
             where["termo"] = {"contains": termo, "mode": "insensitive"}
         if p.tipo != "INTERNO":

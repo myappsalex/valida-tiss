@@ -94,6 +94,31 @@ async function salvarTokensCliente() {
     });
 }
 
+// ================= PREÇOS E PLANOS =================
+let _configs = [];
+async function abrirModalPrecos() {
+    abrirModal('modalPrecos');
+    const area = limpar(document.getElementById('area-precos')); area.append(el('p', {}, '⏳ Carregando…'));
+    const r = await api('/api/gestao_usuarios?acao=config');
+    limpar(area);
+    if (!r.ok) return area.append(el('p', { class: 'erro' }, erroDe(r)));
+    _configs = r.dados;
+    for (const c of _configs) {
+        area.append(el('div', { class: 'form-group' },
+            el('label', { for: 'cfg-' + c.chave }, c.rotulo),
+            el('input', { type: 'number', id: 'cfg-' + c.chave, class: 'form-control', step: '0.01', min: c.min, max: c.max, value: c.valor == null ? '' : c.valor.toFixed(2) }),
+            el('small', { style: 'color:#666' }, `${c.nota} Origem atual: ${c.origem}.` + (c.atualizadoPor ? ` Última alteração: ${c.atualizadoPor}.` : ''))));
+    }
+}
+async function salvarPrecos() {
+    const valores = {};
+    for (const c of _configs) valores[c.chave] = val('cfg-' + c.chave).trim() || null;
+    await comCarga('btn-precos', 'Salvando…', async () => {
+        const r = await api('/api/gestao_usuarios', { acao: 'salvar_config', valores });
+        if (r.ok) { avisar(r.dados.mensagem, 'ok'); fecharModal('modalPrecos'); } else avisar(erroDe(r), 'erro');
+    });
+}
+
 // ================= ASSINATURAS =================
 async function abrirModalAssinaturas(d) {
     abrirModal('modalAssinaturas'); document.getElementById('area-edicao-assinatura').style.display = 'none';

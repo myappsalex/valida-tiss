@@ -112,10 +112,12 @@ async function cancelarPedidoCliente() {
     carregarMinhasCampanhas();
 }
 
-const PRECO_TOKEN_EXIBIDO = 0.15;   // só para exibição; o preço real vem de PRECO_TOKEN no servidor
+let PRECO_TOKEN_EXIBIDO = 0.15;   // só para exibição; o preço real é definido no painel admin e recalculado no servidor
 
-function abrirModalComprarTokens() {
+async function abrirModalComprarTokens() {
     fecharModais();
+    const rp = await api('/api/gerar_pix');           // preço vigente (definido no painel admin)
+    if (rp.ok && rp.dados.precoToken) PRECO_TOKEN_EXIBIDO = rp.dados.precoToken;
     document.getElementById('area-pix-tokens').style.display = 'none';
     document.getElementById('btn-gerar-pix-tokens').style.display = 'block';
     document.getElementById('qtd-tokens-comprar').value = 100;

@@ -21,13 +21,16 @@ vercel.json, requirements.txt
 | `VALIDA_TISS_DATABASE_POSTGRES_URL` | sim | já é a variável do seu schema; use a URL do **pooler** (pgbouncer=true&connection_limit=1) |
 | `SESSION_SECRET` | sim | ≥ 32 caracteres aleatórios. **Trocar invalida todas as sessões** |
 | `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` | p/ PIX | token do webhook configurado igual no painel Asaas; `ASAAS_BASE_URL` opcional (sandbox) |
-| `PRECO_TOKEN` | p/ compra de tokens | padrão `0.15` (R$ por token); calculado no servidor, 10 a 5.000 tokens por compra |
+| `PRECO_TOKEN` | opcional | **valor inicial/reserva**: depois de salvo em ⚙️ Preços e Planos (tabela `Configuracao`), o banco vence |
 | `PRECO_PREMIUM_MENSAL` | p/ assinatura | ex.: `99.90` — o valor **nunca** vem do navegador |
 | `GEMINI_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` | ≥ 1 | só os provedores com chave aparecem como válidos |
 | `VT_DEV_INSEGURO` | **nunca em produção** | só testes locais (cookie sem `__Host-`/Secure) |
 
 ## Limite de 12 funções (Vercel Hobby)
 Há exatamente 12 arquivos em `api/`. Por isso: compra de tokens fica em `/api/gerar_pix` (`tipo: TOKENS`), anúncios ativos em `/api/publicidade?acao=ativas` e edição de assinatura em `/api/gestao_usuarios` (`acao: editar_assinatura`). Não crie novos arquivos em `api/` sem remover outro.
+
+## Preços e planos (painel admin)
+Os preços ficam na tabela `Configuracao` e são editados em **Admin → ⚙️ Preços e Planos** (só ADMIN, permissão `config:editar`). Vale na hora, sem deploy; cada alteração entra no log de auditoria (`CONFIG_ALTERADA`). Ordem de leitura: banco → variável de ambiente → padrão. O sistema guarda o preço anterior: PIX emitido antes de um reajuste ainda é aceito pelo webhook. Optei por tabela e não pela API da Vercel porque ela exige um token com poder sobre todo o projeto, e variáveis só valem após novo deploy.
 
 ## Anúncio avulso (anunciante sem cadastro)
 Visitantes e a equipe (permissão `ads:criar`) podem registrar pedidos sem login. Eles ficam na conta de sistema `GUEST` (não autentica, oculta na gestão de usuários), com limite de 3 pendentes por e-mail e 100 globais. A logo externa deve ser `https://`. O pagamento é concluído pela equipe (contato e ativação manual), pois não há conta para pagar o PIX.
