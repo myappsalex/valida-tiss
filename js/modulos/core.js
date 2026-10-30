@@ -4,6 +4,44 @@
 // (incompatíveis com CSP). A autenticação real é o cookie HttpOnly do servidor.
 'use strict';
 
+// ================= CONTROLE DE VERSÃO (GMUD) =================
+const GMUD_VERSAO = "v2.1.1";
+const GMUD_DATA = "30/10/2026";
+const GMUD_NOTAS = [
+    "Refatoração da arquitetura (Micro-monólitos)",
+    "Novo painel de publicidade e criação de anúncios avulsos",
+    "Segurança aprimorada (JWT, Proteção CSRF, Bcrypt)"
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Cria o botão flutuante no rodapé
+    const btnVersao = el('div', {
+        style: 'position:fixed; bottom:15px; right:15px; background:#0c7489; color:#fff; padding:6px 12px; border-radius:20px; font-size:11px; font-weight:bold; cursor:pointer; z-index:9999; box-shadow:0 2px 5px rgba(0,0,0,0.3); transition: 0.2s;',
+        'data-onclick': "abrirModal('modalVersaoGMUD')"
+    }, '🚀 Versão ' + GMUD_VERSAO);
+    
+    // Efeito hover seguro
+    btnVersao.onmouseover = () => btnVersao.style.transform = 'scale(1.05)';
+    btnVersao.onmouseout = () => btnVersao.style.transform = 'scale(1)';
+
+    // 2. Monta as notas de atualização (respeitando CSP sem usar innerHTML)
+    const containerNotas = el('div', { style: 'background:#f8f9fa; padding:12px; border-radius:6px; font-size:12px; text-align:left; border:1px solid #ddd; margin-bottom:15px;' });
+    GMUD_NOTAS.forEach(nota => containerNotas.append(el('div', { style: 'margin-bottom:6px; color:#444;' }, '• ' + nota)));
+
+    // 3. Cria o Modal
+    const modalVersao = el('div', { id: 'modalVersaoGMUD', class: 'modal-overlay' },
+        el('div', { class: 'modal-content', style: 'width:350px; text-align:center;' },
+            el('h3', { style: 'color:#0c7489; margin-top:0;' }, 'Informações do Sistema'),
+            el('p', { style: 'font-size:18px; font-weight:bold; margin:10px 0; color:#333;' }, 'ValidaTISS ' + GMUD_VERSAO),
+            el('p', { style: 'font-size:12px; color:#666; margin-bottom:15px;' }, 'Atualizado em: ' + GMUD_DATA),
+            containerNotas,
+            el('button', { class: 'btn btn-primary', style: 'width:100%;', 'data-onclick': "fecharModal('modalVersaoGMUD')" }, 'Estou Ciente')
+        )
+    );
+
+    document.body.append(btnVersao, modalVersao);
+});
+
 // ---------- segurança de saída ----------
 const _ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' };
 function esc(valor) { return String(valor ?? '').replace(/[&<>"'`]/g, c => _ESC[c]); }

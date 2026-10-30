@@ -61,12 +61,24 @@ def _chamar(provedor, usuario):
         if not chave:
             raise IaErro("sem chave")
         modelo = config.env("GEMINI_MODEL", "gemini-2.5-flash")
-        d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
-                  {"x-goog-api-key": chave},
+        
+        #
+        #d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
+        #          {"x-goog-api-key": chave},
+        #          {"systemInstruction": {"parts": [{"text": SISTEMA}]},
+        #           "contents": [{"role": "user", "parts": [{"text": usuario}]}],
+        #           "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1}})
+        #return d["candidates"][0]["content"]["parts"][0]["text"]
+        #
+        
+        # CORREÇÃO AQUI: Passamos a chave via query string (?key=) e deixamos os headers vazios {}
+        d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={chave}",
+                  {}, 
                   {"systemInstruction": {"parts": [{"text": SISTEMA}]},
                    "contents": [{"role": "user", "parts": [{"text": usuario}]}],
                    "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1}})
         return d["candidates"][0]["content"]["parts"][0]["text"]
+        
     cfg = {"chatgpt": ("OPENAI_API_KEY", "https://api.openai.com/v1/chat/completions", "OPENAI_MODEL", "gpt-4o-mini"),
            "deepseek": ("DEEPSEEK_API_KEY", "https://api.deepseek.com/chat/completions", "DEEPSEEK_MODEL", "deepseek-chat")}[provedor]
     chave = config.env(cfg[0])
