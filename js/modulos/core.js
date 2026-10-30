@@ -15,23 +15,32 @@ const GMUD_NOTAS = [
 	"Implementação da edição de dados pessoais, perfil cliente"
 ];
 
+window.abrirModalGMUD = function() {
+    const containerNotas = document.getElementById('gmud-notas-container');
+    limpar(containerNotas);
+    
+    if (Sessao.usuario) {
+        // Usuário logado: exibe as notas detalhadas
+        GMUD_NOTAS.forEach(nota => containerNotas.append(el('div', { style: 'margin-bottom:6px; color:#444;' }, '• ' + nota)));
+    } else {
+        // Visitante: exibe a mensagem padrão
+        containerNotas.append(el('div', { style: 'color:#b02a37; font-weight:bold; text-align:center; padding: 10px 0;' }, '🔒 Logue para saber sobre as mudanças da versão.'));
+    }
+    
+    abrirModal('modalVersaoGMUD');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-	
-	// 1. Cria o botão flutuante no rodapé
     const btnVersao = el('div', {
         style: 'position:fixed; bottom:15px; right:15px; background:#0c7489; color:#fff; padding:6px 12px; border-radius:20px; font-size:11px; font-weight:bold; cursor:pointer; z-index:9999; box-shadow:0 2px 5px rgba(0,0,0,0.3); transition: 0.2s;',
-        'data-onclick': "abrirModal('modalVersaoGMUD')"
+        'data-onclick': "abrirModalGMUD()"
     }, '🚀 Versão ' + GMUD_VERSAO);
     
-    // Efeito hover seguro
     btnVersao.onmouseover = () => btnVersao.style.transform = 'scale(1.05)';
     btnVersao.onmouseout = () => btnVersao.style.transform = 'scale(1)';
 
-    // 2. Monta as notas de atualização (respeitando CSP sem usar innerHTML)
-    const containerNotas = el('div', { style: 'background:#f8f9fa; padding:12px; border-radius:6px; font-size:12px; text-align:left; border:1px solid #ddd; margin-bottom:15px;' });
-    GMUD_NOTAS.forEach(nota => containerNotas.append(el('div', { style: 'margin-bottom:6px; color:#444;' }, '• ' + nota)));
+    const containerNotas = el('div', { id: 'gmud-notas-container', style: 'background:#f8f9fa; padding:12px; border-radius:6px; font-size:12px; text-align:left; border:1px solid #ddd; margin-bottom:15px;' });
 
-    // 3. Cria o Modal
     const modalVersao = el('div', { id: 'modalVersaoGMUD', class: 'modal-overlay' },
         el('div', { class: 'modal-content', style: 'width:350px; text-align:center;' },
             el('h3', { style: 'color:#0c7489; margin-top:0;' }, 'Informações do Sistema'),

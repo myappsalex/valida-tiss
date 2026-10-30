@@ -91,10 +91,17 @@ function verificarScrollTermos(el) {
     }
 }
 
-function aceitarTermosUso() {
-    document.getElementById('reg-aceite').checked = true;
+window.aceitarTermosUso = function() {
+    const checkbox = document.getElementById('reg-aceite');
+    if (checkbox) {
+        checkbox.checked = true;
+    }
     fecharModal('modalTermos');
-}
+    
+    // Devolve o foco visual para o botão principal
+    const btnReg = document.getElementById('btn-registro-submit');
+    if (btnReg) btnReg.focus();
+};
 
 // Substitua a função solicitarConta() existente por esta:
 async function solicitarConta() {
