@@ -56,16 +56,24 @@ function abrirDadosCliente(d) {
     document.getElementById('dados-cli-email').value = c.email;
     const cancelado = c.statusConta === 'CANCELADO';
     document.getElementById('chk-cancelar-conta').checked = cancelado;
+	document.getElementById('dados-cli-nome').value = c.nome;
+    document.getElementById('dados-cli-cpf').value = c.cpfCnpj || ''; // NOVO
     document.getElementById('dados-cli-data-cancelamento').value = cancelado && c.dataCancelamento ? String(c.dataCancelamento).slice(0, 10) : '';
     toggleDataCancelamento(); abrirModal('modalDadosCliente');
 }
+
 function toggleDataCancelamento() { document.getElementById('div-data-cancelamento').style.display = document.getElementById('chk-cancelar-conta').checked ? 'block' : 'none'; }
 async function salvarDadosCliente() {
     const cancelar = document.getElementById('chk-cancelar-conta').checked, data = val('dados-cli-data-cancelamento');
     if (cancelar && !data) return avisar('Informe a data efetiva do cancelamento.', 'erro');
     if (cancelar && !confirm('Cancelar o acesso desta conta? O cliente será desconectado imediatamente.')) return;
     await comCarga('btn-dados-cli', 'Salvando…', async () => {
-        const r = await api('/api/gestao_usuarios', { acao: 'editar_dados', tipo: 'CLIENTE', id: val('dados-cli-id'), nome: val('dados-cli-nome').trim(), cancelar, dataCancelamento: data || null });
+        const r = await api('/api/gestao_usuarios', { 
+            acao: 'editar_dados', tipo: 'CLIENTE', id: val('dados-cli-id'), 
+            nome: val('dados-cli-nome').trim(), 
+            cpfCnpj: val('dados-cli-cpf').replace(/\D/g, ''), // NOVO
+            cancelar, dataCancelamento: data || null 
+        });
         if (r.ok) { avisar(r.dados.mensagem, 'ok'); fecharModal('modalDadosCliente'); pesquisarContratos(); } else avisar(erroDe(r), 'erro');
     });
 }

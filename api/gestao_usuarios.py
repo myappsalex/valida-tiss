@@ -20,7 +20,8 @@ def _item_cliente(c):
             "statusConta": c.statusConta, "plano": security.plano_efetivo(c),
             "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO",
             "tokensRestantes": c.tokensIA, "criadoEm": getattr(c, "criadoEm", None),
-            "dataCancelamento": getattr(c, "dataCancelamento", None)}
+            "dataCancelamento": getattr(c, "dataCancelamento", None),
+            "cpfCnpj": getattr(c, "cpfCnpj", "")} 
 
 
 def _item_interno(u):
@@ -186,7 +187,10 @@ class handler(ApiHandler):
         if acao == "editar_dados":
             if tipo != "CLIENTE":
                 raise ApiError(400, "Disponível apenas para clientes.")
-            data = {"nomeEmpresa": v.texto(corpo.get("nome"), "Nome", 2, 120)}
+            data = {
+                "nomeEmpresa": v.texto(corpo.get("nome"), "Nome", 2, 120),
+                "cpfCnpj": v.cpf_cnpj(corpo.get("cpfCnpj")) 
+            }
             cancelar = corpo.get("cancelar") is True
             if cancelar:
                 data["statusConta"] = "CANCELADO"

@@ -27,7 +27,9 @@ def publico(p):
         base.update(statusConta=r.statusConta, plano=security.plano_efetivo(r),
                     statusPagamento=getattr(r, "statusPagamento", "ATIVO") or "ATIVO",
                     tokensRestantes=r.tokensIA,
-                    exportacoesRestantes=getattr(r, "exportacoesGratis", 0), permissoes=[])
+                    exportacoesRestantes=getattr(r, "exportacoesGratis", 0), 
+                    cpfCnpj=getattr(r, "cpfCnpj", ""), 
+                    permissoes=[])
     return base
 
 
@@ -77,20 +79,25 @@ def _login(ctx, corpo, tipo):
     return {"sucesso": True, "usuario": publico(Principal(tipo, rec))}
 
 
-def _registro(corpo):
+def _registro(ctx, corpo):
     nome = v.texto(corpo.get("nome"), "Nome", 2, 120)
     email = v.email(corpo.get("email"))
     senha = corpo.get("senha")
+    cpf_cnpj = v.cpf_cnpj(corpo.get("cpfCnpj")) # NOVO: Valida o CPF/CNPJ
+    
     msg = security.validar_politica_senha(senha, email, nome)
     if msg:
         raise ApiError(422, msg, "senha_fraca")
     if corpo.get("aceite_termos") is not True:
-        raise ApiError(422, "É necessário aceitar os Termos de Uso e a Política de Privacidade.", "termos")
+        raise ApiError(422, "É necessário ler e aceitar os Termos de Uso.", "termos")
+        
     db = get_db()
     if db.cliente.find_unique(where={"emailAcesso": email}):
         raise ApiError(409, "Já existe uma conta com este e-mail.", "duplicado")
+        
     db.cliente.create(data={
         "nomeEmpresa": nome, "emailAcesso": email, "senhaHash": security.hash_senha(senha),
+        "cpfCnpj": cpf_cnpj, "ipAceite": ctx.ip, # NOVO: Grava CPF e IP
         "tokensIA": 0, "statusConta": "PENDENTE", "plano": "FREEMIUM",
         "statusPagamento": "ATIVO", "aceiteTermosEm": security.agora_utc()})
     return {"sucesso": True, "mensagem": "Conta criada! Ela ficará pendente até a liberação pela nossa equipe."}
@@ -128,7 +135,7 @@ class handler(ApiHandler):
         if acao == "login_admin":
             return _login(ctx, corpo, "INTERNO")
         if acao == "registro":
-            return _registro(corpo)
+            return _registro(ctx, corpo) # Passa o contexto para pegar o IP
         if acao == "me":
             return {"sucesso": True, "usuario": publico(ctx.exigir(permitir_troca_pendente=True))}
         if acao == "logout":

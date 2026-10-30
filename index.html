@@ -80,25 +80,62 @@
 	<!-- Modal Auth -->
     <div id="modalAuth" class="modal-overlay">
         <div class="modal-content" style="max-width: 400px;">
-            <h3 style="color: #0056b3;">Acesso Premium IA</h3>
-            <p style="font-size: 13px; color: #666;">Faça login para consumir os seus tokens de IA ou crie uma conta.</p>
+            <h3 style="color: #0056b3;">Acesso do Cliente</h3>
+            <p style="font-size: 13px; color: #666;">Faça login para consumir seus tokens de IA ou solicite sua conta.</p>
             
             <div id="form-login">
-                <input type="email" id="login-email" aria-label="E-mail de acesso" autocomplete="username" data-enter="efetuarLogin" placeholder="E-mail de acesso" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                <input type="password" id="login-senha" aria-label="Senha" autocomplete="current-password" data-enter="efetuarLogin" placeholder="Senha" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                <input type="email" id="login-email" aria-label="E-mail de acesso" autocomplete="username" data-enter="efetuarLogin" placeholder="E-mail de acesso" class="form-control" style="margin-top:10px;">
+                <input type="password" id="login-senha" aria-label="Senha" autocomplete="current-password" data-enter="efetuarLogin" placeholder="Senha" class="form-control" style="margin-top:10px;">
                 <button id="btn-login-submit" class="btn-primary" data-onclick="efetuarLogin()" style="width: 100%; margin-top: 15px;">Entrar no Sistema</button>
-                <p style="font-size: 12px; margin-top: 15px;">Não tem conta? <a href="#" data-onclick="alternarFormAuth('registro')" style="color: #0056b3;">Registe-se aqui</a></p>
+                <p style="font-size: 12px; margin-top: 15px; text-align: center;">Não tem conta? <a href="#" data-onclick="alternarFormAuth('registro')" style="color: #0056b3; font-weight: bold;">Registe-se aqui</a></p>
             </div>
 
             <div id="form-registro" style="display: none;">
-                <input type="text" id="reg-nome" aria-label="Nome da empresa" autocomplete="organization" placeholder="Nome da Empresa / Utilizador" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                <input type="email" id="reg-email" aria-label="E-mail" autocomplete="email" placeholder="E-mail de Contato (Chave de Acesso)" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                <input type="password" id="reg-senha" aria-label="Senha" autocomplete="new-password" minlength="10" placeholder="Senha (mín. 10 caracteres; 3 tipos de caractere)" style="width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                <label style="display:flex;gap:8px;font-size:12px;margin-top:12px;align-items:flex-start"><input type="checkbox" id="reg-aceite"> <span>Li e aceito os Termos de Uso e a Política de Privacidade (LGPD).</span></label>
-                <button id="btn-registro-submit" class="btn-success" data-onclick="solicitarConta()" style="width: 100%; margin-top: 15px;">Solicitar Conta e Tokens</button>
-                <p style="font-size: 12px; margin-top: 15px;">Já possui conta? <a href="#" data-onclick="alternarFormAuth('login')" style="color: #0056b3;">Faça Login</a></p>
+                <input type="text" id="reg-nome" aria-label="Nome da empresa" autocomplete="organization" placeholder="Nome da Empresa / Utilizador" class="form-control" style="margin-top: 10px;">
+                <input type="text" id="reg-cpf" aria-label="CPF ou CNPJ" placeholder="CPF ou CNPJ" class="form-control" style="margin-top: 10px;">
+                <input type="email" id="reg-email" aria-label="E-mail" autocomplete="email" placeholder="E-mail de Contato (Chave de Acesso)" class="form-control" style="margin-top: 10px;">
+                <input type="password" id="reg-senha" aria-label="Senha" autocomplete="new-password" placeholder="Senha (mín. 10 caracteres)" class="form-control" style="margin-top: 10px;">
+                
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 12px; border: 1px solid #ddd; text-align: center; cursor: pointer;" data-onclick="abrirModalTermos()">
+                    <input type="checkbox" id="reg-aceite" style="pointer-events: none;"> 
+                    <span style="font-size:12px; font-weight:bold; color:#0056b3;">Ler e Aceitar os Termos de Uso (LGPD)</span>
+                </div>
+                
+                <button id="btn-registro-submit" class="btn-success" data-onclick="solicitarConta()" style="width: 100%; margin-top: 15px;">Confirmar cadastro</button>
+                <p style="font-size: 12px; margin-top: 15px; text-align: center;">Já possui conta? <a href="#" data-onclick="alternarFormAuth('login')" style="color: #0056b3; font-weight: bold;">Faça Login</a></p>
             </div>
-            <button class="close-modal" data-onclick="fecharModalAuth()">Cancelar</button>
+            <button class="btn btn-cancel" style="width: 100%; margin-top: 10px;" data-onclick="fecharModalAuth()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal Termos de Uso e Privacidade (LGPD) -->
+    <div id="modalTermos" class="modal-overlay" style="z-index: 3000;">
+        <div class="modal-content" style="width: 600px; max-width: 95%;">
+            <h3 style="color: #0c7489; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px;">Termos de Uso e Política de Privacidade</h3>
+            
+            <div id="texto-termos-scroll" style="max-height: 350px; overflow-y: auto; font-size: 12px; color: #444; text-align: justify; padding: 10px; background: #fdfdfd; border: 1px solid #e1e4e8; border-radius: 4px;" data-onscroll="verificarScrollTermos(this)">
+                <strong>1. OBJETO E NATUREZA DO SERVIÇO</strong><br>
+                A plataforma ValidaTISS é uma aplicação web voltada para a auditoria e validação estrutural de faturamentos médicos no padrão TISS/TUSS. As funcionalidades da camada de interface (frontend) são oferecidas em caráter gratuito e limitadas a um modo de degustação e testes operacionais. Havendo interesse na expansão das capacidades de auditoria e remoção das limitações de processamento, o Usuário poderá contratar licenças da modalidade Premium.<br><br>
+
+                <strong>2. TRATAMENTO DE DADOS E LGPD</strong><br>
+                Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), informamos que a criação desta conta coleta estritamente dados necessários para o relacionamento comercial (Nome, E-mail, CPF/CNPJ e Endereço de IP). Estes dados são protegidos por criptografia e <strong>não serão compartilhados</strong> com terceiros ou utilizados para finalidades estranhas à comunicação oficial e emissão de cobranças financeiras aprovadas pelo Usuário.<br><br>
+
+                <strong>3. RETENÇÃO E TRÂNSITO DO ARQUIVO XML</strong><br>
+                O processamento das faturas XML ocorre no dispositivo do Usuário. O ValidaTISS <strong>não grava, não arquiva e não persiste</strong> em seus bancos de dados as faturas enviadas. O Usuário tem ciência e concorda que a responsabilidade pela guarda, backup e sigilo dos arquivos XML originais permanece integralmente sob sua custódia.<br><br>
+
+                <strong>4. USO DA INTELIGÊNCIA ARTIFICIAL (IA) E MINIMIZAÇÃO</strong><br>
+                A utilização de tokens para auditoria avançada aciona modelos de Inteligência Artificial parceiros. Os prompts gerados pelo ValidaTISS aplicam técnicas de anonimização e <strong>não coletam nem transmitem dados pessoais ou sensíveis de pacientes (PHI/PII)</strong>, trafegando exclusivamente dados técnicos (códigos, valores e quantidades) estritamente necessários para a avaliação de pertinência médica do lote.<br><br>
+
+                <strong>5. DIRETRIZES DE PUBLICIDADE</strong><br>
+                Pedidos de espaço publicitário no portal estão sujeitos à aprovação prévia do gestor administrativo. Campanhas que firam preceitos legais, éticos ou que promovam conteúdo impróprio serão sumariamente rejeitadas. O período de exibição da publicidade será estritamente vinculado à duração orçada e aprovada pelo cliente através de pagamento via PIX, sem renovação automática obscura.
+            </div>
+
+            <div style="margin-top: 15px; font-size: 11px; color: #b02a37; text-align: center;" id="aviso-scroll-termos">
+                ⬇️ Role o texto até o final para habilitar o aceite.
+            </div>
+
+            <button id="btn-aceitar-termos" class="btn-success" style="width: 100%; margin-top: 10px;" disabled data-onclick="aceitarTermosUso()">Li e concordo com os termos</button>
+            <button class="btn btn-cancel" style="width: 100%; margin-top: 8px;" data-onclick="fecharModal('modalTermos')">Cancelar</button>
         </div>
     </div>
 

@@ -153,7 +153,16 @@ async function gerarPixTokens() {
     });
 }
 
-// Expõe as funções para o HTML
+function abrirMeusDadosCliente() {
+    const u = Sessao.usuario;
+    if (!u) return;
+    document.getElementById('meus-dados-nome').value = u.nome || '';
+    document.getElementById('meus-dados-email').value = u.email || '';
+    document.getElementById('meus-dados-cpf').value = u.cpfCnpj || 'Não informado';
+    abrirModal('modalMeusDados');
+}
+
+window.abrirMeusDadosCliente = abrirMeusDadosCliente;
 window.abrirModalComprarTokens = abrirModalComprarTokens;
 window.calcularValorTokens = calcularValorTokens;
 window.gerarPixTokens = gerarPixTokens;
