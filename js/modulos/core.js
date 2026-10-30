@@ -17,10 +17,7 @@ const GMUD_NOTAS = [
 
 document.addEventListener('DOMContentLoaded', () => {
 	
-	if (!usuarioLogado ) {
-		GMUD_NOTAS = "Logue para visualizar as atualizações";
-	}
-    // 1. Cria o botão flutuante no rodapé
+	// 1. Cria o botão flutuante no rodapé
     const btnVersao = el('div', {
         style: 'position:fixed; bottom:15px; right:15px; background:#0c7489; color:#fff; padding:6px 12px; border-radius:20px; font-size:11px; font-weight:bold; cursor:pointer; z-index:9999; box-shadow:0 2px 5px rgba(0,0,0,0.3); transition: 0.2s;',
         'data-onclick': "abrirModal('modalVersaoGMUD')"
