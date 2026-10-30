@@ -73,3 +73,55 @@ Pronto.then(u => {
     carregarPublicidadesAtivas();
     if (u && u.mustChangePassword) abrirTrocaSenha();
 });
+
+function abrirModalTermos() {
+    abrirModal('modalTermos');
+    document.getElementById('btn-aceitar-termos').disabled = true;
+    document.getElementById('aviso-scroll-termos').style.display = 'block';
+    
+    // Fallback caso a tela seja muito grande e não gere scroll
+    const caixa = document.getElementById('texto-termos-scroll');
+    if (caixa.scrollHeight <= caixa.clientHeight + 2) verificarScrollTermos(caixa);
+}
+
+function verificarScrollTermos(el) {
+    if (el.scrollHeight - el.scrollTop <= el.clientHeight + 10) {
+        document.getElementById('btn-aceitar-termos').disabled = false;
+        document.getElementById('aviso-scroll-termos').style.display = 'none';
+    }
+}
+
+function aceitarTermosUso() {
+    document.getElementById('reg-aceite').checked = true;
+    fecharModal('modalTermos');
+}
+
+// Substitua a função solicitarConta() existente por esta:
+async function solicitarConta() {
+    const nome = document.getElementById('reg-nome').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const cpfCnpj = document.getElementById('reg-cpf').value.replace(/\D/g, ''); // Limpa a formatação
+    const senha = document.getElementById('reg-senha').value;
+    const aceite = document.getElementById('reg-aceite').checked;
+    
+    if (!nome || !email || !cpfCnpj) return avisar('Preencha nome, CPF/CNPJ e e-mail.', 'erro');
+    if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) return avisar('CPF ou CNPJ inválido.', 'erro');
+    if (senha.length < 10) return avisar('A senha deve ter ao menos 10 caracteres.', 'erro');
+    if (!aceite) return avisar('Você deve ler e aceitar os Termos de Uso (clique na caixa azul).', 'erro');
+    
+    await comCarga('btn-registro-submit', 'Registrando…', async () => {
+        const r = await api('/api/auth', { acao: 'registro', nome, email, cpfCnpj, senha, aceite_termos: true });
+        if (r.ok) { 
+            avisar(r.dados.mensagem, 'ok'); 
+            document.getElementById('reg-senha').value = ''; 
+            document.getElementById('reg-cpf').value = ''; 
+            document.getElementById('reg-aceite').checked = false;
+            alternarFormAuth('login'); 
+        } else avisar(erroDe(r), 'erro');
+    });
+}
+
+// Exponha as novas funções
+window.abrirModalTermos = abrirModalTermos;
+window.verificarScrollTermos = verificarScrollTermos;
+window.aceitarTermosUso = aceitarTermosUso;
