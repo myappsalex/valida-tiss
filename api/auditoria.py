@@ -54,12 +54,13 @@ class handler(ApiHandler):
         # Reserva atômica: só debita se ainda houver saldo (sem corrida).
         if db.cliente.update_many(where={"id": cli.id, "tokensIA": {"gte": 1}},
                                   data={"tokensIA": {"decrement": 1}}) == 0:
-            raise ApiError(402, "Sem tokens suficientes. Adquira mais tokens ou contacte o suporte.", "sem_tokens")
+            raise ApiError(402, "Você não possui tokens suficientes para realizar essa tarefa.", "sem_tokens")
         try:
             resultado = ia.analisar(provedor, itens, contexto)
         except ia.IaErro:
             db.cliente.update(where={"id": cli.id}, data={"tokensIA": {"increment": 1}})  # estorno
-            raise ApiError(502, "A análise de IA falhou. Seu token foi devolvido; tente novamente.", "ia_indisponivel")
+            raise ApiError(502, "A comunicação com a IA falhou e o seu token foi devolvido.", "ia_indisponivel")
+            
         db.logia.create(data={"clienteId": cli.id, "numeroGuia": numero_guia,
                               "motorUsado": provedor, "tokensGastos": 1})
         saldo = db.cliente.find_unique(where={"id": cli.id}).tokensIA

@@ -190,9 +190,21 @@ async function analisarGuiaIA(gi, provedor) {
         const contexto = { tipoGuia: g.tipo, caraterAtendimento: extrairTexto(g.no, 'caraterAtendimento', ''), tipoAtendimento: extrairTexto(g.no, 'tipoAtendimento', '') };
         const r = await api('/api/auditoria', { provedor, guia: g.numero, itens, contexto });
         limpar(caixa);
+        
         if (!r.ok) {
-            if (r.status === 402) abrirModal('modalPremium');
-            caixa.append(el('span', { style: 'color:#d8000c;' }, el('strong', {}, 'Erro: '), erroDe(r)));
+            if (r.status === 402 || (r.dados && r.dados.codigo === 'sem_tokens')) {
+                // UX amigável para falta de tokens
+                caixa.append(el('span', { style: 'color:#b02a37; font-size:13px;' }, 
+                    'Você não possui tokens suficientes para realizar essa tarefa. ',
+                    el('a', { href: '#', 'data-onclick': 'abrirModalComprarTokens()', style: 'color:#0056b3; font-weight:bold; text-decoration:underline;' }, 'Clique aqui e adquira mais tokens para continuar.')
+                ));
+            } else {
+                // Erro genérico ou falha na IA orientando procurar o suporte
+                caixa.append(el('span', { style: 'color:#b02a37; font-size:13px;' }, 
+                    el('strong', {}, '❌ Erro na análise: '), erroDe(r), el('br'), 
+                    'Se o problema persistir, por favor, acione o suporte técnico.'
+                ));
+            }
             return;
         }
         definirUsuario({ ...Sessao.usuario, tokensRestantes: r.dados.tokensRestantes });
