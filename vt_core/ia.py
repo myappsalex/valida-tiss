@@ -42,7 +42,6 @@ def provedores_habilitados():
 def montar_usuario(itens, contexto):
     return json.dumps({"contexto": contexto or {}, "itens": itens}, ensure_ascii=False)
 
-
 def _post(url, headers, corpo):
     try:
         r = requests.post(url, headers=headers, json=corpo, timeout=TIMEOUT)
@@ -50,10 +49,10 @@ def _post(url, headers, corpo):
         print(f"[ia] rede: {type(exc).__name__}", file=sys.stderr)
         raise IaErro("rede")
     if r.status_code != 200:
-        # O SEGREDOS ESTÁ AQUI: Imprime o motivo EXATO pelo qual o provedor rejeitou
         print(f"[ia] ERRO {r.status_code} DO PROVEDOR: {r.text}", file=sys.stderr)
         raise IaErro("http")
     return r.json()
+
 
 def _chamar(provedor, usuario):
     if provedor == "gemini":
@@ -84,6 +83,20 @@ def _chamar(provedor, usuario):
                "messages": [{"role": "system", "content": SISTEMA},
                             {"role": "user", "content": usuario}]})
     return d["choices"][0]["message"]["content"]
+
+
+def normalizar(texto):
+    """Extrai e valida o JSON; nunca confia na forma da resposta."""
+    t = re.sub(r"^```(?:json)?|```$", "", (texto or "").strip(), flags=re.M).strip()
+    try:
+        d = json.loads(t)
+    except ValueError:
+        raise IaErro("json")
+    if not isinstance(d, dict):
+        raise IaErro("json")
+    achados = [str(a).strip()[:300] for a in (d.get("achados") or []) if str(a).strip()][:10]
+    status = "ALERTA" if achados else "OK"
+    return {"status": status, "achados": achados}
 
 
 def analisar(provedor, itens, contexto):
