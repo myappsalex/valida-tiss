@@ -15,7 +15,7 @@ import sys
 import requests
 from . import config
 
-# CORREÇÃO: Timeout reduzido para (5, 25) para evitar que a Vercel aborte a função aos 30s
+# Timeout ajustado para 25s (a Vercel mata a função aos 30s)
 TIMEOUT = (5, 25)
 
 class IaErro(Exception):
@@ -44,21 +44,22 @@ def _post(url, headers, corpo):
         print(f"[ia] rede/timeout: {type(exc).__name__}", file=sys.stderr)
         raise IaErro("rede")
     if r.status_code != 200:
-        print(f"[ia] ERRO {r.status_code} DO PROVEDOR: {r.text}", file=sys.stderr)
+        print(f"[ia] http {r.status_code}: {r.text[:200]}", file=sys.stderr)
         raise IaErro("http")
     return r.json()
 
 def _chamar(provedor, usuario):
     if provedor == "gemini":
-        chave = config.env("GEMINI_API_KEY", "").strip().strip("\"'")
+        chave = config.env("GEMINI_API_KEY", "").strip()
         if not chave:
             raise IaErro("sem chave")
             
-        modelo = config.env("GEMINI_MODEL", "gemini-3.8-flash")
+        # Retornamos à sua configuração original de sucesso
+        modelo = config.env("GEMINI_MODEL", "gemini-2.5-flash")
         
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={chave}"
-        d = _post(url, 
-                  {"Content-Type": "application/json"},
+        # Conexão original via Header que funcionava no seu ambiente
+        d = _post(f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
+                  {"x-goog-api-key": chave},
                   {"systemInstruction": {"parts": [{"text": SISTEMA}]},
                    "contents": [{"role": "user", "parts": [{"text": usuario}]}],
                    "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1}})
@@ -67,10 +68,10 @@ def _chamar(provedor, usuario):
     cfg = {"chatgpt": ("OPENAI_API_KEY", "https://api.openai.com/v1/chat/completions", "OPENAI_MODEL", "gpt-4o-mini"),
            "deepseek": ("DEEPSEEK_API_KEY", "https://api.deepseek.com/chat/completions", "DEEPSEEK_MODEL", "deepseek-chat")}[provedor]
     
-    chave = config.env(cfg[0], "").strip().strip("\"'")
+    chave = config.env(cfg[0], "").strip()
     if not chave:
         raise IaErro("sem chave")
-    d = _post(cfg[1], {"Authorization": f"Bearer {chave}", "Content-Type": "application/json"},
+    d = _post(cfg[1], {"Authorization": f"Bearer {chave}"},
               {"model": config.env(cfg[2], cfg[3]), "temperature": 0.1,
                "response_format": {"type": "json_object"},
                "messages": [{"role": "system", "content": SISTEMA},
