@@ -80,13 +80,22 @@ def _chamar(provedor, usuario):
 
 def normalizar(texto):
     """Extrai e valida o JSON; nunca confia na forma da resposta."""
-    t = re.sub(r"^```(?:json)?|```$", "", (texto or "").strip(), flags=re.M).strip()
+    import re
+    import json
+    
+    # Isola o bloco JSON garantindo que começa em { e termina em }
+    match = re.search(r"\{[\s\S]*\}", (texto or "").strip())
+    if not match:
+        raise IaErro("json")
+        
     try:
-        d = json.loads(t)
+        d = json.loads(match.group(0))
     except ValueError:
         raise IaErro("json")
+        
     if not isinstance(d, dict):
         raise IaErro("json")
+        
     achados = [str(a).strip()[:300] for a in (d.get("achados") or []) if str(a).strip()][:10]
     status = "ALERTA" if achados else "OK"
     return {"status": status, "achados": achados}
