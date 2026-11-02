@@ -12,17 +12,14 @@ Melhorias sobre o original:
 import json
 import re
 import sys
-
 import requests
-
 from . import config
 
-TIMEOUT = (5, 40)
-
+# CORREÇÃO: Timeout reduzido para (5, 25) para evitar que a Vercel aborte a função aos 30s
+TIMEOUT = (5, 25)
 
 class IaErro(Exception):
     pass
-
 
 SISTEMA = (
     "Você é auditor médico de contas hospitalares (padrão TISS/TUSS). "
@@ -33,11 +30,9 @@ SISTEMA = (
     'Responda SOMENTE JSON: {"status":"OK"|"ALERTA","achados":["frase curta", ...]}.'
 )
 
-
 def provedores_habilitados():
     bruto = config.env("IA_PROVEDORES_HABILITADOS", "gemini,chatgpt")
     return [p.strip() for p in bruto.split(",") if p.strip() in config.PROVEDORES_IA]
-
 
 def montar_usuario(itens, contexto):
     return json.dumps({"contexto": contexto or {}, "itens": itens}, ensure_ascii=False)
@@ -46,13 +41,12 @@ def _post(url, headers, corpo):
     try:
         r = requests.post(url, headers=headers, json=corpo, timeout=TIMEOUT)
     except requests.RequestException as exc:
-        print(f"[ia] rede: {type(exc).__name__}", file=sys.stderr)
+        print(f"[ia] rede/timeout: {type(exc).__name__}", file=sys.stderr)
         raise IaErro("rede")
     if r.status_code != 200:
         print(f"[ia] ERRO {r.status_code} DO PROVEDOR: {r.text}", file=sys.stderr)
         raise IaErro("http")
     return r.json()
-
 
 def _chamar(provedor, usuario):
     if provedor == "gemini":
@@ -60,7 +54,6 @@ def _chamar(provedor, usuario):
         if not chave:
             raise IaErro("sem chave")
             
-        # Padrão atualizado para a exigência do Google
         modelo = config.env("GEMINI_MODEL", "gemini-3.8-flash")
         
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent?key={chave}"
@@ -84,7 +77,6 @@ def _chamar(provedor, usuario):
                             {"role": "user", "content": usuario}]})
     return d["choices"][0]["message"]["content"]
 
-
 def normalizar(texto):
     """Extrai e valida o JSON; nunca confia na forma da resposta."""
     t = re.sub(r"^```(?:json)?|```$", "", (texto or "").strip(), flags=re.M).strip()
@@ -97,7 +89,6 @@ def normalizar(texto):
     achados = [str(a).strip()[:300] for a in (d.get("achados") or []) if str(a).strip()][:10]
     status = "ALERTA" if achados else "OK"
     return {"status": status, "achados": achados}
-
 
 def analisar(provedor, itens, contexto):
     try:
