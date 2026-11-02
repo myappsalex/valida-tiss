@@ -16,7 +16,7 @@ import requests
 from . import config
 
 # Timeout ajustado para 25s (a Vercel mata a função aos 30s)
-TIMEOUT = (5, 25)
+TIMEOUT = (5, 55)
 
 class IaErro(Exception):
     pass
