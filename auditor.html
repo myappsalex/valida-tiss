@@ -576,7 +576,7 @@
             document.head.appendChild(style);
 
             // --- Gemini API Integrations ---
-            const apiKey = "AIzaSyCvWJuPZR2NdYyr6n5iNDc8FXNqxXGyxNA";
+            const apiKey = GEMINI_API_KEY;
             
             async function fetchGeminiWithBackoff(prompt, systemInstruction) {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
