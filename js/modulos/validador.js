@@ -178,28 +178,41 @@ async function analisarGuiaIA(gi, provedor) {
     if (u.tokensRestantes <= 0) { abrirModal('modalPremium'); return; }
 
     const nomes = { gemini: '✨ Gemini', chatgpt: '✨ ChatGPT', deepseek: '✨ DeepSeek' };
-    const btn = document.getElementById(`btn-ia-${provedor}-${gi}`), caixa = document.getElementById(`resultado-ia-${gi}`);
+    const btn = document.getElementById(`btn-ia-${provedor}-${g.gi}`), caixa = document.getElementById(`resultado-ia-${g.gi}`);
     if (!btn || !caixa || btn.disabled) return;
     const rotulo = btn.textContent;
     btn.disabled = true; btn.textContent = '⏳ Analisando…';
     caixa.style.display = 'block'; limpar(caixa).append(el('strong', {}, 'Aguarde… analisando.'));
+    
     try {
-        // Minimização (LGPD): nenhum nome de paciente/profissional vai para o provedor de IA.
-        const itens = dadosParaExportacao.filter(i => i.gi === gi).map(i => ({
-            tipoDespesa: i.tipoDespesa, codigoItem: i.codigoItem, descricaoItem: i.descricaoItem, qtdItem: i.qtdItem, valorItem: i.valorItem }));
+        // AGRUPAMENTO DE DADOS (Compressão de Payload)
+        const itensBrutos = dadosParaExportacao.filter(i => i.gi === gi);
+        const mapAgrupado = new Map();
+        
+        itensBrutos.forEach(i => {
+            const chave = `${i.tabela}-${i.codigoItem}`;
+            if (!mapAgrupado.has(chave)) {
+                mapAgrupado.set(chave, { tabela: i.tabela, tipoDespesa: i.tipoDespesa, codigoItem: i.codigoItem, descricaoItem: i.descricaoItem, qtdItem: Number(i.qtdItem) || 0, valorItem: Number(i.valorItem) || 0 });
+            } else {
+                const obj = mapAgrupado.get(chave);
+                obj.qtdItem += (Number(i.qtdItem) || 0);
+                obj.valorItem += (Number(i.valorItem) || 0);
+            }
+        });
+        const itens = Array.from(mapAgrupado.values());
+        
         const contexto = { tipoGuia: g.tipo, caraterAtendimento: extrairTexto(g.no, 'caraterAtendimento', ''), tipoAtendimento: extrairTexto(g.no, 'tipoAtendimento', '') };
+        
         const r = await api('/api/auditoria', { provedor, guia: g.numero, itens, contexto });
         limpar(caixa);
         
         if (!r.ok) {
             if (r.status === 402 || (r.dados && r.dados.codigo === 'sem_tokens')) {
-                // UX amigável para falta de tokens
                 caixa.append(el('span', { style: 'color:#b02a37; font-size:13px;' }, 
                     'Você não possui tokens suficientes para realizar essa tarefa. ',
                     el('a', { href: '#', 'data-onclick': 'abrirModalComprarTokens()', style: 'color:#0056b3; font-weight:bold; text-decoration:underline;' }, 'Clique aqui e adquira mais tokens para continuar.')
                 ));
             } else {
-                // Erro genérico ou falha na IA orientando procurar o suporte
                 caixa.append(el('span', { style: 'color:#b02a37; font-size:13px;' }, 
                     el('strong', {}, '❌ Erro na análise: '), erroDe(r), el('br'), 
                     'Se o problema persistir, por favor, acione o suporte técnico.'
@@ -207,16 +220,48 @@ async function analisarGuiaIA(gi, provedor) {
             }
             return;
         }
+        
         definirUsuario({ ...Sessao.usuario, tokensRestantes: r.dados.tokensRestantes });
         const alerta = r.dados.status === 'ALERTA';
-        caixa.append(el('strong', { style: 'color:#333;font-size:14px;' }, `Auditor IA (${nomes[provedor] || provedor})`), el('br'), el('br'),
-            el('strong', {}, 'Status: '), el('span', { style: `color:${alerta ? 'red' : 'green'}` }, alerta ? '⚠️ ALERTA' : '✅ OK'), el('br'), el('br'),
-            el('strong', {}, 'Achados:'),
-            el('ul', {}, (Array.isArray(r.dados.achados) ? r.dados.achados : []).map(a => el('li', {}, String(a)))));
-        if (r.dados.aviso) caixa.append(el('small', { style: 'color:#666;' }, r.dados.aviso));
-    } finally { btn.disabled = false; btn.textContent = rotulo; }
-}
+        
+        // CABEÇALHO DO RESULTADO
+        caixa.append(
+            el('strong', { style: 'color:#333;font-size:14px;' }, `Auditor IA (${nomes[provedor] || provedor})`), el('br'), el('br'),
+            el('strong', {}, 'Status: '), el('span', { style: `color:${alerta ? 'red' : 'green'}; font-weight:bold;` }, alerta ? '⚠️ ALERTA' : '✅ OK')
+        );
 
+        // NOVA RENDERIZAÇÃO AGRUPADA POR TABELA
+        const achados = Array.isArray(r.dados.achados) ? r.dados.achados : [];
+        if (achados.length > 0) {
+            caixa.append(el('br'), el('br'), el('strong', {}, 'Achados Técnicos:'));
+            
+            const porTabela = {};
+            achados.forEach(a => { const t = a.tabela || 'Geral'; if (!porTabela[t]) porTabela[t] = []; porTabela[t].push(a); });
+            
+            const containerAchados = el('div', {style: 'margin-top:10px;'});
+            for (const [tab, lista] of Object.entries(porTabela)) {
+                containerAchados.append(el('div', { style: 'font-weight:bold; color:#0056b3; margin-top:8px; border-bottom:1px solid #ddd; font-size:12px; padding-bottom:3px;' }, `Tabela ${tab}`));
+                const ul = el('ul', { style: 'padding-left:20px; margin:5px 0 10px 0; font-size: 13px;' });
+                
+                lista.forEach(a => {
+                    const cor = a.risco === 'Alto' ? '#dc3545' : (a.risco === 'Médio' ? '#fd7e14' : '#198754');
+                    ul.append(el('li', { style: 'margin-bottom:6px; line-height: 1.4;' },
+                        el('span', { style: `background:${cor}; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-right:6px; vertical-align: middle;` }, a.risco.toUpperCase()),
+                        el('strong', { style: 'color: #333;' }, `[${a.codigo}] `), a.motivo
+                    ));
+                });
+                containerAchados.append(ul);
+            }
+            caixa.append(containerAchados);
+        }
+        
+        if (r.dados.aviso) caixa.append(el('div', { style: 'margin-top:10px; font-size:11px; color:#666; font-style:italic;' }, r.dados.aviso));
+        
+    } finally { 
+        btn.disabled = false; 
+        btn.textContent = rotulo; 
+    }
+}
 // ---------- leitura do arquivo respeitando o encoding declarado ----------
 async function lerArquivoXML(file) {
     const buf = await file.arrayBuffer();
