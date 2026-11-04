@@ -153,13 +153,24 @@ function _pintarGlosa(it) {
 // ---------- TUSS (lote; consulta pública, só leitura) ----------
 async function validarCodigosTUSS(codigos) {
     const unicos = [...new Set(codigos)], validos = new Set();
-    for (let i = 0; i < unicos.length; i += 500) {
-        const r = await api('/api/dominio_tuss', { acao: 'validar_lote', codigos: unicos.slice(i, i + 500) });
-        if (!r.ok) return null;
-        r.dados.validos.forEach(c => validos.add(c));
+    try {
+        for (let i = 0; i < unicos.length; i += 500) {
+            const r = await api('/api/dominio_tuss', { acao: 'validar_lote', codigos: unicos.slice(i, i + 500) });
+            // Flexibiliza a checagem: aceita o array de válidos mesmo se o wrapper omitir o 'r.ok'
+            if (r && r.dados && Array.isArray(r.dados.validos)) {
+                r.dados.validos.forEach(c => validos.add(c));
+            } else {
+                console.warn('Resposta TUSS fora do padrão:', r);
+                return null;
+            }
+        }
+        return validos;
+    } catch (e) {
+        console.error('Erro na validação TUSS:', e);
+        return null;
     }
-    return validos;
 }
+
 function _iconeTUSS(tabela, codigo) {
     if (!TABELAS_TUSS.includes(tabela)) return el('span', { title: 'Tabela própria/sem verificação TUSS', style: 'color:#999;margin-right:5px;' }, '•');
     if (_tussValidos === null) return el('span', { title: 'Base TUSS indisponível no momento', style: 'color:#999;margin-right:5px;' }, '•');
@@ -360,7 +371,7 @@ async function processarXML() {
         if (buscarTagUnica(xmlDoc, 'parsererror')) { erroBox('erro-box', el('strong', {}, 'Erro: '), 'O arquivo não é um XML válido.'); return fim(); }
         xmlDocAtual = xmlDoc;
 
-        let versao = '', operadora = 'Não identificada', prestador = NI;
+        let versao = '', operadora = 'Não identificada', prestador = NI, nomePrestador = NI;
         const cab = buscarTagUnica(xmlDoc, 'cabecalho');
         if (cab) {
             const tp = buscarTagUnica(cab, 'Padrao') || buscarTagUnica(cab, 'versaoPadrao'); if (tp) versao = tp.textContent.trim();
@@ -372,6 +383,12 @@ async function processarXML() {
             const ori = buscarTagUnica(cab, 'origem');
             if (ori) { const p = buscarTagUnica(ori, 'CNPJ') || buscarTagUnica(ori, 'codigoPrestadorNaOperadora'); if (p) prestador = p.textContent.trim(); }
         }
+        
+        // NOVO: Busca o nome do contratado dentro da primeira guia para exibir ao lado do CNPJ
+        const contratado = buscarTagUnica(xmlDoc, 'nomeContratado') || buscarTagUnica(xmlDoc, 'nomePrestador');
+        if (contratado) nomePrestador = contratado.textContent.trim();
+        const nomeExibicaoPrestador = nomePrestador !== NI ? `${prestador} - ${nomePrestador}` : prestador;
+		
         // hash: só regravamos na exportação se o hash ORIGINAL bate com o nosso algoritmo
         const hNo = buscarTagUnica(xmlDoc, 'hash');
         try { hashConfereOriginal = !!(hNo && hNo.textContent.trim().toLowerCase() === calcularHashTISS(xmlDoc.documentElement)); } catch { hashConfereOriginal = false; }
@@ -447,7 +464,7 @@ async function processarXML() {
         const linhaCat = (rot, chave) => el('tr', {}, el('th', {}, rot), el('td', {}, el('strong', { style: 'color:red;', id: `cat-${chave}` })));
         const resumo = el('div', { style: 'background:#f8f9fa;padding:20px;border-radius:6px;margin-bottom:20px;border:1px solid #ddd;' },
             el('h4', { style: 'margin:0 0 10px 0;color:#333;' }, 'Resumo Financeiro do Lote'),
-            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, prestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
+            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, nomeExibicaoPrestador), ' | ', el('strong', {}, 'Operadora: '), operadora), prestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
             el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Total de Guias: '), el('span', { style: 'color:blue;font-weight:bold;' }, String(_guias.length))),
             el('p', { style: 'margin:5px 0;font-size:16px;' }, el('strong', {}, 'Valor Total a Pagar: '), el('span', { style: 'color:red;font-weight:bold;' }, 'R$ ', el('span', { id: 'sum-lote' }))),
             el('button', { type: 'button', class: 'btn btn-success', 'data-onclick': 'exportarXMLCorrigido()', style: 'margin-top:15px;width:100%;font-size:14px;padding:12px;' }, '💾 Baixar XML corrigido'),
@@ -651,3 +668,43 @@ window.imprimirAuditoriaIA = function(gi) {
         avisar('O seu navegador bloqueou a abertura do PDF. Permita os pop-ups para este site.', 'erro');
     }
 };
+
+// ---------- EVENTOS DE ARRASTAR E SOLTAR (DRAG & DROP) ----------
+document.addEventListener('DOMContentLoaded', () => {
+    const dropZone = document.body;
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        dropZone.style.opacity = '0.7'; // Feedback visual leve
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.opacity = '1';
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.opacity = '1';
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.toLowerCase().endsWith('.xml')) {
+                // Injeta o arquivo dropado no input file real
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const inputElement = document.getElementById('xmlInput');
+                if (inputElement) {
+                    inputElement.files = dt.files;
+                    iniciarProcessamento();
+                }
+            } else {
+                if (typeof avisar === 'function') avisar('Por favor, arraste apenas arquivos com extensão .xml', 'erro');
+            }
+        }
+    });
+});
