@@ -22,7 +22,7 @@
         <button class="btn btn-success" data-perm="tokens:ajustar" data-onclick="abrirModalTokens">💰 Tokens de IA</button>
         <button class="btn btn-primary" data-perm="tuss:ler" data-onclick="abrirModal('modalAcaoTUSS')">📦 Domínios TISS/TUSS</button>
         <button class="btn btn-success" data-perm="regras:ler" data-onclick="abrirModalRegrasAdmin">⚙️ Regras dos Clientes</button>
-        <button class="btn btn-warning" data-perm="ads:ler" data-onclick="abrirGestaoAdsAdminGeral">📢 Publicidade</button>
+        <button class="btn btn-warning" data-perm="ads:ler" data-onclick="abrirGestaoAdsAdminGeral">📢 Gestão de Publicidade</button>
 		<button class="btn btn-info" data-perm="ads:criar" data-onclick="abrirPedidoPublicidadeAvulsoAdmin">📢 Lançar Anúncio Avulso</button>
 	</nav>
 
@@ -123,7 +123,21 @@
         <select id="select-cliente-assinatura" class="form-control" data-onchange="carregarDadosAssinaturaCliente(this.value)"></select></div>
     <div id="area-edicao-assinatura" style="display:none" class="painel-cinza">
         <label for="edit-plano-cliente">Plano</label>
-        <select id="edit-plano-cliente" class="form-control"><option value="FREEMIUM">FREEMIUM</option><option value="PREMIUM">PREMIUM</option></select>
+        <div style="background: #f8f9fa; padding: 15px; border: 1px solid #ddd; border-radius: 6px; margin-top: 15px;">
+		<h4 style="margin-top:0; color:#333;">Controle de Assinatura (SaaS)</h4> 
+		<label style="font-weight:bold; font-size:12px;">Plano Atual:</label>
+		<select id="admin-cli-plano" class="form-control" style="margin-bottom: 10px;">
+			<option value="FREEMIUM">FREEMIUM (Degustação)</option>
+        <option value="ECO">ECO (1 CNPJ)</option>
+        <option value="FLEX">FLEX (Até 5 CNPJs)</option>
+        <option value="PREMIUM">PREMIUM (Ilimitado)</option>
+    </select>
+    
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px;">CNPJs Usados: <strong id="admin-cli-cnpjs">0</strong></span>
+        <button class="btn btn-info" data-onclick="abrirModalMensalidadesAdmin()" style="font-size:11px; padding: 5px 10px;">Ver 6 Últimas Mensalidades</button>
+    </div>
+</div>
         <label for="edit-validade-plano" style="margin-top:8px">Válido até (somente Premium)</label>
         <input type="date" id="edit-validade-plano" class="form-control">
         <label for="edit-status-pagamento" style="margin-top:8px">Situação do pagamento</label>

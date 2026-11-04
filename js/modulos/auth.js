@@ -62,10 +62,29 @@ async function solicitarConta() {
     if (senha.length < 10) return avisar('A senha deve ter ao menos 10 caracteres.', 'erro');
     if (!aceite) return avisar('É necessário aceitar os Termos de Uso e a Política de Privacidade.', 'erro');
     await comCarga('btn-registro-submit', 'Enviando…', async () => {
-        const r = await api('/api/auth', { acao: 'registro', nome, email, senha, aceite_termos: true });
+        
+		/*
+		const r = await api('/api/auth', { acao: 'registro', nome, email, senha, aceite_termos: true });
         if (r.ok) { avisar(r.dados.mensagem, 'ok'); document.getElementById('reg-senha').value = ''; alternarFormAuth('login'); }
         else avisar(erroDe(r), 'erro');
     });
+		*/
+	
+	// No arquivo js/modulos/auth.js, dentro da função solicitarConta()
+		const r = await api('/api/auth/registro', corpo);
+		if (r.ok) {
+			avisar('Conta criada com sucesso! Redirecionando...', 'sucesso');
+			// Força o login automático com as credenciais recém criadas
+			document.getElementById('login-email').value = email;
+			document.getElementById('login-senha').value = senha;
+			await efetuarLogin();
+			
+			// Após o login, abre o modal de planos para o novo usuário!
+			fecharModais();
+			abrirModal('modalEscolherPlano');
+		} else {
+			avisar(erroDe(r), 'erro');
+		}
 }
 
 Pronto.then(u => {

@@ -10,10 +10,9 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vt_core import audit, config, security, settings, validation as v
+from vt_core import audit, config, security, settings, validation, web as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
-
 
 def _item_cliente(c):
     return {"id": c.id, "nome": c.nomeEmpresa, "email": c.emailAcesso,
@@ -238,3 +237,40 @@ class handler(ApiHandler):
             return {"sucesso": True, "mensagem": "Assinatura atualizada."}
 
         raise ApiError(400, "Comando desconhecido.")
+
+def get(ctx):
+    # Barreira de segurança
+    if not ctx.usuario or ctx.usuario.perfil not in ["ADMIN", "GESTAO"]:
+        raise web.ApiError(403, "Acesso negado.")
+    
+    acao = ctx.query.get("acao", "")
+    db = get_db()
+    
+    if acao == "listar_clientes":
+        # Inclui as mensalidades para não dar erro 500 ao tentar ler o histórico financeiro
+        clientes = db.cliente.find_many(
+            include={"mensalidades": True},
+            order_by={"criadoEm": "desc"}
+        )
+        
+        resultado = []
+        for c in clientes:
+            # Ordena as mensalidades para pegar o status da mais recente
+            ult_mensalidade = sorted(c.mensalidades, key=lambda x: x.vencimento, reverse=True) if c.mensalidades else []
+            status_fin = ult_mensalidade[0].status if ult_mensalidade else "SEM FATURA"
+            
+            resultado.append({
+                "id": c.id,
+                "nomeEmpresa": c.nomeEmpresa,
+                "emailAcesso": c.emailAcesso,
+                "cpfCnpj": getattr(c, "cpfCnpj", ""),
+                "plano": getattr(c, "plano", "FREEMIUM"),
+                "statusPagamento": getattr(c, "statusPagamento", "PENDENTE"),
+                "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0),
+                "statusFinanceiro": status_fin
+            })
+        
+        return {"sucesso": True, "dados": resultado}
+        
+    # (Mantenha aqui as outras ações do admin, como listar dashboard, etc.)
+    return {"sucesso": True}
