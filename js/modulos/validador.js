@@ -464,7 +464,7 @@ async function processarXML() {
         const linhaCat = (rot, chave) => el('tr', {}, el('th', {}, rot), el('td', {}, el('strong', { style: 'color:red;', id: `cat-${chave}` })));
         const resumo = el('div', { style: 'background:#f8f9fa;padding:20px;border-radius:6px;margin-bottom:20px;border:1px solid #ddd;' },
             el('h4', { style: 'margin:0 0 10px 0;color:#333;' }, 'Resumo Financeiro do Lote'),
-            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, nomeExibicaoPrestador), ' | ', el('strong', {}, 'Operadora: '), operadora), prestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
+            el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, nomeExibicaoPrestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
             el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Total de Guias: '), el('span', { style: 'color:blue;font-weight:bold;' }, String(_guias.length))),
             el('p', { style: 'margin:5px 0;font-size:16px;' }, el('strong', {}, 'Valor Total a Pagar: '), el('span', { style: 'color:red;font-weight:bold;' }, 'R$ ', el('span', { id: 'sum-lote' }))),
             el('button', { type: 'button', class: 'btn btn-success', 'data-onclick': 'exportarXMLCorrigido()', style: 'margin-top:15px;width:100%;font-size:14px;padding:12px;' }, '💾 Baixar XML corrigido'),
