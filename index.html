@@ -214,6 +214,65 @@
             <button class="btn" style="width: 100%; margin-top: 5px; background: #eee; color: #333;" data-onclick="fecharModal('modalBoasVindasPub')">Cancelar</button>
         </div>
     </div>
+	
+	<!-- Modal Escolher Plano -->
+<div id="modalEscolherPlano" class="modal-overlay">
+    <div class="modal-content" style="max-width: 550px; text-align: center;">
+        <h3 style="color: #0c7489; margin-top:0;">Escolher Plano e Assinar</h3>
+        <p style="font-size: 13px; color: #666;">Uso atual: <span id="label-prestadores-usados" style="font-weight:bold; color:red;">0</span> prestadores (CNPJ/Código) vinculados à sua conta.</p>
+        
+        <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: space-between;">
+            <!-- ECO -->
+            <label class="plano-box" style="flex:1; background: #e8f5e9; border: 2px solid #4caf50; padding: 15px; border-radius: 8px; cursor: pointer; position: relative;">
+                <input type="radio" name="planoOption" value="ECO" checked style="position: absolute; top: 10px; right: 10px;">
+                <h4 style="margin: 0 0 5px 0; color: #2e7d32;">ECO</h4>
+                <p style="font-size: 11px; margin: 0 0 10px 0;">1 CNPJ / Prestador</p>
+                <strong id="preco-eco" style="font-size: 18px; color: #1b5e20;">Carregando...</strong>
+            </label>
+            <!-- FLEX -->
+            <label class="plano-box" style="flex:1; background: #fff3e0; border: 2px solid #ff9800; padding: 15px; border-radius: 8px; cursor: pointer; position: relative;">
+                <input type="radio" name="planoOption" value="FLEX" style="position: absolute; top: 10px; right: 10px;">
+                <h4 style="margin: 0 0 5px 0; color: #e65100;">FLEX</h4>
+                <p style="font-size: 11px; margin: 0 0 10px 0;">Até 5 CNPJs / Prestadores</p>
+                <strong id="preco-flex" style="font-size: 18px; color: #e65100;">Carregando...</strong>
+            </label>
+            <!-- PREMIUM -->
+            <label class="plano-box" style="flex:1; background: #e3f2fd; border: 2px solid #2196f3; padding: 15px; border-radius: 8px; cursor: pointer; position: relative;">
+                <input type="radio" name="planoOption" value="PREMIUM" style="position: absolute; top: 10px; right: 10px;">
+                <h4 style="margin: 0 0 5px 0; color: #1565c0;">PREMIUM</h4>
+                <p style="font-size: 11px; margin: 0 0 10px 0;">CNPJs Ilimitados</p>
+                <strong id="preco-premium" style="font-size: 18px; color: #0d47a1;">Carregando...</strong>
+            </label>
+        </div>
+        <button class="btn btn-primary" data-onclick="gerarAssinaturaNova()" style="width: 100%; margin-top: 25px; padding: 12px; font-weight: bold;">Confirmar Assinatura via PIX</button>
+        <button class="btn btn-cancel" data-onclick="fecharModal('modalEscolherPlano')" style="width: 100%; margin-top: 10px;">Cancelar</button>
+    </div>
+</div>
+
+<!-- Modal Histórico de Mensalidades -->
+<div id="modalMensalidades" class="modal-overlay">
+    <div class="modal-content" style="max-width: 600px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+            <h3 style="color: #0056b3; margin:0;">Histórico de Mensalidades</h3>
+            <button class="btn-success" data-onclick="pagarMensalidadeAtual()">Pagar Mês Atual</button>
+        </div>
+        <table class="tabela-dados">
+            <thead>
+                <tr>
+                    <th>Mês</th>
+                    <th>Vencimento</th>
+                    <th>Pagamento</th>
+                    <th>Valor</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="grid-mensalidades">
+                <!-- Javascript irá injetar as linhas aqui -->
+            </tbody>
+        </table>
+        <button class="btn btn-cancel" data-onclick="fecharModal('modalMensalidades')" style="width: 100%; margin-top: 15px;">Fechar</button>
+    </div>
+</div>
 
 	 <!-- Scripts Modularizados no final do body -->
     <script src="js/modulos/core.js"></script>

@@ -21,7 +21,10 @@ model Cliente {
   criadoEm      DateTime       @default(now())
 
   // NOVO – assinatura (antes não existia em nenhum modelo; o admin lia/gravava campos inexistentes)
-  plano             String    @default("FREEMIUM")   // FREEMIUM | PREMIUM
+  plano                 String                 @default("FREEMIUM") // FREEMIUM, ECO, FLEX, PREMIUM
+  qtdPrestadoresUsados  Int                    @default(0)
+  prestadoresVinculados PrestadorVinculado[]
+  mensalidades          Mensalidade[]
   statusPagamento   String    @default("ATIVO")      // ATIVO | INATIVO
   planoValidoAte    DateTime?
   // NOVO – segurança de sessão e conta
@@ -30,7 +33,8 @@ model Cliente {
   bloqueadoAte      DateTime?
   ultimoLoginEm     DateTime?
   mustChangePassword Boolean  @default(false)
-  aceiteTermosEm    DateTime?                         // LGPD
+  aceiteTermosEm    DateTime?   // LGPD
+  ipAceite          String?
   dataCancelamento  DateTime?
   exportacoesGratis Int       @default(3)            // NOVO – degustação FREEMIUM controlada no servidor (antes: sessionStorage, burlável)
   // NOVO – cobrança Asaas
@@ -43,6 +47,7 @@ model Cliente {
   compras         CompraTokens[]
   regras        RegraCliente[]
 }
+
 
 // Tabela 2: Utilizadores Internos (Admin/Backoffice)
 model Usuario {
@@ -200,4 +205,41 @@ model Configuracao {
   anterior       String?
   atualizadoPor  String?
   atualizadoEm   DateTime @default(now()) @updatedAt
+}
+
+// NOVO – Registra os prestadores (CNPJ ou Código) já vinculados ao cliente para travar a exportação
+model PrestadorVinculado {
+  id           String   @id @default(uuid())
+  clienteId    String
+  codigo       String   // Pode armazenar CNPJ ou o código do prestador
+  criadoEm     DateTime @default(now())
+  planoRef     String   // Registra qual era o plano no momento do vínculo
+
+  cliente      Cliente  @relation(fields: [clienteId], references: [id])
+  
+  @@unique([clienteId, codigo])
+  @@index([clienteId])
+}
+
+// NOVO – Espelho financeiro das mensalidades geradas
+model Mensalidade {
+  id            String    @id @default(uuid())
+  clienteId     String
+  mesRef        String    // Ex: "11/2026"
+  vencimento    DateTime
+  dataPagamento DateTime?
+  valorBase     Float
+  status        String    @default("EM ABERTO") // PAGO | EM ABERTO | EM ATRASO
+  criadoEm      DateTime  @default(now())
+
+  cliente       Cliente   @relation(fields: [clienteId], references: [id])
+  @@index([clienteId, status])
+}
+
+// NOVO – Tabela de Domínio para gestão dos preços pelo Admin
+model ConfiguracaoPlano {
+  id      String @id @default(uuid())
+  nome    String @unique // ECO | FLEX | PREMIUM
+  valor   Float
+  limite  Int    // 1 | 5 | 9999
 }

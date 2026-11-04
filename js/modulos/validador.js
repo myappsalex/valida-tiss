@@ -549,13 +549,25 @@ function _baixar(blob, nome) {
 async function exportarXMLCorrigido() {
     if (!xmlDocAtual) return avisar('Nenhum arquivo XML processado.', 'erro');
     const u = Sessao.usuario;
-    if (!u) { avisar('A exportação do arquivo corrigido requer uma conta ativa.', 'erro'); abrirModal('modalAuth'); return; }
-    if (u.tipo === 'CLIENTE') {
-        if (u.plano !== 'PREMIUM' && !confirm(`Você tem ${u.exportacoesRestantes ?? 0} exportação(ões) gratuita(s). Deseja usar uma agora?`)) return;
-        const r = await api('/api/exportacao', {});          // o servidor decide e debita (não o navegador)
-        if (!r.ok) { if (r.status === 402) abrirModal('modalPremium'); return avisar(erroDe(r), 'erro'); }
-        if (r.dados.restantes !== null) definirUsuario({ ...Sessao.usuario, exportacoesRestantes: r.dados.restantes });
+    if (!u) { avisar('A exportação requer uma conta ativa.', 'erro'); abrirModal('modalAuth'); return; }
+    
+    let codPrestador = '';
+    const ori = buscarTagUnica(xmlDocAtual, 'origem');
+    if (ori) { 
+        const p = buscarTagUnica(ori, 'CNPJ') || buscarTagUnica(ori, 'codigoPrestadorNaOperadora'); 
+        if (p) codPrestador = p.textContent.trim(); 
     }
+
+    if (u.tipo === 'CLIENTE') {
+        const r = await api('/api/exportacao', { codigoPrestador: codPrestador });
+        if (!r.ok) { 
+            if (r.dados && r.dados.codigo === 'assinar_plano') return abrirModal('modalEscolherPlano');
+            if (r.dados && r.dados.codigo === 'pagar_mensalidade') return abrirModal('modalMensalidades');
+            if (r.status === 403) return abrirModal('modalEscolherPlano'); // Limite excedido
+            return avisar(erroDe(r), 'erro'); 
+        }
+    }
+	
     _guias.filter(g => g.editado).forEach(_sincronizarTotaisXML);
     if (hashConfereOriginal) {
         const h = buscarTagUnica(xmlDocAtual, 'hash');
@@ -567,6 +579,7 @@ async function exportarXMLCorrigido() {
     xml = '<?xml version="1.0" encoding="ISO-8859-1"?>\n' + xml;
     const nome = String(u.nome || 'cliente').replace(/[^\w\-]+/g, '_').slice(0, 40);
     _baixar(new Blob([_paraLatin1(xml)], { type: 'text/xml;charset=iso-8859-1' }), `Lote_Corrigido_${nome}.xml`);
+	
 }
 
 function _celulaCSV(v) {
