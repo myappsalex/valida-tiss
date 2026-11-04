@@ -144,9 +144,9 @@ function verGlosa(i) { mostrarGlosaModal(encodeURIComponent((_glosas[i] || []).j
 function _pintarGlosa(it) {
     const lista = validarItemTISS(it);
     limpar(it.celGlosa);
-    if (!lista.length) { it.celGlosa.append(el('span', { style: 'color:#28a745;', title: 'Sem críticas' }, '✅')); return; }
+    if (!lista.length) { it.celGlosa.append(el('span', { style: 'color:#28a745;', title: 'Sem críticas' }, '-')); return; }
     _glosas.push(lista);
-    it.celGlosa.append(el('button', { type: 'button', class: 'btn-glosa blink-glosa', title: 'Ver críticas', 'aria-label': 'Ver críticas do item',
+    it.celGlosa.append(el('button', { type: 'button', class: 'btn-glosa blink-glosa', title: 'Ver críticas', 'aria-label': 'Ver críticas',
         'data-onclick': `verGlosa(${_glosas.length - 1})`, style: 'background:none;border:0;cursor:pointer;color:#c82333;font-size:16px;' }, '⚠️'));
 }
 
