@@ -67,7 +67,7 @@ function validarRegrasNegocio(guia, tipoGuia, dataStr) {
         if (p.length === 3) {
             const d = new Date(+p[0], +p[1] - 1, +p[2]), hoje = new Date();
             if (d > hoje) erro('Glosa 1203', 'Data de atendimento posterior à data de processamento.');
-            else if (Math.floor((hoje - d) / 86400000) > 60) aviso('', 'Guia fora da janela de retroatividade contratual (> 60 dias).');
+            else if (Math.floor((hoje - d) / 86400000) > 90) aviso('', 'Guia fora da janela de retroatividade contratual (> 90 dias).');
         }
     }
     if (tipoGuia === 'guiaConsulta') {
@@ -230,13 +230,20 @@ async function analisarGuiaIA(gi, provedor) {
             el('strong', {}, 'Status: '), el('span', { style: `color:${alerta ? 'red' : 'green'}; font-weight:bold;` }, alerta ? '⚠️ ALERTA' : '✅ OK')
         );
 
-        // NOVA RENDERIZAÇÃO AGRUPADA POR TABELA
+        // NOVA RENDERIZAÇÃO AGRUPADA POR TABELA COM CRUZAMENTO DETERMINÍSTICO
         const achados = Array.isArray(r.dados.achados) ? r.dados.achados : [];
         if (achados.length > 0) {
             caixa.append(el('br'), el('br'), el('strong', {}, 'Achados Técnicos:'));
             
             const porTabela = {};
-            achados.forEach(a => { const t = a.tabela || 'Geral'; if (!porTabela[t]) porTabela[t] = []; porTabela[t].push(a); });
+            achados.forEach(a => {
+                // CORREÇÃO: Força a tabela real cruzando com o código original (ignora alucinação da IA)
+                const itemOriginal = itens.find(x => String(x.codigoItem) === String(a.codigo));
+                const t = itemOriginal ? itemOriginal.tabela : (a.tabela || 'Geral');
+                
+                if (!porTabela[t]) porTabela[t] = [];
+                porTabela[t].push({ ...a, tabelaReal: t });
+            });
             
             const containerAchados = el('div', {style: 'margin-top:10px;'});
             for (const [tab, lista] of Object.entries(porTabela)) {
@@ -256,6 +263,15 @@ async function analisarGuiaIA(gi, provedor) {
         }
         
         if (r.dados.aviso) caixa.append(el('div', { style: 'margin-top:10px; font-size:11px; color:#666; font-style:italic;' }, r.dados.aviso));
+        
+        // NOVO: Armazena o resultado e cria o botão de Exportação PDF
+        g.ultimoResultadoIA = { provedor, alerta, achados, aviso: r.dados.aviso, itensAgrupados: itens };
+        const btnPdf = el('button', {
+            type: 'button', class: 'btn btn-info',
+            style: 'width:100%; margin-top:15px; font-size:13px; font-weight:bold;',
+            'data-onclick': `imprimirAuditoriaIA(${gi})`
+        }, '🖨️ Exportar Relatório (PDF / Imprimir)');
+        caixa.append(btnPdf);
         
     } finally { 
         btn.disabled = false; 
@@ -549,3 +565,89 @@ function exportarExcel() {
     const csv = '﻿' + linhas.map(l => l.map(_celulaCSV).join(';')).join('\r\n') + '\r\n';
     _baixar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'Relatorio_TISS_Completo.csv');
 }
+
+// ---------- EXPORTAÇÃO PDF DA AUDITORIA IA ----------
+window.imprimirAuditoriaIA = function(gi) {
+    const g = _guias[gi];
+    const res = g.ultimoResultadoIA;
+    if (!g || !res) return;
+
+    let html = `
+    <html>
+    <head>
+        <title>Auditoria IA - Guia ${g.numero}</title>
+        <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 30px; line-height: 1.5; }
+            .header { border-bottom: 2px solid #0c7489; padding-bottom: 15px; margin-bottom: 20px; }
+            h1 { color: #0c7489; font-size: 22px; margin: 0 0 5px 0; }
+            .info-box { background: #f8f9fa; padding: 15px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; }
+            .info-box p { margin: 5px 0; }
+            .badge { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; color: #fff; }
+            .bg-alto { background-color: #dc3545; }
+            .bg-medio { background-color: #fd7e14; }
+            .bg-baixo { background-color: #198754; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ccc; padding: 10px; text-align: left; vertical-align: top; }
+            th { background-color: #f4f7f6; font-size: 13px; }
+            .footer { margin-top: 30px; font-size: 11px; color: #777; font-style: italic; border-top: 1px solid #eee; padding-top: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>Relatório de Auditoria Técnica (IA)</h1>
+            <p style="margin:0; color:#555;">ValidaTISS - Sistema de Validação Estrutural e Regras de Negócio</p>
+        </div>
+        
+        <div class="info-box">
+            <p><strong>Nº da Guia:</strong> ${g.numero}</p>
+            <p><strong>Beneficiário:</strong> ${g.beneficiario}</p>
+            <p><strong>Data do Atendimento:</strong> ${g.data}</p>
+            <p><strong>Status da Análise:</strong> ${res.alerta ? '<span style="color:red;font-weight:bold;">⚠️ ALERTA DE GLOSA</span>' : '<span style="color:green;font-weight:bold;">✅ SEM DESVIOS TÉCNICOS CLAROS</span>'}</p>
+            <p><strong>Motor de IA:</strong> ${res.provedor}</p>
+        </div>`;
+
+    if (res.achados.length > 0) {
+        html += `<h3>Achados Encontrados</h3>
+                 <table>
+                    <tr>
+                        <th style="width:8%">Tabela</th>
+                        <th style="width:12%">Código</th>
+                        <th style="width:10%">Risco</th>
+                        <th>Parecer Técnico</th>
+                    </tr>`;
+        
+        res.achados.forEach(a => {
+            // Busca a tabela real na lista de itens agrupados armazenada
+            const itemOriginal = res.itensAgrupados.find(x => String(x.codigoItem) === String(a.codigo));
+            const t = itemOriginal ? itemOriginal.tabela : (a.tabela || 'Geral');
+            
+            const cor = a.risco === 'Alto' ? 'bg-alto' : (a.risco === 'Médio' ? 'bg-medio' : 'bg-baixo');
+            html += `
+                <tr>
+                    <td>${t}</td>
+                    <td><strong>${a.codigo}</strong></td>
+                    <td><span class="badge ${cor}">${a.risco.toUpperCase()}</span></td>
+                    <td>${a.motivo}</td>
+                </tr>`;
+        });
+        html += `</table>`;
+    } else {
+        html += `<p>Nenhum desvio técnico encontrado na composição desta guia.</p>`;
+    }
+
+    if (res.aviso) {
+        html += `<div class="footer">* ${res.aviso} Relatório gerado em ${new Date().toLocaleString('pt-BR')}.</div>`;
+    }
+    
+    html += `</body></html>`;
+    
+    const w = window.open('', '_blank');
+    if (w) {
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        setTimeout(() => { w.print(); }, 500);
+    } else {
+        avisar('O seu navegador bloqueou a abertura do PDF. Permita os pop-ups para este site.', 'erro');
+    }
+};

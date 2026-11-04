@@ -12,7 +12,8 @@ const GMUD_NOTAS = [
     "Novo painel de publicidade e criação de anúncios avulsos",
     "Segurança aprimorada (JWT, Proteção CSRF, Bcrypt)",
 	"Implementação de melhorias no termo de aceite",
-	"Implementação da edição de dados pessoais, perfil cliente"
+	"Implementação da edição de dados pessoais, perfil cliente",
+	"Agrupamento de itens para análise de conta pela IA. Ganho de performance e economia de tokens"
 ];
 
 window.abrirModalGMUD = function() {

@@ -1,7 +1,6 @@
 """Provedores de IA para pré-auditoria de guias.
 
 Melhorias sobre o original:
-  * chave do Gemini no HEADER (na URL vazava em logs/erros devolvidos ao cliente);
   * timeout em toda chamada; erros não vazam detalhes;
   * itens enviados como DADO em JSON (mitiga prompt injection vinda do XML);
   * saída JSON forçada e validada/normalizada no servidor;
@@ -28,7 +27,7 @@ SISTEMA = (
     "Avalie o contexto macro (ex: incompatibilidade entre dias de internação e qtd de diárias, "
     "procedimentos mutuamente excludentes, excessos abusivos para o quadro). Sem desvio claro, status OK. "
     "Responda SOMENTE JSON estrito neste formato: "
-    '{"status": "OK"|"ALERTA", "achados": [{"tabela": "22", "codigo": "10101039", "risco": "Alto"|"Médio"|"Baixo", "motivo": "Explicação técnica direta"}]}'
+    '{"status": "OK"|"ALERTA", "achados": [{"tabela": "<tabela_do_item>", "codigo": "<codigo_do_item>", "risco": "Alto"|"Médio"|"Baixo", "motivo": "Explicação técnica"}]}'
 )
 
 def provedores_habilitados():
