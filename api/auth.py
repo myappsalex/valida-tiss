@@ -139,6 +139,8 @@ class handler(ApiHandler):
             
             dados = {p.nome: p.valor for p in planos}
             return {"sucesso": True, "dados": dados}
+        if acao == "login":
+            return _login(ctx, corpo, "CLIENTE")
         if acao == "login_admin":
             return _login(ctx, corpo, "INTERNO")
         if acao == "registro":

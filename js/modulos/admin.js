@@ -444,21 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Função para popular a tela do cliente
-let _precosVigentes = {};
-async function carregarPrecosPlanos() {
-    if (!document.getElementById('preco-eco')) return;
-    
-    const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
-    if (r.ok && r.dados) {
-        _precosVigentes = r.dados; // Salva em memória
-        const fmt = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
-        
-        document.getElementById('preco-eco').textContent = fmt(r.dados.ECO);
-        document.getElementById('preco-flex').textContent = fmt(r.dados.FLEX);
-        document.getElementById('preco-premium').textContent = fmt(r.dados.PREMIUM);
-    }
-}
 
 // Carrega o valor inicial quando o modal abre ou o admin troca o Select
 async function adminCarregarPrecoPlano() {
