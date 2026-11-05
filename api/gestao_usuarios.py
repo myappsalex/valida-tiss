@@ -111,6 +111,27 @@ class handler(ApiHandler):
         p = ctx.exigir(tipo="INTERNO")
         db = get_db()
 
+# 1. AÇÃO PÚBLICA/CLIENTES (Precisa vir ANTES do exigir INTERNO)
+        if acao == "listar_planos_vigentes":
+            hoje = security.agora_utc()
+            planos_db = db.configuracaoplano.find_many(
+                where={"vigenciaInicio": {"lte": hoje}},
+                order={"vigenciaInicio": "desc"}
+            )
+            precos = {}
+            for p in planos_db:
+                if p.nome not in precos:
+                    precos[p.nome] = p.valor
+                    
+            return {"sucesso": True, "dados": {
+                "ECO": precos.get("ECO", 29.90),
+                "FLEX": precos.get("FLEX", 89.90),
+                "PREMIUM": precos.get("PREMIUM", 199.90)
+            }}
+
+        # 2. BARREIRA DE ADMIN (Todas as ações abaixo exigem ser equipe INTERNA)
+        p = ctx.exigir(tipo="INTERNO")
+        
         if acao == "salvar_config":
             if not p.pode("config:editar"):
                 raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
@@ -128,25 +149,6 @@ class handler(ApiHandler):
             if mudancas:
                 audit.registrar(db, p, "CONFIG_ALTERADA", "CONFIG", ",".join(mudancas), mudancas, ctx.ip)
             return {"sucesso": True, "mensagem": "Configurações salvas." if mudancas else "Nenhuma alteração.", "itens": settings.listar(db)}
-        if acao == "listar_planos_vigentes":
-            # Retorna apenas o valor ativo no momento atual (sysdate) para cada plano
-            hoje = security.agora_utc()
-            planos_db = db.configuracaoplano.find_many(
-                where={"vigenciaInicio": {"lte": hoje}},
-                order={"vigenciaInicio": "desc"}
-            )
-            # Pega o primeiro de cada (o mais recente válido)
-            precos = {}
-            for p in planos_db:
-                if p.nome not in precos:
-                    precos[p.nome] = p.valor
-                    
-            return {"sucesso": True, "dados": {
-                "ECO": precos.get("ECO", 99.90),
-                "FLEX": precos.get("FLEX", 199.90),
-                "PREMIUM": precos.get("PREMIUM", 399.90)
-            }}
-
         if acao == "salvar_plano_vigencia":
             if not p.pode("config:editar"):
                 raise ApiError(403, "Seu perfil não tem permissão para esta ação.")

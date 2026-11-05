@@ -103,6 +103,13 @@ async function salvarTokensCliente() {
 }
 
 // ================= PREÇOS E PLANOS =================
+function abrirModalGestaoPrecos() {
+    abrirModal('modalPrecosPlanos');
+    adminCarregarPrecoPlano();
+}
+
+/*
+// ================= PREÇOS E PLANOS =================
 let _configs = [];
 async function abrirModalPrecos() {
     abrirModal('modalPrecos');
@@ -118,6 +125,8 @@ async function abrirModalPrecos() {
             el('small', { style: 'color:#666' }, `${c.nota} Origem atual: ${c.origem}.` + (c.atualizadoPor ? ` Última alteração: ${c.atualizadoPor}.` : ''))));
     }
 }
+*/
+
 async function salvarPrecos() {
     const valores = {};
     for (const c of _configs) valores[c.chave] = val('cfg-' + c.chave).trim() || null;
@@ -129,36 +138,69 @@ async function salvarPrecos() {
 
 // ================= ASSINATURAS =================
 async function abrirModalAssinaturas(d) {
-    window.abrirModalAssinaturas = function(idCliente) {
-    // Procura o cliente na lista global carregada da API
-    const cliente = _clientes.find(c => c.id === idCliente);
+    const cliente = _clientes.find(c => c.id === d.id);
     if (!cliente) return;
     
-    // Armazena o ID no botão de salvar (se houver)
-    const btnSalvar = document.getElementById('btn-salvar-assinatura');
+    // Configura o ID no botão de salvar para uso posterior
+    const btnSalvar = document.getElementById('btn-assinatura');
     if (btnSalvar) btnSalvar.setAttribute('data-id', cliente.id);
 
-    // Preenche os campos novos (com proteção contra null)
-    const selectPlano = document.getElementById('admin-cli-plano');
-    if (selectPlano) selectPlano.value = cliente.plano || 'FREEMIUM';
+    // Preenche os campos do painel novo
+    document.getElementById('admin-cli-plano').value = cliente.plano || 'FREEMIUM';
+    document.getElementById('admin-cli-cnpjs').textContent = cliente.cnpjsUsados || '0';
+    document.getElementById('edit-status-pagamento').value = cliente.statusPagamento || 'ATIVO';
+
+    const valPlano = document.getElementById('edit-validade-plano');
+    if (valPlano) {
+        valPlano.value = cliente.planoValidoAte ? cliente.planoValidoAte.slice(0, 10) : '';
+    }
+
+    document.getElementById('area-edicao-assinatura').style.display = 'block';
     
-    const labelCnpjs = document.getElementById('admin-cli-cnpjs');
-    if (labelCnpjs) labelCnpjs.textContent = cliente.cnpjsUsados || '0';
+    // Tratamento estético caso o Select antigo ainda exista escondido
+    const selAntigo = document.getElementById('select-cliente-assinatura');
+    if (selAntigo) {
+        limpar(selAntigo);
+        selAntigo.append(el('option', { value: cliente.id }, cliente.nome));
+        selAntigo.value = cliente.id;
+        selAntigo.disabled = true;
+    }
 
-    // Abre o modal
-    abrirModal('modalEdicaoAssinatura'); 
-};
-		
-	document.getElementById('area-edicao-assinatura').style.display = 'none';
-    const sel = document.getElementById('select-cliente-assinatura'); 
-	preencherSelect(sel, [], 'Carregando…');
-    if (!(await carregarClientes())) return;
-    preencherSelect(sel, _clientes.map(c => [c.id, `${c.nome} (${c.plano})`]), '-- Selecione um cliente --');
-    if (d && d.id) { sel.value = d.id; carregarDadosAssinaturaCliente(d.id); }
-	
-	// Dentro do seu admin.js (substitua a função ou o trecho que abre o modal de edição do cliente)
-
+    abrirModal('modalAssinaturas'); 
 }
+
+async function salvarAssinaturaCliente() {
+    const id = document.getElementById('btn-assinatura').getAttribute('data-id'); 
+    if (!id) return;
+    
+    const plano = val('admin-cli-plano');
+    const statusPagamento = val('edit-status-pagamento');
+    const planoValidoAte = plano === 'PREMIUM' ? (val('edit-validade-plano') || null) : null;
+
+    await comCarga('btn-assinatura', 'Salvando…', async () => {
+        const r = await api('/api/gestao_usuarios', { 
+            acao: 'editar_assinatura', 
+            tipo: 'CLIENTE', 
+            id, 
+            plano, 
+            statusPagamento, 
+            planoValidoAte 
+        });
+        if (r.ok) { 
+            avisar('Assinatura atualizada com sucesso.', 'ok'); 
+            fecharModal('modalAssinaturas'); 
+            pesquisarContratos(); 
+        } else {
+            avisar(erroDe(r), 'erro');
+        }
+    });
+}
+
+window.abrirModalMensalidadesAdmin = function() {
+    avisar('Módulo de auditoria financeira em construção.', 'info');
+};
+
+
 function carregarDadosAssinaturaCliente(id) {
     const c = _clientes.find(x => x.id === id);
     document.getElementById('area-edicao-assinatura').style.display = c ? 'block' : 'none';
