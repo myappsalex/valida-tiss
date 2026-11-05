@@ -108,6 +108,45 @@ function abrirModalGestaoPrecos() {
     adminCarregarPrecoPlano();
 }
 
+
+async function salvarPrecos() {
+    const valores = {};
+    for (const c of _configs) valores[c.chave] = val('cfg-' + c.chave).trim() || null;
+    await comCarga('btn-precos', 'Salvando…', async () => {
+        const r = await api('/api/gestao_usuarios', { acao: 'salvar_config', valores });
+        if (r.ok) { avisar(r.dados.mensagem, 'ok'); fecharModal('modalPrecos'); } else avisar(erroDe(r), 'erro');
+    });
+}
+
+// ================= ASSINATURAS E MENSALIDADES =================
+async function abrirModalAssinaturas(d) {
+    abrirModal('modalAssinaturas');
+    const sel = document.getElementById('select-cliente-assinatura');
+    const areaEdicao = document.getElementById('area-edicao-assinatura');
+    
+    if (d && d.id) {
+        // Veio do clique na linha da tabela
+        const c = _clientes.find(x => x.id === d.id);
+        if (sel) {
+            limpar(sel);
+            sel.append(el('option', { value: c.id }, c.nome));
+            sel.value = c.id;
+            sel.disabled = true;
+        }
+        carregarDadosAssinaturaCliente(c.id);
+    } else {
+        // Veio do menu superior (precisa escolher o cliente)
+        areaEdicao.style.display = 'none';
+        if (sel) {
+            sel.disabled = false;
+            preencherSelect(sel, [], 'Carregando…');
+            if (_clientes.length === 0) await carregarClientes();
+            preencherSelect(sel, _clientes.map(c => [c.id, `${c.nome} (${c.plano})`]), '-- Selecione um cliente --');
+            sel.value = '';
+        }
+    }
+}
+
 /*
 // ================= PREÇOS E PLANOS =================
 let _configs = [];
@@ -127,48 +166,19 @@ async function abrirModalPrecos() {
 }
 */
 
-async function salvarPrecos() {
-    const valores = {};
-    for (const c of _configs) valores[c.chave] = val('cfg-' + c.chave).trim() || null;
-    await comCarga('btn-precos', 'Salvando…', async () => {
-        const r = await api('/api/gestao_usuarios', { acao: 'salvar_config', valores });
-        if (r.ok) { avisar(r.dados.mensagem, 'ok'); fecharModal('modalPrecos'); } else avisar(erroDe(r), 'erro');
-    });
+/*
+function carregarDadosAssinaturaCliente(id) {
+    const c = _clientes.find(x => x.id === id);
+    document.getElementById('area-edicao-assinatura').style.display = c ? 'block' : 'none';
+    if (!c) return;
+    document.getElementById('edit-plano-cliente').value = c.plano || 'FREEMIUM';
+    document.getElementById('edit-status-pagamento').value = c.statusPagamento || 'ATIVO';
+    document.getElementById('edit-validade-plano').value = '';
+	
 }
+*/
 
-// ================= ASSINATURAS =================
-async function abrirModalAssinaturas(d) {
-    const cliente = _clientes.find(c => c.id === d.id);
-    if (!cliente) return;
-    
-    // Configura o ID no botão de salvar para uso posterior
-    const btnSalvar = document.getElementById('btn-assinatura');
-    if (btnSalvar) btnSalvar.setAttribute('data-id', cliente.id);
-
-    // Preenche os campos do painel novo
-    document.getElementById('admin-cli-plano').value = cliente.plano || 'FREEMIUM';
-    document.getElementById('admin-cli-cnpjs').textContent = cliente.cnpjsUsados || '0';
-    document.getElementById('edit-status-pagamento').value = cliente.statusPagamento || 'ATIVO';
-
-    const valPlano = document.getElementById('edit-validade-plano');
-    if (valPlano) {
-        valPlano.value = cliente.planoValidoAte ? cliente.planoValidoAte.slice(0, 10) : '';
-    }
-
-    document.getElementById('area-edicao-assinatura').style.display = 'block';
-    
-    // Tratamento estético caso o Select antigo ainda exista escondido
-    const selAntigo = document.getElementById('select-cliente-assinatura');
-    if (selAntigo) {
-        limpar(selAntigo);
-        selAntigo.append(el('option', { value: cliente.id }, cliente.nome));
-        selAntigo.value = cliente.id;
-        selAntigo.disabled = true;
-    }
-
-    abrirModal('modalAssinaturas'); 
-}
-
+/*
 async function salvarAssinaturaCliente() {
     const id = document.getElementById('btn-assinatura').getAttribute('data-id'); 
     if (!id) return;
@@ -195,21 +205,80 @@ async function salvarAssinaturaCliente() {
         }
     });
 }
+*/
 
-window.abrirModalMensalidadesAdmin = function() {
-    avisar('Módulo de auditoria financeira em construção.', 'info');
+window.carregarDadosAssinaturaCliente = function(id) {
+    const cliente = _clientes.find(x => x.id === id);
+    const areaEdicao = document.getElementById('area-edicao-assinatura');
+    if (!cliente) {
+        areaEdicao.style.display = 'none';
+        return;
+    }
+    
+    areaEdicao.style.display = 'block';
+    const btnSalvar = document.getElementById('btn-assinatura');
+    if (btnSalvar) btnSalvar.setAttribute('data-id', cliente.id);
+
+    document.getElementById('admin-cli-plano').value = cliente.plano || 'FREEMIUM';
+    document.getElementById('admin-cli-cnpjs').textContent = cliente.cnpjsUsados || '0';
+    document.getElementById('edit-status-pagamento').value = cliente.statusPagamento || 'ATIVO';
+
+    const valPlano = document.getElementById('edit-validade-plano');
+    if (valPlano) {
+        valPlano.value = cliente.planoValidoAte ? cliente.planoValidoAte.slice(0, 10) : '';
+    }
 };
 
-
-function carregarDadosAssinaturaCliente(id) {
-    const c = _clientes.find(x => x.id === id);
-    document.getElementById('area-edicao-assinatura').style.display = c ? 'block' : 'none';
-    if (!c) return;
-    document.getElementById('edit-plano-cliente').value = c.plano || 'FREEMIUM';
-    document.getElementById('edit-status-pagamento').value = c.statusPagamento || 'ATIVO';
-    document.getElementById('edit-validade-plano').value = '';
-	
+async function salvarAssinaturaCliente() {
+    const id = document.getElementById('btn-assinatura').getAttribute('data-id'); 
+    if (!id) return;
+    
+    const plano = val('admin-cli-plano');
+    await comCarga('btn-assinatura', 'Salvando…', async () => {
+        const r = await api('/api/gestao_usuarios', { 
+            acao: 'editar_assinatura', tipo: 'CLIENTE', id, 
+            plano, 
+            statusPagamento: val('edit-status-pagamento'), 
+            planoValidoAte: plano === 'PREMIUM' ? (val('edit-validade-plano') || null) : null 
+        });
+        if (r.ok) { 
+            avisar('Assinatura atualizada.', 'ok'); fecharModal('modalAssinaturas'); pesquisarContratos(); 
+        } else {
+            avisar(erroDe(r), 'erro');
+        }
+    });
 }
+
+
+// Modal de Histórico Financeiro do Admin
+window.abrirModalMensalidadesAdmin = async function() {
+    const idCliente = document.getElementById('btn-assinatura').getAttribute('data-id');
+    if (!idCliente) return avisar('Selecione um cliente primeiro.', 'erro');
+    
+    const tbody = document.getElementById('grid-mensalidades-admin');
+    if (!tbody) return;
+    limpar(tbody).append(linhaMsg(5, '⏳ Carregando histórico...'));
+    abrirModal('modalMensalidadesAdmin');
+    
+    const r = await api(`/api/gestao_usuarios?acao=listar_mensalidades&clienteId=${idCliente}`);
+    limpar(tbody);
+    if (!r.ok || !r.dados || r.dados.length === 0) {
+        return tbody.append(linhaMsg(5, 'Nenhuma mensalidade gerada para este cliente.'));
+    }
+    
+    r.dados.forEach(m => {
+        const venc = m.vencimento ? m.vencimento.substring(0, 10).split('-').reverse().join('/') : '-';
+        const pg = m.dataPagamento ? m.dataPagamento.substring(0, 10).split('-').reverse().join('/') : '-';
+        const cor = m.status === 'PAGO' ? 'green' : (m.status === 'EM ATRASO' ? 'red' : '#b45f06');
+        
+        tbody.append(el('tr', {}, 
+            el('td', {}, el('strong', {}, m.mesRef)),
+            el('td', {}, venc), el('td', {}, pg),
+            el('td', {}, 'R$ ' + m.valorBase.toFixed(2).replace('.', ',')),
+            el('td', { style: `color: ${cor}; font-weight: bold;` }, m.status)
+        ));
+    });
+};
 
 
 async function salvarAssinaturaCliente() {

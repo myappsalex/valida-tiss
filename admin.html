@@ -329,6 +329,22 @@
     </div>
 </div>
 
+<!-- Modal Histórico de Mensalidades (Visão Admin) -->
+<div id="modalMensalidadesAdmin" class="modal-overlay">
+    <div class="modal-content" style="max-width: 650px;">
+        <h3 style="color: #0056b3; margin-top:0;">Histórico Financeiro do Cliente</h3>
+        <table class="tabela-dados">
+            <thead>
+                <tr><th>Mês Ref.</th><th>Vencimento</th><th>Data PG</th><th>Valor</th><th>Status</th></tr>
+            </thead>
+            <tbody id="grid-mensalidades-admin">
+                <!-- Javascript injeta aqui -->
+            </tbody>
+        </table>
+        <button class="btn btn-cancel" data-onclick="fecharModal('modalMensalidadesAdmin')" style="width: 100%; margin-top: 15px;">Fechar</button>
+    </div>
+</div>
+
 <script src="js/modulos/core.js"></script>
 <script src="js/modulos/ui.js"></script>
 <script src="js/modulos/auth.js"></script>

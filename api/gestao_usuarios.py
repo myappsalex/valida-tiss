@@ -32,6 +32,19 @@ def _admins_ativos(db):
 
 class handler(ApiHandler):
     def get(self, ctx):
+        if ctx.query.get("acao") == "listar_mensalidades":
+            ctx.exigir(tipo="INTERNO")
+            cliente_id = ctx.query.get("clienteId")
+            mens = get_db().mensalidade.find_many(where={"clienteId": cliente_id}, order={"vencimento": "desc"}, take=6)
+            dados = [{
+                "mesRef": m.mesRef,
+                "vencimento": getattr(m.vencimento, "isoformat", lambda: str(m.vencimento))(),
+                "dataPagamento": getattr(m.dataPagamento, "isoformat", lambda: str(m.dataPagamento))() if m.dataPagamento else None,
+                "valorBase": m.valorBase,
+                "status": m.status
+            } for m in mens]
+            return (200, {"sucesso": True, "dados": dados}, {})
+            
         if ctx.query.get("acao") == "config":
             ctx.exigir(tipo="INTERNO", permissao="config:editar")
             return (200, settings.listar(get_db()), {"Cache-Control": "no-store"})
@@ -108,10 +121,9 @@ class handler(ApiHandler):
     def post(self, ctx):
         corpo = ctx.json()
         acao = corpo.get("acao")
-        p = ctx.exigir(tipo="INTERNO")
         db = get_db()
 
-# 1. AÇÃO PÚBLICA/CLIENTES (Precisa vir ANTES do exigir INTERNO)
+        # 1. AÇÃO ABERTA PARA O CLIENTE (Resolve o Erro 403 e o "Carregando...")
         if acao == "listar_planos_vigentes":
             hoje = security.agora_utc()
             planos_db = db.configuracaoplano.find_many(
@@ -119,9 +131,9 @@ class handler(ApiHandler):
                 order={"vigenciaInicio": "desc"}
             )
             precos = {}
-            for p in planos_db:
-                if p.nome not in precos:
-                    precos[p.nome] = p.valor
+            for p_obj in planos_db:
+                if p_obj.nome not in precos:
+                    precos[p_obj.nome] = p_obj.valor
                     
             return {"sucesso": True, "dados": {
                 "ECO": precos.get("ECO", 29.90),
@@ -129,8 +141,45 @@ class handler(ApiHandler):
                 "PREMIUM": precos.get("PREMIUM", 199.90)
             }}
 
-        # 2. BARREIRA DE ADMIN (Todas as ações abaixo exigem ser equipe INTERNA)
+        # 2. BARREIRA ADMINISTRATIVA (Ações abaixo só para o Admin)
         p = ctx.exigir(tipo="INTERNO")
+
+        if acao == "salvar_plano_vigencia":
+            if not p.pode("config:editar"):
+                raise ApiError(403, "Seu perfil não tem permissão para esta ação.")
+                
+            nome = v.escolha(corpo.get("nome"), ["ECO", "FLEX", "PREMIUM"], "Plano")
+            
+            # Resolve o Erro 500: Protege a conversão de strings com vírgula
+            try:
+                novo_valor = float(str(corpo.get("valor", "0")).replace(",", "."))
+            except ValueError:
+                raise ApiError(422, "Valor inválido.", "validacao")
+            
+            hoje = security.agora_utc()
+            ativos = db.configuracaoplano.find_many(
+                where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
+                order={"vigenciaInicio": "desc"}, take=1
+            )
+            valor_atual = ativos[0].valor if ativos else None
+            limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
+            
+            if valor_atual != novo_valor:
+                data_str = corpo.get("vigenciaInicio")
+                if not data_str:
+                    raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
+                
+                nova_vigencia = v.data_iso(data_str, "Data de Vigência")
+                db.configuracaoplano.create(data={
+                    "nome": nome,
+                    "valor": novo_valor,
+                    "limite": limite_padrao,
+                    "vigenciaInicio": nova_vigencia
+                })
+                audit.registrar(db, p, "NOVO_PRECO_PLANO", "SISTEMA", nome, {"novo": novo_valor, "vigencia": data_str}, ctx.ip)
+                return {"sucesso": True, "mensagem": f"Novo preço programado com sucesso para {nome}!"}
+                
+            return {"sucesso": True, "mensagem": "O valor é igual ao atual. Nenhuma alteração realizada.", "codigo": "fechar"}
         
         if acao == "salvar_config":
             if not p.pode("config:editar"):
