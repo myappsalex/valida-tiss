@@ -14,30 +14,17 @@ from vt_core import audit, config, security, settings, validation, web as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
-def _item_cliente(c):
-    return {"id": c.id, "nome": c.nomeEmpresa, "email": c.emailAcesso,
-            "statusConta": c.statusConta, "plano": security.plano_efetivo(c),
-            "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO",
-            "tokensRestantes": c.tokensIA, "criadoEm": getattr(c, "criadoEm", None),
-            "dataCancelamento": getattr(c, "dataCancelamento", None),
-            "cpfCnpj": getattr(c, "cpfCnpj", "")} 
-
-
 def _item_interno(u):
     return {"id": u.id, "nome": u.nome, "email": u.email, "perfil": u.perfil,
             "status": security.status_interno(u), "criadoEm": getattr(u, "criadoEm", None)}
 
-
 EMAIL_AVULSO = "anunciante.avulso@validatiss.com"
-
 
 def _conta_sistema(rec):
     return getattr(rec, "statusConta", None) == "GUEST" or getattr(rec, "emailAcesso", None) == EMAIL_AVULSO
 
-
 def _tabela(db, tipo):
     return db.usuario if tipo == "INTERNO" else db.cliente
-
 
 def _alvo(db, tipo, id_):
     rec = _tabela(db, tipo).find_unique(where={"id": str(id_ or "")})
@@ -47,21 +34,22 @@ def _alvo(db, tipo, id_):
         raise ApiError(403, "Esta é uma conta de sistema (anunciantes avulsos) e não pode ser alterada.")
     return rec
 
-
 def _admins_ativos(db):
     return db.usuario.count(where={"perfil": "ADMIN", "status": "ATIVO"})
-
 
 class handler(ApiHandler):
     def get(self, ctx):
         if ctx.query.get("acao") == "config":
             ctx.exigir(tipo="INTERNO", permissao="config:editar")
             return (200, settings.listar(get_db()), {"Cache-Control": "no-store"})
+            
         tipo = v.escolha(ctx.query.get("tipo", "INTERNO"), ("INTERNO", "CLIENTE"), "Tipo")
         p = ctx.exigir(tipo="INTERNO", permissao="usuarios:gerir" if tipo == "INTERNO" else "clientes:ler")
         db = get_db()
+        
         pagina = max(1, int(ctx.query.get("page", 1) or 1)) if str(ctx.query.get("page", "1")).isdigit() else 1
         tam = min(200, max(1, int(ctx.query.get("pageSize", 50)))) if str(ctx.query.get("pageSize", "50")).isdigit() else 50
+        
         if tipo == "INTERNO":
             total = db.usuario.count()
             itens = [_item_interno(u) for u in db.usuario.find_many(
@@ -72,14 +60,43 @@ class handler(ApiHandler):
                 where["nomeEmpresa"] = {"contains": ctx.query["nome"][:100], "mode": "insensitive"}
             if ctx.query.get("email"):
                 where["emailAcesso"] = {"contains": ctx.query["email"][:100].lower()}
-            where["statusConta"] = {"not": "GUEST"}           # esconde a conta de sistema dos anunciantes avulsos
+            where["statusConta"] = {"not": "GUEST"}  # esconde a conta de sistema dos anunciantes avulsos
             if ctx.query.get("status"):
                 where["statusPagamento"] = v.escolha(ctx.query["status"], config.STATUS_PAGAMENTO, "Status")
             if ctx.query.get("statusConta"):
                 where["statusConta"] = v.escolha(ctx.query["statusConta"], config.STATUS_CLIENTE, "Status da conta")
+            
             total = db.cliente.count(where=where)
-            itens = [_item_cliente(c) for c in db.cliente.find_many(
-                where=where, order={"criadoEm": "desc"}, take=tam, skip=(pagina - 1) * tam)]
+            # CORREÇÃO SÊNIOR: A busca agora inclui as mensalidades e os Prestadores Vinculados
+            clientes_db = db.cliente.find_many(
+                where=where, 
+                include={"mensalidades": True, "prestadoresVinculados": True},
+                order={"criadoEm": "desc"}, 
+                take=tam, 
+                skip=(pagina - 1) * tam
+            )
+            
+            itens = []
+            for c in clientes_db:
+                # Ordena as mensalidades e pega o status financeiro real
+                ult_mens = sorted(c.mensalidades, key=lambda x: x.vencimento, reverse=True) if c.mensalidades else []
+                status_fin = ult_mens[0].status if ult_mens else "SEM FATURA"
+                
+                itens.append({
+                    "id": c.id, 
+                    "nome": c.nomeEmpresa, 
+                    "email": c.emailAcesso,
+                    "statusConta": c.statusConta, 
+                    "plano": getattr(c, "plano", "FREEMIUM"),
+                    "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO",
+                    "statusFinanceiro": status_fin,
+                    "cnpjsUsados": len(c.prestadoresVinculados) if c.prestadoresVinculados else 0,
+                    "tokensRestantes": getattr(c, "tokensIA", 0), 
+                    "criadoEm": getattr(c, "criadoEm", None),
+                    "dataCancelamento": getattr(c, "dataCancelamento", None),
+                    "cpfCnpj": getattr(c, "cpfCnpj", "")
+                })
+                
         return (200, itens, {"X-Total-Count": total})
 
     def post(self, ctx):
@@ -94,7 +111,7 @@ class handler(ApiHandler):
             valores = corpo.get("valores")
             if not isinstance(valores, dict) or not valores:
                 raise ApiError(422, "Nada para salvar.", "validacao")
-            for chave in valores:                       # valida tudo antes de gravar qualquer coisa
+            for chave in valores:                       
                 if chave not in settings.DEFINICOES:
                     raise ApiError(422, "Configuração desconhecida.", "validacao")
             mudancas = {}
@@ -225,52 +242,15 @@ class handler(ApiHandler):
         if acao == "editar_assinatura":
             if tipo != "CLIENTE":
                 raise ApiError(400, "Disponível apenas para clientes.")
-            plano = v.escolha(corpo.get("plano"), config.PLANOS, "Plano")
+            # CORREÇÃO: Aplica os novos campos de plano
+            plano = v.escolha(corpo.get("plano"), ["FREEMIUM", "ECO", "FLEX", "PREMIUM"], "Plano")
             status_pag = v.escolha(corpo.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
             data = {"plano": plano, "statusPagamento": status_pag}
-            if plano == "PREMIUM" and corpo.get("planoValidoAte"):
-                data["planoValidoAte"] = v.data_iso(corpo["planoValidoAte"], "Validade do plano", fim_do_dia=True)
+            
             tabela.update(where={"id": alvo.id}, data=data)
             audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", alvo.id,
                             {"antes": [getattr(alvo, "plano", None), getattr(alvo, "statusPagamento", None)],
                              "depois": [plano, status_pag]}, ctx.ip)
-            return {"sucesso": True, "mensagem": "Assinatura atualizada."}
+            return {"sucesso": True, "mensagem": "Assinatura e plano atualizados."}
 
         raise ApiError(400, "Comando desconhecido.")
-
-def get(ctx):
-    # Barreira de segurança
-    if not ctx.usuario or ctx.usuario.perfil not in ["ADMIN", "GESTAO"]:
-        raise web.ApiError(403, "Acesso negado.")
-    
-    acao = ctx.query.get("acao", "")
-    db = get_db()
-    
-    if acao == "listar_clientes":
-        # Inclui as mensalidades para não dar erro 500 ao tentar ler o histórico financeiro
-        clientes = db.cliente.find_many(
-            include={"mensalidades": True},
-            order_by={"criadoEm": "desc"}
-        )
-        
-        resultado = []
-        for c in clientes:
-            # Ordena as mensalidades para pegar o status da mais recente
-            ult_mensalidade = sorted(c.mensalidades, key=lambda x: x.vencimento, reverse=True) if c.mensalidades else []
-            status_fin = ult_mensalidade[0].status if ult_mensalidade else "SEM FATURA"
-            
-            resultado.append({
-                "id": c.id,
-                "nomeEmpresa": c.nomeEmpresa,
-                "emailAcesso": c.emailAcesso,
-                "cpfCnpj": getattr(c, "cpfCnpj", ""),
-                "plano": getattr(c, "plano", "FREEMIUM"),
-                "statusPagamento": getattr(c, "statusPagamento", "PENDENTE"),
-                "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0),
-                "statusFinanceiro": status_fin
-            })
-        
-        return {"sucesso": True, "dados": resultado}
-        
-    # (Mantenha aqui as outras ações do admin, como listar dashboard, etc.)
-    return {"sucesso": True}
