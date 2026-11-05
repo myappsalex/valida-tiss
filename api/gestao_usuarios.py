@@ -3,7 +3,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vt_core import audit, config, security, settings, validation, web as v
+from vt_core import audit, config, security, settings, web, validation as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
