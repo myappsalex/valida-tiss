@@ -84,7 +84,7 @@ async function solicitarConta() {
 			abrirModal('modalEscolherPlano');
 		} else {
 			avisar(erroDe(r), 'erro');
-		}
+		});
 }
 
 Pronto.then(u => {
