@@ -558,15 +558,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Carrega o valor inicial quando o modal abre ou o admin troca o Select
 async function adminCarregarPrecoPlano() {
-    if (Object.keys(_precosVigentes).length === 0) {
+    if (Object.keys(window._precosVigentes || {}).length === 0) {
         const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
-        if (r.ok) _precosVigentes = r.dados;
+        if (r.ok) window._precosVigentes = r.dados;
     }
     const nome = document.getElementById('admin-plano-select').value;
     const inputValor = document.getElementById('admin-plano-valor');
     
-    // Seta o valor e guarda o original para comparar depois
-    inputValor.value = (_precosVigentes[nome] || 0).toFixed(2);
+    // Seta o valor (usa o window._precosVigentes)
+    const valorAtual = (window._precosVigentes && window._precosVigentes[nome]) ? window._precosVigentes[nome] : 0;
+    inputValor.value = valorAtual.toFixed(2);
     inputValor.setAttribute('data-original', inputValor.value);
     
     // Oculta vigência por padrão
@@ -581,7 +582,7 @@ window.adminValidarMudancaPreco = function() {
     document.getElementById('bloco-vigencia').style.display = (atual !== original) ? 'block' : 'none';
 };
 
-// Disparo ao clicar em Salvar
+// Disparo ao clicar em Salvar (Ajustar a invalidação do cache)
 async function adminSalvarPrecoPlano() {
     const nome = document.getElementById('admin-plano-select').value;
     const valor = document.getElementById('admin-plano-valor').value;
@@ -603,7 +604,7 @@ async function adminSalvarPrecoPlano() {
             if (r.codigo === 'fechar') return fecharModal('modalPrecosPlanos');
             
             fecharModal('modalPrecosPlanos');
-            _precosVigentes = {}; // Invalida o cache
+            window._precosVigentes = {}; // Invalida o cache global
             adminCarregarPrecoPlano(); // Recarrega
         } else {
             avisar(erroDe(r), 'erro');

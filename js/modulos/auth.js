@@ -131,13 +131,15 @@ async function solicitarConta() {
 }
 
 // Função para popular a tela do cliente
-let _precosVigentes = {};
+// Cache global para a tabela de preços
+window._precosVigentes = {};
+
 async function carregarPrecosPlanos() {
     if (!document.getElementById('preco-eco')) return;
     
     const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
     if (r.ok && r.dados) {
-        _precosVigentes = r.dados; // Salva em memória
+        window._precosVigentes = r.dados; // Salva em memória global
         const fmt = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
         
         document.getElementById('preco-eco').textContent = fmt(r.dados.ECO);

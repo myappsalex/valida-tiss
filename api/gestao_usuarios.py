@@ -123,17 +123,20 @@ class handler(ApiHandler):
         acao = corpo.get("acao")
         db = get_db()
 
-        # 1. AÇÃO ABERTA PARA O CLIENTE (Resolve o Erro 403 e o "Carregando...")
+# 1. AÇÃO ABERTA PARA O CLIENTE
         if acao == "listar_planos_vigentes":
-            hoje = security.agora_utc()
-            planos_db = db.configuracaoplano.find_many(
-                where={"vigenciaInicio": {"lte": hoje}},
-                order={"vigenciaInicio": "desc"}
-            )
             precos = {}
-            for p_obj in planos_db:
-                if p_obj.nome not in precos:
-                    precos[p_obj.nome] = p_obj.valor
+            try:
+                hoje = security.agora_utc()
+                planos_db = db.configuracaoplano.find_many(
+                    where={"vigenciaInicio": {"lte": hoje}},
+                    order={"vigenciaInicio": "desc"}
+                )
+                for p_obj in planos_db:
+                    if p_obj.nome not in precos:
+                        precos[p_obj.nome] = p_obj.valor
+            except Exception as e:
+                print("Aviso: Tabela ConfiguracaoPlano ainda não atualizada no Prisma:", e)
                     
             return {"sucesso": True, "dados": {
                 "ECO": precos.get("ECO", 29.90),
