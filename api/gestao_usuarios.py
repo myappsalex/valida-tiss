@@ -1,11 +1,4 @@
-"""/api/gestao_usuarios – IAM interno e carteira de clientes (somente staff).
-
-Corrige: endpoint sem autenticação; reset para senha fixa; `atualizar_tokens`
-chamado pelo front mas inexistente; filtros ignorados; listagem de clientes sem
-plano/tokens/statusPagamento (a grade mostrava sempre FREEMIUM/0); bloqueio que
-sobrescrevia `perfil`; `editar` com valor arbitrário; reativação acidental ao
-editar nome; data de cancelamento ignorada; sem paginação nem auditoria.
-"""
+"""/api/gestao_usuarios – IAM interno e carteira de clientes (somente staff)."""
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,37 +53,50 @@ class handler(ApiHandler):
                 where["nomeEmpresa"] = {"contains": ctx.query["nome"][:100], "mode": "insensitive"}
             if ctx.query.get("email"):
                 where["emailAcesso"] = {"contains": ctx.query["email"][:100].lower()}
-            where["statusConta"] = {"not": "GUEST"}  # esconde a conta de sistema dos anunciantes avulsos
+            where["statusConta"] = {"not": "GUEST"}  # esconde a conta de sistema
             if ctx.query.get("status"):
                 where["statusPagamento"] = v.escolha(ctx.query["status"], config.STATUS_PAGAMENTO, "Status")
             if ctx.query.get("statusConta"):
                 where["statusConta"] = v.escolha(ctx.query["statusConta"], config.STATUS_CLIENTE, "Status da conta")
             
             total = db.cliente.count(where=where)
-            # CORREÇÃO SÊNIOR: A busca agora inclui as mensalidades e os Prestadores Vinculados
+            
+            # Busca de clientes limpa, sem 'include' para não causar Erro 500
             clientes_db = db.cliente.find_many(
                 where=where, 
-                include={"mensalidades": True, "prestadoresVinculados": True},
                 order={"criadoEm": "desc"}, 
                 take=tam, 
                 skip=(pagina - 1) * tam
             )
             
+            # Busca do status financeiro separada e segura
+            ultimas_mensalidades = {}
+            cliente_ids = [c.id for c in clientes_db]
+            if cliente_ids:
+                try:
+                    mens = db.mensalidade.find_many(
+                        where={"clienteId": {"in": cliente_ids}},
+                        order={"vencimento": "desc"}
+                    )
+                    for m in mens:
+                        if m.clienteId not in ultimas_mensalidades:
+                            ultimas_mensalidades[m.clienteId] = getattr(m, "status", "SEM FATURA")
+                except Exception as e:
+                    print(f"Aviso Admin: Tabela de mensalidades indisponível ou vazia - {e}")
+            
             itens = []
             for c in clientes_db:
-                # Ordena as mensalidades e pega o status financeiro real
-                ult_mens = sorted(c.mensalidades, key=lambda x: x.vencimento, reverse=True) if c.mensalidades else []
-                status_fin = ult_mens[0].status if ult_mens else "SEM FATURA"
+                status_fin = ultimas_mensalidades.get(c.id, "SEM FATURA")
                 
                 itens.append({
                     "id": c.id, 
-                    "nome": c.nomeEmpresa, 
-                    "email": c.emailAcesso,
-                    "statusConta": c.statusConta, 
+                    "nome": getattr(c, "nomeEmpresa", ""), 
+                    "email": getattr(c, "emailAcesso", ""),
+                    "statusConta": getattr(c, "statusConta", ""), 
                     "plano": getattr(c, "plano", "FREEMIUM"),
                     "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO",
                     "statusFinanceiro": status_fin,
-                    "cnpjsUsados": len(c.prestadoresVinculados) if c.prestadoresVinculados else 0,
+                    "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0),
                     "tokensRestantes": getattr(c, "tokensIA", 0), 
                     "criadoEm": getattr(c, "criadoEm", None),
                     "dataCancelamento": getattr(c, "dataCancelamento", None),
@@ -230,7 +236,7 @@ class handler(ApiHandler):
             motivo = v.texto(corpo.get("motivo"), "Motivo", 0, 200, obrigatorio=False)
             if q > 0:
                 tabela.update(where={"id": alvo.id}, data={"tokensIA": {"increment": q}})
-            else:  # débito atômico: nunca deixa o saldo negativo
+            else:  
                 n = tabela.update_many(where={"id": alvo.id, "tokensIA": {"gte": -q}},
                                        data={"tokensIA": {"decrement": -q}})
                 if n == 0:
@@ -242,7 +248,6 @@ class handler(ApiHandler):
         if acao == "editar_assinatura":
             if tipo != "CLIENTE":
                 raise ApiError(400, "Disponível apenas para clientes.")
-            # CORREÇÃO: Aplica os novos campos de plano
             plano = v.escolha(corpo.get("plano"), ["FREEMIUM", "ECO", "FLEX", "PREMIUM"], "Plano")
             status_pag = v.escolha(corpo.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
             data = {"plano": plano, "statusPagamento": status_pag}
