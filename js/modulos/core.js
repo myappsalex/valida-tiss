@@ -13,7 +13,8 @@ const GMUD_NOTAS = [
     "Segurança aprimorada (JWT, Proteção CSRF, Bcrypt)",
 	"Implementação de melhorias no termo de aceite",
 	"Implementação da edição de dados pessoais, perfil cliente",
-	"Agrupamento de itens para análise de conta pela IA. Ganho de performance e economia de tokens"
+	"Agrupamento de itens para análise de conta pela IA. Ganho de performance e economia de tokens",
+	"Novos planos de assinatura"
 ];
 
 window.abrirModalGMUD = function() {

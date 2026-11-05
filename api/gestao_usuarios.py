@@ -128,6 +128,58 @@ class handler(ApiHandler):
             if mudancas:
                 audit.registrar(db, p, "CONFIG_ALTERADA", "CONFIG", ",".join(mudancas), mudancas, ctx.ip)
             return {"sucesso": True, "mensagem": "Configurações salvas." if mudancas else "Nenhuma alteração.", "itens": settings.listar(db)}
+        if acao == "listar_planos_vigentes":
+            # Retorna apenas o valor ativo no momento atual (sysdate) para cada plano
+            hoje = security.agora_utc()
+            planos_db = db.configuracaoplano.find_many(
+                where={"vigenciaInicio": {"lte": hoje}},
+                order={"vigenciaInicio": "desc"}
+            )
+            # Pega o primeiro de cada (o mais recente válido)
+            precos = {}
+            for p in planos_db:
+                if p.nome not in precos:
+                    precos[p.nome] = p.valor
+                    
+            return {"sucesso": True, "dados": {
+                "ECO": precos.get("ECO", 99.90),
+                "FLEX": precos.get("FLEX", 199.90),
+                "PREMIUM": precos.get("PREMIUM", 399.90)
+            }}
+
+        if acao == "salvar_plano_vigencia":
+            if not p.pode("config:editar"):
+                raise ApiError(403, "Seu perfil não tem permissão para esta ação.")
+                
+            nome = v.escolha(corpo.get("nome"), ["ECO", "FLEX", "PREMIUM"], "Plano")
+            novo_valor = float(corpo.get("valor"))
+            
+            # Pega o preço vigente no sysdate
+            hoje = security.agora_utc()
+            ativos = db.configuracaoplano.find_many(
+                where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
+                order={"vigenciaInicio": "desc"}, take=1
+            )
+            valor_atual = ativos[0].valor if ativos else None
+            limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
+            
+            # Só exige e grava se o valor foi alterado
+            if valor_atual != novo_valor:
+                data_str = corpo.get("vigenciaInicio")
+                if not data_str:
+                    raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
+                
+                nova_vigencia = v.data_iso(data_str, "Data de Vigência")
+                db.configuracaoplano.create(data={
+                    "nome": nome,
+                    "valor": novo_valor,
+                    "limite": limite_padrao,
+                    "vigenciaInicio": nova_vigencia
+                })
+                audit.registrar(db, p, "NOVO_PRECO_PLANO", "SISTEMA", nome, {"novo": novo_valor, "vigencia": data_str}, ctx.ip)
+                return {"sucesso": True, "mensagem": f"Novo preço programado com sucesso para {nome}!"}
+                
+            return {"sucesso": True, "mensagem": "O valor é igual ao atual. Nenhuma alteração realizada.", "codigo": "fechar"}
 
         if acao == "criar_interno":
             if not p.pode("usuarios:gerir"):

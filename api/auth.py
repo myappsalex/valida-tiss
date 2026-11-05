@@ -130,8 +130,15 @@ class handler(ApiHandler):
     def post(self, ctx):
         corpo = ctx.json()
         acao = corpo.get("acao")
-        if acao == "login":
-            return _login(ctx, corpo, "CLIENTE")
+        if acao == "listar_planos":
+            db = get_db()
+            planos = db.configuracaoplano.find_many()
+            # Se a tabela estiver vazia, retorna valores padrão de mercado
+            if not planos:
+                return {"sucesso": True, "dados": {"ECO": 99.90, "FLEX": 199.90, "PREMIUM": 399.90}}
+            
+            dados = {p.nome: p.valor for p in planos}
+            return {"sucesso": True, "dados": dados}
         if acao == "login_admin":
             return _login(ctx, corpo, "INTERNO")
         if acao == "registro":

@@ -129,11 +129,35 @@ async function salvarPrecos() {
 
 // ================= ASSINATURAS =================
 async function abrirModalAssinaturas(d) {
-    abrirModal('modalAssinaturas'); document.getElementById('area-edicao-assinatura').style.display = 'none';
-    const sel = document.getElementById('select-cliente-assinatura'); preencherSelect(sel, [], 'Carregando…');
+    window.abrirModalAssinaturas = function(idCliente) {
+    // Procura o cliente na lista global carregada da API
+    const cliente = _clientes.find(c => c.id === idCliente);
+    if (!cliente) return;
+    
+    // Armazena o ID no botão de salvar (se houver)
+    const btnSalvar = document.getElementById('btn-salvar-assinatura');
+    if (btnSalvar) btnSalvar.setAttribute('data-id', cliente.id);
+
+    // Preenche os campos novos (com proteção contra null)
+    const selectPlano = document.getElementById('admin-cli-plano');
+    if (selectPlano) selectPlano.value = cliente.plano || 'FREEMIUM';
+    
+    const labelCnpjs = document.getElementById('admin-cli-cnpjs');
+    if (labelCnpjs) labelCnpjs.textContent = cliente.cnpjsUsados || '0';
+
+    // Abre o modal
+    abrirModal('modalEdicaoAssinatura'); 
+};
+		
+	document.getElementById('area-edicao-assinatura').style.display = 'none';
+    const sel = document.getElementById('select-cliente-assinatura'); 
+	preencherSelect(sel, [], 'Carregando…');
     if (!(await carregarClientes())) return;
     preencherSelect(sel, _clientes.map(c => [c.id, `${c.nome} (${c.plano})`]), '-- Selecione um cliente --');
     if (d && d.id) { sel.value = d.id; carregarDadosAssinaturaCliente(d.id); }
+	
+	// Dentro do seu admin.js (substitua a função ou o trecho que abre o modal de edição do cliente)
+
 }
 function carregarDadosAssinaturaCliente(id) {
     const c = _clientes.find(x => x.id === id);
@@ -142,7 +166,10 @@ function carregarDadosAssinaturaCliente(id) {
     document.getElementById('edit-plano-cliente').value = c.plano || 'FREEMIUM';
     document.getElementById('edit-status-pagamento').value = c.statusPagamento || 'ATIVO';
     document.getElementById('edit-validade-plano').value = '';
+	
 }
+
+
 async function salvarAssinaturaCliente() {
     const id = val('select-cliente-assinatura'); if (!id) return;
     const plano = val('edit-plano-cliente');
@@ -416,6 +443,77 @@ document.addEventListener('DOMContentLoaded', () => {
         inputBusca.addEventListener('input', (e) => buscarClienteAd(e.target.value));
     }
 });
+
+// Função para popular a tela do cliente
+let _precosVigentes = {};
+async function carregarPrecosPlanos() {
+    if (!document.getElementById('preco-eco')) return;
+    
+    const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
+    if (r.ok && r.dados) {
+        _precosVigentes = r.dados; // Salva em memória
+        const fmt = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+        
+        document.getElementById('preco-eco').textContent = fmt(r.dados.ECO);
+        document.getElementById('preco-flex').textContent = fmt(r.dados.FLEX);
+        document.getElementById('preco-premium').textContent = fmt(r.dados.PREMIUM);
+    }
+}
+
+// Carrega o valor inicial quando o modal abre ou o admin troca o Select
+async function adminCarregarPrecoPlano() {
+    if (Object.keys(_precosVigentes).length === 0) {
+        const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
+        if (r.ok) _precosVigentes = r.dados;
+    }
+    const nome = document.getElementById('admin-plano-select').value;
+    const inputValor = document.getElementById('admin-plano-valor');
+    
+    // Seta o valor e guarda o original para comparar depois
+    inputValor.value = (_precosVigentes[nome] || 0).toFixed(2);
+    inputValor.setAttribute('data-original', inputValor.value);
+    
+    // Oculta vigência por padrão
+    document.getElementById('bloco-vigencia').style.display = 'none';
+    document.getElementById('admin-plano-vigencia').value = '';
+}
+
+// Se o admin digitar um número diferente, exibe o campo de data automaticamente
+window.adminValidarMudancaPreco = function() {
+    const atual = Number(document.getElementById('admin-plano-valor').value).toFixed(2);
+    const original = Number(document.getElementById('admin-plano-valor').getAttribute('data-original')).toFixed(2);
+    document.getElementById('bloco-vigencia').style.display = (atual !== original) ? 'block' : 'none';
+};
+
+// Disparo ao clicar em Salvar
+async function adminSalvarPrecoPlano() {
+    const nome = document.getElementById('admin-plano-select').value;
+    const valor = document.getElementById('admin-plano-valor').value;
+    const dataVigencia = document.getElementById('admin-plano-vigencia').value;
+    const blocoVisivel = document.getElementById('bloco-vigencia').style.display === 'block';
+
+    if (blocoVisivel && !dataVigencia) return avisar('Selecione a data de vigência para o novo valor.', 'erro');
+
+    await comCarga('btn-salvar-preco', 'Salvando...', async () => {
+        const r = await api('/api/gestao_usuarios', { 
+            acao: 'salvar_plano_vigencia', 
+            nome, 
+            valor, 
+            vigenciaInicio: dataVigencia 
+        });
+        
+        if (r.ok) {
+            avisar(r.mensagem, 'sucesso');
+            if (r.codigo === 'fechar') return fecharModal('modalPrecosPlanos');
+            
+            fecharModal('modalPrecosPlanos');
+            _precosVigentes = {}; // Invalida o cache
+            adminCarregarPrecoPlano(); // Recarrega
+        } else {
+            avisar(erroDe(r), 'erro');
+        }
+    });
+}
 
 // Expõe globalmente as funções necessárias para o HTML
 window.abrirPedidoPublicidadeAvulsoAdmin = abrirPedidoPublicidadeAvulsoAdmin;

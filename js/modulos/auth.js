@@ -130,6 +130,31 @@ async function solicitarConta() {
     });
 }
 
+// Função para popular a tela do cliente
+let _precosVigentes = {};
+async function carregarPrecosPlanos() {
+    if (!document.getElementById('preco-eco')) return;
+    
+    const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
+    if (r.ok && r.dados) {
+        _precosVigentes = r.dados; // Salva em memória
+        const fmt = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+        
+        document.getElementById('preco-eco').textContent = fmt(r.dados.ECO);
+        document.getElementById('preco-flex').textContent = fmt(r.dados.FLEX);
+        document.getElementById('preco-premium').textContent = fmt(r.dados.PREMIUM);
+    }
+}
+
+// Vincula o carregamento dos preços à abertura do modal de Planos
+const openModalAntigo = window.abrirModal;
+window.abrirModal = function(id) {
+    if (openModalAntigo) openModalAntigo(id);
+    if (id === 'modalEscolherPlano') {
+        carregarPrecosPlanos();
+    }
+};
+
 // Exponha as novas funções
 window.abrirModalTermos = abrirModalTermos;
 window.verificarScrollTermos = verificarScrollTermos;

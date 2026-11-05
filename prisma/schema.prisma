@@ -236,10 +236,13 @@ model Mensalidade {
   @@index([clienteId, status])
 }
 
-// NOVO – Tabela de Domínio para gestão dos preços pelo Admin
+// Tabela de Domínio com Histórico de Vigência
 model ConfiguracaoPlano {
-  id      String @id @default(uuid())
-  nome    String @unique // ECO | FLEX | PREMIUM
-  valor   Float
-  limite  Int    // 1 | 5 | 9999
+  id             String   @id @default(uuid())
+  nome           String   // ECO | FLEX | PREMIUM
+  valor          Float
+  limite         Int      // 1 | 5 | 9999
+  vigenciaInicio DateTime @default(now())
+
+  @@index([nome, vigenciaInicio])
 }
