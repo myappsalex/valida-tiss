@@ -59,15 +59,17 @@ class handler(ApiHandler):
 
         solicitada = str(d.get("versao") or "")
         declarada = tiss.versao_declarada(raiz)
-        versao = declarada if declarada in config.VERSOES_TISS else solicitada or config.VERSAO_TISS_PADRAO
-        #if versao not in config.VERSOES_TISS:
-        #    return (400, {"valido": False, "erros": [f"Versão TISS não suportada: {versao}."]})
+        
+        # Abordagem Híbrida: Captura a versão declarada, mesmo se ela não estiver na lista de suportadas
+        versao = declarada if declarada else solicitada or config.VERSAO_TISS_PADRAO
+        
         aviso_versao = None
         if declarada and solicitada and declarada != solicitada:
             aviso_versao = f"O arquivo declara a versão {declarada}; validado contra ela (você selecionou {solicitada})."
-        schema = _schema(config.VERSOES_TISS[versao])
-        if schema is None:
-            raise ApiError(503, f"A validação da versão {versao} está indisponível no momento (schema incompleto no servidor). Use outra versão ou contate o suporte.", "schema_indisponivel")
+        
+        # Correção do KeyError: Usa .get() para não estourar Erro 500 caso a versão seja antiga (ex: 3.02.00)
+        arquivo_xsd = config.VERSOES_TISS.get(versao)
+        schema = _schema(arquivo_xsd) if arquivo_xsd else None
 
         avisos = [aviso_versao] if aviso_versao else []
         informado, calculado = tiss.hash_informado(raiz), tiss.calcular_hash(raiz)
@@ -75,9 +77,16 @@ class handler(ApiHandler):
             avisos.append(f"Hash do epílogo divergente (informado {informado}, calculado {calculado}). "
                           "Se você editou o arquivo, recalcule o hash antes de enviar à operadora.")
 
+        if schema is None:
+            # Não temos o XSD (ex: 3.02.00 descontinuada). Devolve como válido para o frontend poder extrair os valores e exibir o Alerta Crítico.
+            avisos.append(f"Validação estrutural XSD ignorada (versão {versao} não possui schema local).")
+            return {"valido": True, "versao": versao, "avisos": avisos,
+                    "mensagem": f"XML versão {versao} carregado para leitura!"}
+
         if schema.validate(raiz):
             return {"valido": True, "versao": versao, "avisos": avisos,
                     "mensagem": f"XML válido segundo o padrão TISS {versao}!"}
+                    
         log = list(schema.error_log)[:MAX_ERROS]
         detalhes = [{"linha": e.line, "coluna": e.column, "caminho": e.path, "mensagem": e.message} for e in log]
         return (400, {"valido": False, "versao": versao, "avisos": avisos,
