@@ -60,8 +60,8 @@ class handler(ApiHandler):
         solicitada = str(d.get("versao") or "")
         declarada = tiss.versao_declarada(raiz)
         versao = declarada if declarada in config.VERSOES_TISS else solicitada or config.VERSAO_TISS_PADRAO
-        if versao not in config.VERSOES_TISS:
-            return (400, {"valido": False, "erros": [f"Versão TISS não suportada: {versao}."]})
+        #if versao not in config.VERSOES_TISS:
+        #    return (400, {"valido": False, "erros": [f"Versão TISS não suportada: {versao}."]})
         aviso_versao = None
         if declarada and solicitada and declarada != solicitada:
             aviso_versao = f"O arquivo declara a versão {declarada}; validado contra ela (você selecionou {solicitada})."
