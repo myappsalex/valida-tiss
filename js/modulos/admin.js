@@ -102,13 +102,6 @@ async function salvarTokensCliente() {
     });
 }
 
-// ================= PREÇOS E PLANOS =================
-function abrirModalGestaoPrecos() {
-    abrirModal('modalPrecosPlanos');
-    adminCarregarPrecoPlano();
-}
-
-
 async function salvarPrecos() {
     const valores = {};
     for (const c of _configs) valores[c.chave] = val('cfg-' + c.chave).trim() || null;
@@ -556,17 +549,27 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Carrega o valor inicial quando o modal abre ou o admin troca o Select
+// ================= PREÇOS E PLANOS =================
+function abrirModalGestaoPrecos() {
+    abrirModal('modalPrecosPlanos');
+    adminCarregarPrecoPlano();
+}
+
 async function adminCarregarPrecoPlano() {
     if (Object.keys(window._precosVigentes || {}).length === 0) {
         const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
-        if (r.ok) window._precosVigentes = r.dados;
+        // CORREÇÃO: Lê o envelope corretamente
+        if (r.ok && r.dados) {
+            window._precosVigentes = r.dados.dados || r.dados;
+        }
     }
     const nome = document.getElementById('admin-plano-select').value;
     const inputValor = document.getElementById('admin-plano-valor');
     
-    // Seta o valor (usa o window._precosVigentes)
-    const valorAtual = (window._precosVigentes && window._precosVigentes[nome]) ? window._precosVigentes[nome] : 0;
+    // Busca o valor na memória global, se não achar exibe 0
+    const precos = window._precosVigentes || {};
+    const valorAtual = precos[nome] !== undefined ? Number(precos[nome]) : 0;
+    
     inputValor.value = valorAtual.toFixed(2);
     inputValor.setAttribute('data-original', inputValor.value);
     
@@ -575,14 +578,12 @@ async function adminCarregarPrecoPlano() {
     document.getElementById('admin-plano-vigencia').value = '';
 }
 
-// Se o admin digitar um número diferente, exibe o campo de data automaticamente
 window.adminValidarMudancaPreco = function() {
     const atual = Number(document.getElementById('admin-plano-valor').value).toFixed(2);
     const original = Number(document.getElementById('admin-plano-valor').getAttribute('data-original')).toFixed(2);
     document.getElementById('bloco-vigencia').style.display = (atual !== original) ? 'block' : 'none';
 };
 
-// Disparo ao clicar em Salvar (Lendo r.dados corretamente)
 async function adminSalvarPrecoPlano() {
     const nome = document.getElementById('admin-plano-select').value;
     const valor = document.getElementById('admin-plano-valor').value;
@@ -600,16 +601,16 @@ async function adminSalvarPrecoPlano() {
         });
         
         if (r.ok) {
-            // CORREÇÃO: O servidor envia as variáveis dentro de r.dados
-            const msg = r.dados ? r.dados.mensagem : 'Sucesso!';
-            const cod = r.dados ? r.dados.codigo : '';
+            // CORREÇÃO: Captura a mensagem de sucesso de dentro do envelope JSON
+            const payload = r.dados || {};
+            const msg = payload.mensagem || 'Sucesso!';
             
             avisar(msg, 'sucesso');
-            if (cod === 'fechar') return fecharModal('modalPrecosPlanos');
+            if (payload.codigo === 'fechar') return fecharModal('modalPrecosPlanos');
             
             fecharModal('modalPrecosPlanos');
-            window._precosVigentes = {}; // Invalida o cache global
-            adminCarregarPrecoPlano(); // Recarrega os preços reais
+            window._precosVigentes = {}; // Invalida o cache
+            adminCarregarPrecoPlano(); // Recarrega os preços reais e atualizados do banco
         } else {
             avisar(erroDe(r), 'erro');
         }

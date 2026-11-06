@@ -134,17 +134,43 @@ async function solicitarConta() {
 // Cache global para a tabela de preços
 window._precosVigentes = {};
 
+// Carrega o valor inicial quando o modal abre ou o admin troca o Select
+async function adminCarregarPrecoPlano() {
+    if (Object.keys(window._precosVigentes || {}).length === 0) {
+        const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
+        // CORREÇÃO: Captura a sub-camada 'dados' do JSON
+        if (r.ok) window._precosVigentes = r.dados.dados || r.dados;
+    }
+    const nome = document.getElementById('admin-plano-select').value;
+    const inputValor = document.getElementById('admin-plano-valor');
+    
+    // Seta o valor (agora o window._precosVigentes tem os valores reais)
+    const valorAtual = (window._precosVigentes && window._precosVigentes[nome]) ? window._precosVigentes[nome] : 0;
+    inputValor.value = valorAtual.toFixed(2);
+    inputValor.setAttribute('data-original', inputValor.value);
+    
+    // Oculta vigência por padrão
+    document.getElementById('bloco-vigencia').style.display = 'none';
+    document.getElementById('admin-plano-vigencia').value = '';
+}
+
+// Cache global para a tabela de preços
+window._precosVigentes = {};
+
 async function carregarPrecosPlanos() {
     if (!document.getElementById('preco-eco')) return;
     
     const r = await api('/api/gestao_usuarios', { acao: 'listar_planos_vigentes' });
     if (r.ok && r.dados) {
-        window._precosVigentes = r.dados; // Salva em memória global
+        // CORREÇÃO: Abre a sub-camada do JSON onde os preços realmente estão
+        const precos = r.dados.dados || r.dados;
+        window._precosVigentes = precos;
+        
         const fmt = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
         
-        document.getElementById('preco-eco').textContent = fmt(r.dados.ECO);
-        document.getElementById('preco-flex').textContent = fmt(r.dados.FLEX);
-        document.getElementById('preco-premium').textContent = fmt(r.dados.PREMIUM);
+        if (document.getElementById('preco-eco')) document.getElementById('preco-eco').textContent = fmt(precos.ECO || 0);
+        if (document.getElementById('preco-flex')) document.getElementById('preco-flex').textContent = fmt(precos.FLEX || 0);
+        if (document.getElementById('preco-premium')) document.getElementById('preco-premium').textContent = fmt(precos.PREMIUM || 0);
     }
 }
 
