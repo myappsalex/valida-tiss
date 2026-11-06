@@ -6,8 +6,10 @@ buscados via os.getcwd(); acentos corrompidos quando o XML declara ISO-8859-1;
 hash calculado pelo método errado e desativado; erros sem linha/caminho.
 Mantém os códigos HTTP do original (200 válido / 400 inválido) para não
 quebrar o validador.js.
+Adiciona: Tradução de erros brutos do XSD para mensagens claras ao usuário.
 """
 import os
+import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,6 +23,41 @@ from vt_core.web import ApiError, ApiHandler
 
 RAIZ = Path(__file__).resolve().parent.parent
 MAX_ERROS = 200
+
+# Dicionário DE>PARA para traduzir erros comuns e nomes de tags do namespace
+TRADUCOES_XSD = {
+    "{http://www.ans.gov.br/padroes/tiss/schemas}": "",  # Remove o namespace longo
+    "Missing child element(s). Expected is one of": "Está faltando uma tag obrigatória dentro desta estrutura. É esperado uma destas:",
+    "Missing child element(s). Expected is": "Está faltando uma tag obrigatória. É esperado a tag",
+    "This element is not expected. Expected is": "Esta tag não é esperada neste local ou está fora de ordem. A tag correta esperada aqui é",
+    "This element is not expected.": "Esta tag não é permitida ou não é esperada neste local.",
+    "Element": "A tag",
+}
+
+def traduzir_mensagem_xsd(mensagem_bruta):
+    """Traduz a mensagem de erro bruta do lxml/XSD para uma linguagem amigável."""
+    mensagem = mensagem_bruta
+    
+    # 1. Substitui os termos em inglês e namespaces usando o dicionário
+    for de, para in TRADUCOES_XSD.items():
+        mensagem = mensagem.replace(de, para)
+        
+    # 2. Envolve os nomes das tags restantes em formatação de tag HTML visual (opcional, mas ajuda na UI)
+    # Exemplo: transforma "destino:" em "<destino>:" ou apenas destaca.
+    # O regex procura palavras soltas que parecem nomes de tags (letras e números) 
+    # que sobraram após remover o namespace.
+    mensagem = re.sub(r'\'([a-zA-Z0-9_]+)\'', r'<\1>', mensagem)
+    mensagem = re.sub(r'\( ([a-zA-Z0-9_]+) \)', r'<\1>', mensagem)
+    mensagem = re.sub(r'\( ([a-zA-Z0-9_, ]+) \)', lambda m: m.group(0).replace(' ', '').replace(',', ' ou <') + '>', mensagem)
+    
+    # Limpeza de formatações residuais do regex acima
+    mensagem = mensagem.replace('(<', '(<').replace('> ou <', '> ou <')
+    
+    # 3. Tratamento para erros de "This element is not expected" quando a lista esperada está vazia
+    if "A tag correta esperada aqui é (  )" in mensagem:
+        mensagem = mensagem.replace("A tag correta esperada aqui é (  )", "Nenhuma outra tag é esperada dentro deste elemento.")
+
+    return mensagem.strip()
 
 
 @lru_cache(maxsize=8)
@@ -67,7 +104,6 @@ class handler(ApiHandler):
         if declarada and solicitada and declarada != solicitada:
             aviso_versao = f"O arquivo declara a versão {declarada}; validado contra ela (você selecionou {solicitada})."
         
-        # Correção do KeyError: Usa .get() para não estourar Erro 500 caso a versão seja antiga (ex: 3.02.00)
         arquivo_xsd = config.VERSOES_TISS.get(versao)
         schema = _schema(arquivo_xsd) if arquivo_xsd else None
 
@@ -88,7 +124,18 @@ class handler(ApiHandler):
                     "mensagem": f"XML válido segundo o padrão TISS {versao}!"}
                     
         log = list(schema.error_log)[:MAX_ERROS]
-        detalhes = [{"linha": e.line, "coluna": e.column, "caminho": e.path, "mensagem": e.message} for e in log]
+        detalhes = []
+        for e in log:
+            # Aplica a função de tradução na mensagem original do XSD
+            mensagem_traduzida = traduzir_mensagem_xsd(e.message)
+            detalhes.append({
+                "linha": e.line, 
+                "coluna": e.column, 
+                "caminho": e.path, 
+                "mensagem": mensagem_traduzida,
+                "mensagem_original": e.message # Opcional: mantemos a original para debug se necessário
+            })
+            
         return (400, {"valido": False, "versao": versao, "avisos": avisos,
                       "erros": [f"Linha {x['linha']}: {x['mensagem']}" for x in detalhes],
                       "detalhes": detalhes, "truncado": len(schema.error_log) > MAX_ERROS})
