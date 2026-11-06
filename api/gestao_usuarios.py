@@ -74,7 +74,7 @@ class handler(ApiHandler):
             
             total = db.cliente.count(where=where)
             
-            # Busca de clientes limpa, sem 'include' para não causar Erro 500
+            # Busca de clientes limpa, sem 'include'
             clientes_db = db.cliente.find_many(
                 where=where, 
                 order={"criadoEm": "desc"}, 
@@ -118,12 +118,12 @@ class handler(ApiHandler):
                 
         return (200, itens, {"X-Total-Count": total})
 
-def post(self, ctx):
+    def post(self, ctx):
         corpo = ctx.json()
         acao = corpo.get("acao")
         db = get_db()
 
-        # 1. AÇÃO ABERTA PARA O CLIENTE (Resolve o "Carregando..." e "NaN")
+        # 1. AÇÃO ABERTA PARA O CLIENTE
         if acao == "listar_planos_vigentes":
             precos = {}
             try:
@@ -136,18 +136,17 @@ def post(self, ctx):
                     if p_obj.nome not in precos:
                         precos[p_obj.nome] = p_obj.valor
             except Exception as e:
-                # Fallback: Se a tabela velha estiver em cache, busca sem vigência
                 planos_db = db.configuracaoplano.find_many()
                 for p_obj in planos_db:
                     precos[p_obj.nome] = p_obj.valor
                     
             return {"sucesso": True, "dados": {
-                "ECO": precos.get("ECO", 29.90),
-                "FLEX": precos.get("FLEX", 89.90),
-                "PREMIUM": precos.get("PREMIUM", 189.90)
+                "ECO": precos.get("ECO", 99.90),
+                "FLEX": precos.get("FLEX", 199.90),
+                "PREMIUM": precos.get("PREMIUM", 399.90)
             }}
 
-        # 2. BARREIRA ADMINISTRATIVA (Ações abaixo só para a equipe interna)
+        # 2. BARREIRA ADMINISTRATIVA
         p = ctx.exigir(tipo="INTERNO")
 
         if acao == "salvar_plano_vigencia":
@@ -164,7 +163,6 @@ def post(self, ctx):
             hoje = security.agora_utc()
             limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
             
-            # Busca do valor atual com Graceful Degradation
             try:
                 ativos = db.configuracaoplano.find_many(
                     where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
@@ -182,7 +180,6 @@ def post(self, ctx):
                 
                 nova_vigencia = v.data_iso(data_str, "Data de Vigência")
                 
-                # Gravação com Graceful Degradation
                 try:
                     db.configuracaoplano.create(data={
                         "nome": nome,
@@ -191,14 +188,12 @@ def post(self, ctx):
                         "vigenciaInicio": nova_vigencia
                     })
                 except Exception:
-                    # Fallback: Faz um UPDATE em vez de CREATE para driblar a chave @unique da tabela antiga
                     try:
                         db.configuracaoplano.update(
                             where={"nome": nome},
                             data={"valor": novo_valor, "limite": limite_padrao}
                         )
                     except Exception as e:
-                        # Se ainda assim falhar, cria o registo ignorando o erro (upsert simples)
                         db.configuracaoplano.upsert(
                             where={"nome": nome},
                             data={"create": {"nome": nome, "valor": novo_valor, "limite": limite_padrao},
