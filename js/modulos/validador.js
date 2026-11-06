@@ -461,8 +461,26 @@ async function processarXML() {
                     el('div', { style: 'margin-top:15px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;' }, botIA('gemini', '#1a73e8', '✨ Analisar com Gemini'), botIA('chatgpt', '#10a37f', '✨ Analisar com ChatGPT')),
                     el('div', { id: `resultado-ia-${g.gi}`, role: 'status', style: 'display:none;margin-top:10px;background:#f8f9fa;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:13px;' }))));
         }
+
         const linhaCat = (rot, chave) => el('tr', {}, el('th', {}, rot), el('td', {}, el('strong', { style: 'color:red;', id: `cat-${chave}` })));
+        
+        // --- Lógica Híbrida de Versão TISS ---
+        const versoesAtuais = ["4.01.00", "4.02.00", "4.02.01", "4.02.02", "4.03.00", "4.03.01", "4.04.00"];
+        const versaoTISS = versao || "3.02.00"; // fallback
+        
+        const elAlertaVersao = !versoesAtuais.includes(versaoTISS) 
+            ? el('span', { style: 'color:#dc3545; font-weight:bold; margin-left:8px; font-size:12px; background-color:#f8d7da; padding:3px 6px; border-radius:4px;' }, '⚠️ ATENÇÃO !! Versão descontinuada pela ANS, a operadora não aceitará seu arquivo.')
+            : null;
+
+        const elVersaoTISS = el('div', { style: 'margin-bottom:15px; font-size:14px; padding-bottom:10px; border-bottom:1px solid #eee;' },
+            el('strong', { style: 'color:#333;' }, 'Versão do Arquivo TISS: '),
+            el('span', { style: 'color:#0056b3; font-weight:bold;' }, versaoTISS),
+            elAlertaVersao
+        );
+
+        // NOVO: Adiciona a div de versão ao topo do Resumo Financeiro
         const resumo = el('div', { style: 'background:#f8f9fa;padding:20px;border-radius:6px;margin-bottom:20px;border:1px solid #ddd;' },
+            elVersaoTISS,
             el('h4', { style: 'margin:0 0 10px 0;color:#333;' }, 'Resumo Financeiro do Lote'),
             el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Enviado por: '), el('span', { style: 'color:#0056b3;' }, nomeExibicaoPrestador), ' | ', el('strong', {}, 'Operadora: '), operadora),
             el('p', { style: 'margin:5px 0;' }, el('strong', {}, 'Total de Guias: '), el('span', { style: 'color:blue;font-weight:bold;' }, String(_guias.length))),
