@@ -26,7 +26,29 @@
 		<button class="btn btn-info" data-perm="ads:criar" data-onclick="abrirPedidoPublicidadeAvulsoAdmin">📢 Lançar Anúncio Avulso</button>
 	</nav>
 
-    <main id="conteudo" data-perm="clientes:ler">
+    <main id="conteudo" data-perm="clientes:ler">        
+        <!-- NOVO: Dashboard Estratégico -->
+        <div id="dashboard-estrategico" style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; background: #fff; padding: 20px; border-radius: 8px; border-left: 5px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase;">MRR (Receita Estimada)</p>
+                <h3 id="dash-mrr" style="margin: 5px 0 0 0; color: #333; font-size: 24px;">R$ 0,00</h3>
+            </div>
+            <div style="flex: 1; min-width: 200px; background: #fff; padding: 20px; border-radius: 8px; border-left: 5px solid #0056b3; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase;">Clientes Ativos</p>
+                <h3 id="dash-ativos" style="margin: 5px 0 0 0; color: #333; font-size: 24px;">0</h3>
+                <p id="dash-distribuicao" style="margin: 5px 0 0 0; font-size: 11px; color: #888;">--</p>
+            </div>
+            <div style="flex: 1; min-width: 200px; background: #fff; padding: 20px; border-radius: 8px; border-left: 5px solid #ffc107; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase;">Inadimplentes</p>
+                <h3 id="dash-inadimplentes" style="margin: 5px 0 0 0; color: #b45f06; font-size: 24px;">0</h3>
+            </div>
+            <div style="flex: 1; min-width: 200px; background: #fff; padding: 20px; border-radius: 8px; border-left: 5px solid #dc3545; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <p style="margin: 0; font-size: 12px; color: #666; text-transform: uppercase;">Churn (Cancelados)</p>
+                <h3 id="dash-churn" style="margin: 5px 0 0 0; color: #dc3545; font-size: 24px;">0</h3>
+            </div>
+        </div>
+
+        <h2 style="margin:0 0 15px;border-bottom:2px solid #eee;padding-bottom:10px;font-size:18px">Carteira de clientes</h2>
         <h2 style="margin:0 0 15px;border-bottom:2px solid #eee;padding-bottom:10px;font-size:18px">Carteira de clientes</h2>
         <form class="filtros" data-onsubmit="pesquisarContratos">
             <div><label for="filtro-cli-nome">Nome</label><input type="text" id="filtro-cli-nome" class="form-control" placeholder="Nome do cliente"></div>

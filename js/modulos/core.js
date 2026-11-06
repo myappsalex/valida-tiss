@@ -14,7 +14,8 @@ const GMUD_NOTAS = [
 	"Implementação de melhorias no termo de aceite",
 	"Implementação da edição de dados pessoais, perfil cliente",
 	"Agrupamento de itens para análise de conta pela IA. Ganho de performance e economia de tokens",
-	"Novos planos de assinatura"
+	"Novos planos de assinatura",
+	"Criação de Dashboard para administrativo"
 ];
 
 window.abrirModalGMUD = function() {

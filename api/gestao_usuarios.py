@@ -50,8 +50,56 @@ class handler(ApiHandler):
             return (200, settings.listar(get_db()), {"Cache-Control": "no-store"})
             
         tipo = v.escolha(ctx.query.get("tipo", "INTERNO"), ("INTERNO", "CLIENTE"), "Tipo")
-        p = ctx.exigir(tipo="INTERNO", permissao="usuarios:gerir" if tipo == "INTERNO" else "clientes:ler")
+        p = ctx.exigir(tipo="INTERNO", permissao="usuarios:gerir" if tipo == "INTERNO" else "clientes:ler")        
         db = get_db()
+        
+        # 2. BARREIRA ADMINISTRATIVA
+        #p = ctx.exigir(tipo="INTERNO")
+
+        # NOVO: Dashboard Estratégico (MRR, Churn, Inadimplência)
+        if acao == "dashboard_admin":
+            if not p.pode("clientes:ler"):
+                raise ApiError(403, "Sem permissão de leitura.")
+                
+            hoje = security.agora_utc()
+            
+            # 1. Totalizadores básicos
+            ativos = db.cliente.count(where={"statusConta": "ATIVO"})
+            cancelados = db.cliente.count(where={"statusConta": "CANCELADO"})
+            inadimplentes = db.cliente.count(where={"statusPagamento": "INATIVO", "statusConta": "ATIVO"})
+            
+            # 2. Captura os preços vigentes atuais para calcular o MRR
+            tabela_precos = {}
+            try:
+                planos_db = db.configuracaoplano.find_many(where={"vigenciaInicio": {"lte": hoje}}, order={"vigenciaInicio": "desc"})
+                for p_obj in planos_db:
+                    if p_obj.nome not in tabela_precos:
+                        tabela_precos[p_obj.nome] = p_obj.valor
+            except Exception:
+                pass # Se falhar o cache, assume os valores por defeito abaixo
+                
+            preco_eco = tabela_precos.get("ECO", 29.90)
+            preco_flex = tabela_precos.get("FLEX", 89.90)
+            preco_premium = tabela_precos.get("PREMIUM", 199.90)
+            
+            # 3. Distribuição de Planos (Apenas contas ATIVAS)
+            distribuicao = {"FREEMIUM": 0, "ECO": 0, "FLEX": 0, "PREMIUM": 0}
+            clientes_ativos = db.cliente.find_many(where={"statusConta": "ATIVO"})
+            for c in clientes_ativos:
+                plano = getattr(c, "plano", "FREEMIUM")
+                if plano in distribuicao:
+                    distribuicao[plano] += 1
+                    
+            # 4. Cálculo do MRR (Receita Recorrente Mensal Estimada)
+            mrr = (distribuicao["ECO"] * preco_eco) + (distribuicao["FLEX"] * preco_flex) + (distribuicao["PREMIUM"] * preco_premium)
+            
+            return {"sucesso": True, "dados": {
+                "mrr": mrr,
+                "ativos": ativos,
+                "churn": cancelados,
+                "inadimplentes": inadimplentes,
+                "distribuicao": distribuicao
+            }}
         
         pagina = max(1, int(ctx.query.get("page", 1) or 1)) if str(ctx.query.get("page", "1")).isdigit() else 1
         tam = min(200, max(1, int(ctx.query.get("pageSize", 50)))) if str(ctx.query.get("pageSize", "50")).isdigit() else 50

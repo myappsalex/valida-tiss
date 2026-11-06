@@ -8,8 +8,14 @@ Pronto.then(u => {
     if (u.mustChangePassword) abrirTrocaSenha();
     document.getElementById('admin-quem').textContent = `${u.nome} · ${u.perfil}`;
     document.querySelectorAll('[data-perm]').forEach(e => { if (!pode(e.dataset.perm)) e.style.display = 'none'; });
-    if (pode('clientes:ler')) pesquisarContratos();
+    if (pode('clientes:ler')) {
+        pesquisarContratos();
+        carregarDashboardAdmin(); // Dispara o carregamento dos cartões estratégicos
+    }
 });
+
+
+	
 
 const COR = { ATIVO: '#1e7e34', ADMIN: '#1e7e34', BLOQUEADO: '#b02a37', CANCELADO: '#b02a37', REJEITADO: '#b02a37', EXPIRADO: '#5c6770', PENDENTE: '#0056b3', ORCADO: '#b45f06', AGUARDANDO_PAGAMENTO: '#b45f06', INATIVO: '#b02a37' };
 const badge = t => el('span', { class: 'badge', style: `background:${COR[t] || '#5c6770'}` }, t);
@@ -50,6 +56,25 @@ async function pesquisarContratos() {
                 pode('assinatura:editar') ? btn('💲 Assinatura', 'abrirModalAssinaturas', { id: c.id }, 'btn btn-premium') : '')));
     }
 }
+
+// ================= DASHBOARD ESTRATÉGICO =================
+async function carregarDashboardAdmin() {
+    const r = await api('/api/gestao_usuarios', { acao: 'dashboard_admin' });
+    if (r.ok && r.dados) {
+        const fmtMoeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+        
+        document.getElementById('dash-mrr').textContent = fmtMoeda(r.dados.mrr);
+        document.getElementById('dash-ativos').textContent = r.dados.ativos;
+        document.getElementById('dash-inadimplentes').textContent = r.dados.inadimplentes;
+        document.getElementById('dash-churn').textContent = r.dados.churn;
+        
+        const dist = r.dados.distribuicao;
+        document.getElementById('dash-distribuicao').textContent = 
+            `FR: ${dist.FREEMIUM} | ECO: ${dist.ECO} | FLX: ${dist.FLEX} | PRM: ${dist.PREMIUM}`;
+    }
+}
+
+
 function abrirDadosCliente(d) {
     const c = _clientes.find(x => x.id === d.id); if (!c) return;
     document.getElementById('dados-cli-id').value = c.id; document.getElementById('dados-cli-nome').value = c.nome;
@@ -140,65 +165,6 @@ async function abrirModalAssinaturas(d) {
     }
 }
 
-/*
-// ================= PREÇOS E PLANOS =================
-let _configs = [];
-async function abrirModalPrecos() {
-    abrirModal('modalPrecos');
-    const area = limpar(document.getElementById('area-precos')); area.append(el('p', {}, '⏳ Carregando…'));
-    const r = await api('/api/gestao_usuarios?acao=config');
-    limpar(area);
-    if (!r.ok) return area.append(el('p', { class: 'erro' }, erroDe(r)));
-    _configs = r.dados;
-    for (const c of _configs) {
-        area.append(el('div', { class: 'form-group' },
-            el('label', { for: 'cfg-' + c.chave }, c.rotulo),
-            el('input', { type: 'number', id: 'cfg-' + c.chave, class: 'form-control', step: '0.01', min: c.min, max: c.max, value: c.valor == null ? '' : c.valor.toFixed(2) }),
-            el('small', { style: 'color:#666' }, `${c.nota} Origem atual: ${c.origem}.` + (c.atualizadoPor ? ` Última alteração: ${c.atualizadoPor}.` : ''))));
-    }
-}
-*/
-
-/*
-function carregarDadosAssinaturaCliente(id) {
-    const c = _clientes.find(x => x.id === id);
-    document.getElementById('area-edicao-assinatura').style.display = c ? 'block' : 'none';
-    if (!c) return;
-    document.getElementById('edit-plano-cliente').value = c.plano || 'FREEMIUM';
-    document.getElementById('edit-status-pagamento').value = c.statusPagamento || 'ATIVO';
-    document.getElementById('edit-validade-plano').value = '';
-	
-}
-*/
-
-/*
-async function salvarAssinaturaCliente() {
-    const id = document.getElementById('btn-assinatura').getAttribute('data-id'); 
-    if (!id) return;
-    
-    const plano = val('admin-cli-plano');
-    const statusPagamento = val('edit-status-pagamento');
-    const planoValidoAte = plano === 'PREMIUM' ? (val('edit-validade-plano') || null) : null;
-
-    await comCarga('btn-assinatura', 'Salvando…', async () => {
-        const r = await api('/api/gestao_usuarios', { 
-            acao: 'editar_assinatura', 
-            tipo: 'CLIENTE', 
-            id, 
-            plano, 
-            statusPagamento, 
-            planoValidoAte 
-        });
-        if (r.ok) { 
-            avisar('Assinatura atualizada com sucesso.', 'ok'); 
-            fecharModal('modalAssinaturas'); 
-            pesquisarContratos(); 
-        } else {
-            avisar(erroDe(r), 'erro');
-        }
-    });
-}
-*/
 
 window.carregarDadosAssinaturaCliente = function(id) {
     const cliente = _clientes.find(x => x.id === id);
