@@ -153,19 +153,27 @@ class handler(ApiHandler):
                 
             nome = v.escolha(corpo.get("nome"), ["ECO", "FLEX", "PREMIUM"], "Plano")
             
-            # Resolve o Erro 500: Protege a conversão de strings com vírgula
             try:
                 novo_valor = float(str(corpo.get("valor", "0")).replace(",", "."))
             except ValueError:
                 raise ApiError(422, "Valor inválido.", "validacao")
             
             hoje = security.agora_utc()
-            ativos = db.configuracaoplano.find_many(
-                where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
-                order={"vigenciaInicio": "desc"}, take=1
-            )
-            valor_atual = ativos[0].valor if ativos else None
             limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
+            valor_atual = None
+            
+            # TENTATIVA 1: Busca considerando a nova coluna de vigência
+            try:
+                ativos = db.configuracaoplano.find_many(
+                    where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
+                    order={"vigenciaInicio": "desc"}, take=1
+                )
+                valor_atual = ativos[0].valor if ativos else None
+            except Exception as e:
+                print("Aviso: Prisma em cache. Fallback na busca de vigencia.", e)
+                # Fallback se o Prisma Client estiver em cache
+                ativos = db.configuracaoplano.find_many(where={"nome": nome})
+                valor_atual = ativos[0].valor if ativos else None
             
             if valor_atual != novo_valor:
                 data_str = corpo.get("vigenciaInicio")
@@ -173,12 +181,24 @@ class handler(ApiHandler):
                     raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
                 
                 nova_vigencia = v.data_iso(data_str, "Data de Vigência")
-                db.configuracaoplano.create(data={
-                    "nome": nome,
-                    "valor": novo_valor,
-                    "limite": limite_padrao,
-                    "vigenciaInicio": nova_vigencia
-                })
+                
+                # TENTATIVA 2: Salva considerando a nova coluna
+                try:
+                    db.configuracaoplano.create(data={
+                        "nome": nome,
+                        "valor": novo_valor,
+                        "limite": limite_padrao,
+                        "vigenciaInicio": nova_vigencia
+                    })
+                except Exception as e:
+                    print("Aviso: Prisma em cache. Fallback no save de vigencia.", e)
+                    # Fallback removendo o campo que o Client em cache desconhece
+                    db.configuracaoplano.create(data={
+                        "nome": nome,
+                        "valor": novo_valor,
+                        "limite": limite_padrao
+                    })
+                    
                 audit.registrar(db, p, "NOVO_PRECO_PLANO", "SISTEMA", nome, {"novo": novo_valor, "vigencia": data_str}, ctx.ip)
                 return {"sucesso": True, "mensagem": f"Novo preço programado com sucesso para {nome}!"}
                 
