@@ -582,7 +582,7 @@ window.adminValidarMudancaPreco = function() {
     document.getElementById('bloco-vigencia').style.display = (atual !== original) ? 'block' : 'none';
 };
 
-// Disparo ao clicar em Salvar (Ajustar a invalidação do cache)
+// Disparo ao clicar em Salvar (Lendo r.dados corretamente)
 async function adminSalvarPrecoPlano() {
     const nome = document.getElementById('admin-plano-select').value;
     const valor = document.getElementById('admin-plano-valor').value;
@@ -600,12 +600,16 @@ async function adminSalvarPrecoPlano() {
         });
         
         if (r.ok) {
-            avisar(r.mensagem, 'sucesso');
-            if (r.codigo === 'fechar') return fecharModal('modalPrecosPlanos');
+            // CORREÇÃO: O servidor envia as variáveis dentro de r.dados
+            const msg = r.dados ? r.dados.mensagem : 'Sucesso!';
+            const cod = r.dados ? r.dados.codigo : '';
+            
+            avisar(msg, 'sucesso');
+            if (cod === 'fechar') return fecharModal('modalPrecosPlanos');
             
             fecharModal('modalPrecosPlanos');
             window._precosVigentes = {}; // Invalida o cache global
-            adminCarregarPrecoPlano(); // Recarrega
+            adminCarregarPrecoPlano(); // Recarrega os preços reais
         } else {
             avisar(erroDe(r), 'erro');
         }

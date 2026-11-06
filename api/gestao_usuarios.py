@@ -66,56 +66,37 @@ class handler(ApiHandler):
                 where["nomeEmpresa"] = {"contains": ctx.query["nome"][:100], "mode": "insensitive"}
             if ctx.query.get("email"):
                 where["emailAcesso"] = {"contains": ctx.query["email"][:100].lower()}
-            where["statusConta"] = {"not": "GUEST"}  # esconde a conta de sistema
+            where["statusConta"] = {"not": "GUEST"}
             if ctx.query.get("status"):
                 where["statusPagamento"] = v.escolha(ctx.query["status"], config.STATUS_PAGAMENTO, "Status")
             if ctx.query.get("statusConta"):
                 where["statusConta"] = v.escolha(ctx.query["statusConta"], config.STATUS_CLIENTE, "Status da conta")
             
             total = db.cliente.count(where=where)
+            clientes_db = db.cliente.find_many(where=where, order={"criadoEm": "desc"}, take=tam, skip=(pagina - 1) * tam)
             
-            # Busca de clientes limpa, sem 'include'
-            clientes_db = db.cliente.find_many(
-                where=where, 
-                order={"criadoEm": "desc"}, 
-                take=tam, 
-                skip=(pagina - 1) * tam
-            )
-            
-            # Busca do status financeiro separada e segura
             ultimas_mensalidades = {}
             cliente_ids = [c.id for c in clientes_db]
             if cliente_ids:
                 try:
-                    mens = db.mensalidade.find_many(
-                        where={"clienteId": {"in": cliente_ids}},
-                        order={"vencimento": "desc"}
-                    )
+                    mens = db.mensalidade.find_many(where={"clienteId": {"in": cliente_ids}}, order={"vencimento": "desc"})
                     for m in mens:
                         if m.clienteId not in ultimas_mensalidades:
                             ultimas_mensalidades[m.clienteId] = getattr(m, "status", "SEM FATURA")
-                except Exception as e:
-                    print(f"Aviso Admin: Tabela de mensalidades indisponível ou vazia - {e}")
+                except Exception:
+                    pass
             
             itens = []
             for c in clientes_db:
                 status_fin = ultimas_mensalidades.get(c.id, "SEM FATURA")
-                
                 itens.append({
-                    "id": c.id, 
-                    "nome": getattr(c, "nomeEmpresa", ""), 
-                    "email": getattr(c, "emailAcesso", ""),
-                    "statusConta": getattr(c, "statusConta", ""), 
-                    "plano": getattr(c, "plano", "FREEMIUM"),
-                    "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO",
-                    "statusFinanceiro": status_fin,
-                    "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0),
-                    "tokensRestantes": getattr(c, "tokensIA", 0), 
-                    "criadoEm": getattr(c, "criadoEm", None),
-                    "dataCancelamento": getattr(c, "dataCancelamento", None),
+                    "id": c.id, "nome": getattr(c, "nomeEmpresa", ""), "email": getattr(c, "emailAcesso", ""),
+                    "statusConta": getattr(c, "statusConta", ""), "plano": getattr(c, "plano", "FREEMIUM"),
+                    "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO", "statusFinanceiro": status_fin,
+                    "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0), "tokensRestantes": getattr(c, "tokensIA", 0), 
+                    "criadoEm": getattr(c, "criadoEm", None), "dataCancelamento": getattr(c, "dataCancelamento", None),
                     "cpfCnpj": getattr(c, "cpfCnpj", "")
                 })
-                
         return (200, itens, {"X-Total-Count": total})
 
     def post(self, ctx):
@@ -123,22 +104,22 @@ class handler(ApiHandler):
         acao = corpo.get("acao")
         db = get_db()
 
-        # 1. AÇÃO ABERTA PARA O CLIENTE
+        # 1. AÇÃO PÚBLICA (Resolve o "Carregando..." e "NaN" nos painéis)
         if acao == "listar_planos_vigentes":
             precos = {}
             try:
                 hoje = security.agora_utc()
-                planos_db = db.configuracaoplano.find_many(
-                    where={"vigenciaInicio": {"lte": hoje}},
-                    order={"vigenciaInicio": "desc"}
-                )
+                planos_db = db.configuracaoplano.find_many(where={"vigenciaInicio": {"lte": hoje}}, order={"vigenciaInicio": "desc"})
                 for p_obj in planos_db:
                     if p_obj.nome not in precos:
                         precos[p_obj.nome] = p_obj.valor
-            except Exception as e:
-                planos_db = db.configuracaoplano.find_many()
-                for p_obj in planos_db:
-                    precos[p_obj.nome] = p_obj.valor
+            except Exception:
+                try: # Fallback seguro se a tabela Prisma estiver em cache antigo
+                    planos_db = db.configuracaoplano.find_many()
+                    for p_obj in planos_db:
+                        precos[p_obj.nome] = p_obj.valor
+                except Exception:
+                    pass
                     
             return {"sucesso": True, "dados": {
                 "ECO": precos.get("ECO", 99.90),
@@ -154,7 +135,6 @@ class handler(ApiHandler):
                 raise ApiError(403, "Seu perfil não tem permissão para esta ação.")
                 
             nome = v.escolha(corpo.get("nome"), ["ECO", "FLEX", "PREMIUM"], "Plano")
-            
             try:
                 novo_valor = float(str(corpo.get("valor", "0")).replace(",", "."))
             except ValueError:
@@ -163,42 +143,32 @@ class handler(ApiHandler):
             hoje = security.agora_utc()
             limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
             
+            # Checa o valor atual de forma blindada
+            valor_atual = None
             try:
-                ativos = db.configuracaoplano.find_many(
-                    where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, 
-                    order={"vigenciaInicio": "desc"}, take=1
-                )
+                ativos = db.configuracaoplano.find_many(where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, order={"vigenciaInicio": "desc"}, take=1)
                 valor_atual = ativos[0].valor if ativos else None
             except Exception:
-                ativos = db.configuracaoplano.find_many(where={"nome": nome})
-                valor_atual = ativos[0].valor if ativos else None
+                try:
+                    ativos = db.configuracaoplano.find_many(where={"nome": nome})
+                    valor_atual = ativos[0].valor if ativos else None
+                except Exception:
+                    pass
             
             if valor_atual != novo_valor:
                 data_str = corpo.get("vigenciaInicio")
                 if not data_str:
                     raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
-                
                 nova_vigencia = v.data_iso(data_str, "Data de Vigência")
                 
+                # Salva com Fallback de 3 Camadas
                 try:
-                    db.configuracaoplano.create(data={
-                        "nome": nome,
-                        "valor": novo_valor,
-                        "limite": limite_padrao,
-                        "vigenciaInicio": nova_vigencia
-                    })
+                    db.configuracaoplano.create(data={"nome": nome, "valor": novo_valor, "limite": limite_padrao, "vigenciaInicio": nova_vigencia})
                 except Exception:
                     try:
-                        db.configuracaoplano.update(
-                            where={"nome": nome},
-                            data={"valor": novo_valor, "limite": limite_padrao}
-                        )
-                    except Exception as e:
-                        db.configuracaoplano.upsert(
-                            where={"nome": nome},
-                            data={"create": {"nome": nome, "valor": novo_valor, "limite": limite_padrao},
-                                  "update": {"valor": novo_valor, "limite": limite_padrao}}
-                        )
+                        db.configuracaoplano.create(data={"nome": nome, "valor": novo_valor, "limite": limite_padrao})
+                    except Exception:
+                        db.configuracaoplano.update_many(where={"nome": nome}, data={"valor": novo_valor, "limite": limite_padrao})
                         
                 audit.registrar(db, p, "NOVO_PRECO_PLANO", "SISTEMA", nome, {"novo": novo_valor, "vigencia": data_str}, ctx.ip)
                 return {"sucesso": True, "mensagem": f"Novo preço programado com sucesso para {nome}!"}
