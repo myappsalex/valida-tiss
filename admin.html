@@ -113,23 +113,24 @@
         <h3 style="color: #0c7489; margin-top: 0;">Preços e Vigência de Planos</h3>
         <p style="font-size: 12px; color: #666;">Selecione o plano para visualizar o valor vigente hoje (sysdate).</p>
         
-        <label style="font-weight: bold; font-size: 13px;">Selecione o Plano:</label>
+        <label for="admin-plano-select" style="font-weight: bold; font-size: 13px;">Selecione o Plano:</label>
         <select id="admin-plano-select" class="form-control" data-onchange="adminCarregarPrecoPlano()" style="margin-bottom: 15px;">
             <option value="ECO">Plano ECO (1 CNPJ)</option>
             <option value="FLEX">Plano FLEX (5 CNPJs)</option>
             <option value="PREMIUM">Plano PREMIUM (Ilimitado)</option>
         </select>
         
-        <label style="font-weight: bold; font-size: 13px;">Valor da Assinatura (R$):</label>
+        <label for="admin-plano-valor" style="font-weight: bold; font-size: 13px;">Valor da Assinatura (R$):</label>
         <input type="number" id="admin-plano-valor" step="0.01" class="form-control" data-oninput="adminValidarMudancaPreco()" style="margin-bottom: 15px;" />
         
         <div id="bloco-vigencia" style="display: none; background: #fff3e0; padding: 10px; border-radius: 6px; border: 1px solid #ff9800; margin-bottom: 15px;">
-            <label style="font-weight: bold; font-size: 12px; color: #e65100;">Novo valor detectado! Informar Data de Vigência:</label>
+            <label for="admin-plano-vigencia" style="font-weight: bold; font-size: 12px; color: #e65100;">Novo valor detectado! Informar Data de Vigência:</label>
             <input type="date" id="admin-plano-vigencia" class="form-control" style="margin-top: 5px;" />
             <small style="color: #e65100; font-size: 10px;">A partir desta data, o sistema assumirá a nova tarifa.</small>
         </div>
         
-        <button class="btn btn-primary" data-onclick="adminSalvarPrecoPlano()" style="width: 100%; margin-top: 5px;">Salvar Alteração</button>
+        <!-- O ID AQUI ABAIXO É O QUE DESTRAVA A FUNÇÃO DE SALVAR -->
+        <button id="btn-salvar-preco" class="btn btn-primary" data-onclick="adminSalvarPrecoPlano()" style="width: 100%; margin-top: 5px;">Salvar Alteração</button>
         <button class="btn btn-cancel" data-onclick="fecharModal('modalPrecosPlanos')" style="width: 100%; margin-top: 10px;">Cancelar</button>
     </div>
 </div>
