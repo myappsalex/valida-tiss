@@ -240,15 +240,6 @@ window.abrirModalMensalidadesAdmin = async function() {
 };
 
 
-async function salvarAssinaturaCliente() {
-    const id = val('select-cliente-assinatura'); if (!id) return;
-    const plano = val('edit-plano-cliente');
-    await comCarga('btn-assinatura', 'Salvando…', async () => {
-        const r = await api('/api/gestao_usuarios', { acao: 'editar_assinatura', tipo: 'CLIENTE', id, plano, statusPagamento: val('edit-status-pagamento'), planoValidoAte: plano === 'PREMIUM' ? (val('edit-validade-plano') || null) : null });
-        if (r.ok) { avisar('Assinatura atualizada.', 'ok'); fecharModal('modalAssinaturas'); pesquisarContratos(); } else avisar(erroDe(r), 'erro');
-    });
-}
-
 // ================= IAM =================
 const PERFIS = [['ADMIN', 'Administrador geral'], ['OPERACAO', 'Operação'], ['PUBLICIDADE', 'Publicidade'], ['GESTAO', 'Gestão (leitura)']];
 const STATUS_CLI = [['PENDENTE', 'Pendente'], ['ATIVO', 'Ativo'], ['BLOQUEADO', 'Bloqueado'], ['CANCELADO', 'Cancelado']];

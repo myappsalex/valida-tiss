@@ -80,10 +80,41 @@ class handler(ApiHandler):
             db.compratokens.update(where={"id": compra.id}, data={"asaasPaymentId": cob["id"]})
             return {"sucesso": True, "valor": valor, "quantidade": qtd, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
 
-        preco = settings.obter(db, "PRECO_PREMIUM_MENSAL")
-        if not preco:
-            raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
-        valor = round(float(preco), 2)
-        cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
-        cob = asaas.criar_cobranca_pix(cid, valor, "Assinatura Premium ValidaTISS", f"ASSINATURA_{p.id}")
-        return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
+        #preco = settings.obter(db, "PRECO_PREMIUM_MENSAL")
+        #if not preco:
+        #    raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
+        #valor = round(float(preco), 2)
+        #cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
+        #cob = asaas.criar_cobranca_pix(cid, valor, "Assinatura Premium ValidaTISS", f"ASSINATURA_{p.id}")
+        #return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}
+
+        if tipo == "ASSINATURA":
+                    plano = v.escolha(d.get("plano", "PREMIUM"), ["ECO", "FLEX", "PREMIUM"], "Plano")
+                    hoje = security.agora_utc()
+                    
+                    try:
+                        planos_db = db.configuracaoplano.find_many(
+                            where={"nome": plano, "vigenciaInicio": {"lte": hoje}}, 
+                            order={"vigenciaInicio": "desc"}, take=1
+                        )
+                        preco = planos_db[0].valor if planos_db else None
+                    except Exception:
+                        preco = None
+                        
+                    if not preco: # Fallback de segurança
+                        if plano == "PREMIUM":
+                            preco = settings.obter(db, "PRECO_PREMIUM_MENSAL")
+                        else:
+                            preco = 99.90 if plano == "ECO" else 199.90
+                            
+                    if not preco or preco <= 0:
+                        raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
+                        
+                    valor = round(float(preco), 2)
+                    cid = _garantir_cliente_asaas(db, p.rec, d.get("cpfCnpj"))
+                    
+                    # Carimba a referência cruzada com o plano escolhido
+                    ref_externa = f"ASSINATURA_{plano}_{p.id}"
+                    cob = asaas.criar_cobranca_pix(cid, valor, f"Assinatura {plano} ValidaTISS", ref_externa)
+                    
+                    return {"sucesso": True, "valor": valor, "cobrancaId": cob["id"], **asaas.obter_qrcode(cob["id"])}

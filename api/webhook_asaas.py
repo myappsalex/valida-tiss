@@ -73,15 +73,33 @@ class handler(ApiHandler):
                                                data={"status": "PAGO", "pagoEm": agora}):
                     tx.cliente.update(where={"id": compra.clienteId}, data={"tokensIA": {"increment": compra.quantidade}})
             elif ref.startswith("ASSINATURA_"):
-                preco = settings.piso_aceito(tx, "PRECO_PREMIUM_MENSAL") or 0
-                cli = tx.cliente.find_unique(where={"id": ref[len("ASSINATURA_"):]})
-                if not cli or preco <= 0 or valor + 0.01 < preco:
+                # Extrai: ASSINATURA_ECO_1234...
+                partes = ref.split("_", 2)
+                if len(partes) == 3:
+                    plano, cli_id = partes[1], partes[2]
+                else:
+                    plano, cli_id = "PREMIUM", ref[len("ASSINATURA_"):] # Retrocompatibilidade
+                    
+                cli = tx.cliente.find_unique(where={"id": cli_id})
+                if not cli:
                     _log(f"ASSINATURA divergente ref={ref} pid={pid} valor={valor}")
                     return {"recebido": True, "ignorado": "divergente"}
+                
                 base = max(agora, security._aware(getattr(cli, "planoValidoAte", None)) or agora)
+                
+                # 1. Atualiza a conta do Cliente
                 tx.cliente.update(where={"id": cli.id}, data={
-                    "plano": "PREMIUM", "statusPagamento": "ATIVO",
-                    "planoValidoAte": base + timedelta(days=30)})
-            else:
-                _log(f"referência desconhecida {ref[:40]}")
-        return {"recebido": True}
+                    "plano": plano, 
+                    "statusPagamento": "ATIVO",
+                    "planoValidoAte": base + timedelta(days=30)
+                })
+                
+                # 2. Cria a Mensalidade paga (Garante o desbloqueio das exportações)
+                tx.mensalidade.create(data={
+                    "clienteId": cli.id,
+                    "mesRef": agora.strftime("%m/%Y"),
+                    "vencimento": agora,
+                    "dataPagamento": agora,
+                    "valorBase": valor,
+                    "status": "PAGO"
+                })

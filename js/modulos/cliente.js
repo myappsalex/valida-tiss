@@ -162,6 +162,27 @@ function abrirMeusDadosCliente() {
     abrirModal('modalMeusDados');
 }
 
+async function confirmarTrocaPlano() {
+    const opcao = document.querySelector('input[name="planoOption"]:checked');
+    if (!opcao) return avisar('Selecione um plano.', 'erro');
+    const plano = opcao.value;
+    
+    if (plano === 'FREEMIUM') return avisar('Sua conta já possui os benefícios Freemium por padrão.', 'info');
+    
+    fecharModal('modalEscolherPlano');
+    await gerarPix({ tipo: 'ASSINATURA', plano: plano }, null);
+}
+
+async function gerarPixMensalidade() {
+    const u = Sessao.usuario;
+    if(!u) return;
+    fecharModal('modalMensalidades');
+    await gerarPix({ tipo: 'ASSINATURA', plano: u.plano || 'PREMIUM' }, null);
+}
+
+// Expõe globalmente
+window.confirmarTrocaPlano = confirmarTrocaPlano;
+window.gerarPixMensalidade = gerarPixMensalidade;
 window.abrirMeusDadosCliente = abrirMeusDadosCliente;
 window.abrirModalComprarTokens = abrirModalComprarTokens;
 window.calcularValorTokens = calcularValorTokens;
