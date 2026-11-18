@@ -31,7 +31,8 @@ def criar_cobranca_pix(nome, email, cpf_cnpj, valor, descricao, referencia):
             "customer": {
                 "name": nome or "Cliente ValidaTISS",
                 "email": email or "contato@validatiss.com",
-                "taxId": cpf_cnpj or ""
+                "taxId": cpf_cnpj or "",
+                "cellphone": "11999999999"  # <-- Adicionado para satisfazer a API
             },
             "metadata": {
                 "referencia": referencia
