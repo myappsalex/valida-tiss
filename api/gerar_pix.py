@@ -26,10 +26,20 @@ class handler(ApiHandler):
         d = ctx.json()
         tipo = v.escolha(d.get("tipo"), ("AD", "ASSINATURA", "TOKENS"), "Tipo")
         db = get_db()
-        doc_cpf = getattr(p.rec, "cpfCnpj", None) or d.get("cpfCnpj") or ""
         
-        if not doc_cpf:
+        # 1. Pega o documento do banco ou o que foi digitado no Modal
+        doc_bruto = getattr(p.rec, "cpfCnpj", None) or d.get("cpfCnpj") or ""
+        
+        # 2. Estoura o 422 proposital para o front abrir o Modal
+        if not doc_bruto:
             raise ApiError(422, "Informe o CPF/CNPJ para gerar a cobrança.", "cpf_cnpj_necessario")
+
+        # 3. Limpa pontos/traços e valida matematicamente o documento
+        doc_cpf = v.cpf_cnpj(doc_bruto)
+        
+        # 4. Salva no banco para o cliente não ter que digitar nunca mais
+        if doc_cpf != getattr(p.rec, "cpfCnpj", None):
+            db.cliente.update(where={"id": p.id}, data={"cpfCnpj": doc_cpf})
 
         if tipo == "AD":
             camp = db.campanhaads.find_first(where={"id": str(d.get("id") or ""), "usuarioId": p.id})
