@@ -1,10 +1,6 @@
-"""/api/gerar_pix – cobrança PIX para anúncios, tokens e assinatura.
-
-Refatorado para utilizar a AbacatePay como gateway de pagamento principal,
-reduzindo a latência (sem necessidade de criar customer id prévio) e evitando 
-arredondamentos indevidos.
-"""
+"""/api/gerar_pix – cobrança PIX para anúncios, tokens e assinatura."""
 import os
+import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -12,10 +8,8 @@ from vt_core import abacatepay, config, security, settings, validation as v
 from vt_core.db import get_db
 from vt_core.web import ApiError, ApiHandler
 
-
 class handler(ApiHandler):
     def get(self, ctx):
-        """Preços vigentes (só para exibir na tela; o valor cobrado é recalculado no POST)."""
         ctx.exigir(tipo="CLIENTE")
         db = get_db()
         return (200, {"precoToken": settings.obter(db, "PRECO_TOKEN"), "premiumMensal": settings.obter(db, "PRECO_PREMIUM_MENSAL"),
@@ -27,19 +21,19 @@ class handler(ApiHandler):
         tipo = v.escolha(d.get("tipo"), ("AD", "ASSINATURA", "TOKENS"), "Tipo")
         db = get_db()
         
-        # 1. Pega o documento do banco ou o que foi digitado no Modal
-        doc_bruto = getattr(p.rec, "cpfCnpj", None) or d.get("cpfCnpj") or ""
+        doc_cpf = getattr(p.rec, "cpfCnpj", None) or d.get("cpfCnpj") or ""
+        doc_tel = getattr(p.rec, "telefone", None) or d.get("telefone") or ""
         
-        # 2. Estoura o 422 proposital para o front abrir o Modal
-        if not doc_bruto:
-            raise ApiError(422, "Informe o CPF/CNPJ para gerar a cobrança.", "cpf_cnpj_necessario")
+        if not doc_cpf or not doc_tel:
+            raise ApiError(422, "Informe o CPF/CNPJ e o Telefone para gerar a cobrança.", "cpf_cnpj_necessario")
 
-        # 3. Limpa pontos/traços e valida matematicamente o documento
-        doc_cpf = v.cpf_cnpj(doc_bruto)
+        doc_cpf = v.cpf_cnpj(doc_cpf)
+        doc_tel = re.sub(r"\D", "", doc_tel)
         
-        # 4. Salva no banco para o cliente não ter que digitar nunca mais
-        if doc_cpf != getattr(p.rec, "cpfCnpj", None):
-            db.cliente.update(where={"id": p.id}, data={"cpfCnpj": doc_cpf})
+        update_data = {}
+        if doc_cpf != getattr(p.rec, "cpfCnpj", None): update_data["cpfCnpj"] = doc_cpf
+        if doc_tel != getattr(p.rec, "telefone", None): update_data["telefone"] = doc_tel
+        if update_data: db.cliente.update(where={"id": p.id}, data=update_data)
 
         if tipo == "AD":
             camp = db.campanhaads.find_first(where={"id": str(d.get("id") or ""), "usuarioId": p.id})
@@ -55,6 +49,7 @@ class handler(ApiHandler):
                 nome=p.rec.nomeEmpresa, 
                 email=p.rec.emailAcesso, 
                 cpf_cnpj=doc_cpf, 
+                telefone=doc_tel,
                 valor=valor, 
                 descricao="Anúncio ValidaTISS", 
                 referencia=ref_externa
@@ -80,7 +75,7 @@ class handler(ApiHandler):
                 raise ApiError(422, "Valor mínimo da cobrança: R$ 1,00.", "validacao")
                 
             if db.compratokens.count(where={"clienteId": p.id, "status": "AGUARDANDO"}) >= 5:
-                raise ApiError(429, "Você já tem 5 compras aguardando pagamento. Pague ou aguarde a expiração.", "limite")
+                raise ApiError(429, "Você já tem compras aguardando pagamento.", "limite")
                 
             compra = db.compratokens.create(data={"clienteId": p.id, "quantidade": qtd, "valor": valor})
             ref_externa = f"TOK_{compra.id}"
@@ -90,6 +85,7 @@ class handler(ApiHandler):
                     nome=p.rec.nomeEmpresa, 
                     email=p.rec.emailAcesso, 
                     cpf_cnpj=doc_cpf, 
+                    telefone=doc_tel,
                     valor=valor, 
                     descricao=f"{qtd} tokens de IA ValidaTISS", 
                     referencia=ref_externa
@@ -120,7 +116,7 @@ class handler(ApiHandler):
                 preco = settings.obter(db, "PRECO_PREMIUM_MENSAL") if plano == "PREMIUM" else (99.90 if plano == "ECO" else 199.90)
                     
             if not preco or preco <= 0:
-                raise ApiError(503, "Assinatura online indisponível no momento.", "indisponivel")
+                raise ApiError(503, "Assinatura indisponível no momento.", "indisponivel")
                 
             valor = round(float(preco), 2)
             ref_externa = f"ASSINATURA_{plano}_{p.id}"
@@ -129,6 +125,7 @@ class handler(ApiHandler):
                 nome=p.rec.nomeEmpresa, 
                 email=p.rec.emailAcesso, 
                 cpf_cnpj=doc_cpf, 
+                telefone=doc_tel,
                 valor=valor, 
                 descricao=f"Assinatura {plano} ValidaTISS", 
                 referencia=ref_externa

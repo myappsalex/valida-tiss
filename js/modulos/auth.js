@@ -95,33 +95,33 @@ window.aceitarTermosUso = function() {
 async function solicitarConta() {
     const nome = document.getElementById('reg-nome').value.trim();
     const email = document.getElementById('reg-email').value.trim();
-    const cpfCnpj = document.getElementById('reg-cpf').value.replace(/\D/g, ''); // Limpa a formatação
+    const cpfCnpj = document.getElementById('reg-cpf').value.replace(/\D/g, ''); 
+    const telefone = document.getElementById('reg-telefone').value.replace(/\D/g, ''); // LÊ O NOVO CAMPO
     const senha = document.getElementById('reg-senha').value;
     const aceite = document.getElementById('reg-aceite').checked;
     
-    if (!nome || !email || !cpfCnpj) return avisar('Preencha nome, CPF/CNPJ e e-mail.', 'erro');
+    if (!nome || !email || !cpfCnpj || !telefone) return avisar('Preencha nome, CPF/CNPJ, Telefone e E-mail.', 'erro');
     if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) return avisar('CPF ou CNPJ inválido.', 'erro');
+    if (telefone.length < 10) return avisar('Informe o telefone com o DDD.', 'erro');
     if (senha.length < 10) return avisar('A senha deve ter ao menos 10 caracteres.', 'erro');
-    if (!aceite) return avisar('Você deve ler e aceitar os Termos de Uso (clique na caixa azul).', 'erro');
+    if (!aceite) return avisar('Você deve ler e aceitar os Termos de Uso.', 'erro');
     
     await comCarga('btn-registro-submit', 'Registrando…', async () => {
-        const corpo = { acao: 'registro', nome, email, cpfCnpj, senha, aceite_termos: true };
+        // Envia o telefone para a API
+        const corpo = { acao: 'registro', nome, email, cpfCnpj, telefone, senha, aceite_termos: true };
         const r = await api('/api/auth', corpo);
         
         if (r.ok) {
             avisar('Conta criada com sucesso! Redirecionando...', 'sucesso');
-            // Força o login automático com as credenciais recém criadas
             document.getElementById('login-email').value = email;
             document.getElementById('login-senha').value = senha;
             
-            // Limpa o formulário de registro
             document.getElementById('reg-senha').value = ''; 
             document.getElementById('reg-cpf').value = ''; 
+            document.getElementById('reg-telefone').value = ''; 
             document.getElementById('reg-aceite').checked = false;
 
             await efetuarLogin();
-            
-            // Após o login, abre o modal de planos para o novo usuário
             fecharModais();
             abrirModal('modalEscolherPlano');
         } else {

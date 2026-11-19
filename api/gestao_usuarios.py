@@ -1,5 +1,6 @@
 """/api/gestao_usuarios – IAM interno e carteira de clientes (somente staff)."""
 import os
+import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -95,7 +96,7 @@ class handler(ApiHandler):
                     "statusPagamento": getattr(c, "statusPagamento", "ATIVO") or "ATIVO", "statusFinanceiro": status_fin,
                     "cnpjsUsados": getattr(c, "qtdPrestadoresUsados", 0), "tokensRestantes": getattr(c, "tokensIA", 0), 
                     "criadoEm": getattr(c, "criadoEm", None), "dataCancelamento": getattr(c, "dataCancelamento", None),
-                    "cpfCnpj": getattr(c, "cpfCnpj", "")
+                    "cpfCnpj": getattr(c, "cpfCnpj", ""), "telefone": getattr(c, "telefone", "")
                 })
         return (200, itens, {"X-Total-Count": total})
 
@@ -104,7 +105,6 @@ class handler(ApiHandler):
         acao = corpo.get("acao")
         db = get_db()
 
-        # 1. AÇÃO PÚBLICA
         if acao == "listar_planos_vigentes":
             precos = {}
             try:
@@ -120,126 +120,84 @@ class handler(ApiHandler):
                         precos[p_obj.nome] = p_obj.valor
                 except Exception:
                     pass
-                    
             return {"sucesso": True, "dados": {
                 "ECO": precos.get("ECO", 99.90),
                 "FLEX": precos.get("FLEX", 199.90),
                 "PREMIUM": precos.get("PREMIUM", 399.90)
             }}
 
-        # 2. BARREIRA ADMINISTRATIVA
         p = ctx.exigir(tipo="INTERNO")
 
-        # NOVO: Dashboard Estratégico Realocado para o POST
         if acao == "dashboard_admin":
-            if not p.pode("clientes:ler"):
-                raise ApiError(403, "Sem permissão de leitura.")
-                
+            if not p.pode("clientes:ler"): raise ApiError(403, "Sem permissão de leitura.")
             hoje = security.agora_utc()
-            
             ativos = db.cliente.count(where={"statusConta": "ATIVO"})
             cancelados = db.cliente.count(where={"statusConta": "CANCELADO"})
             inadimplentes = db.cliente.count(where={"statusPagamento": "INATIVO", "statusConta": "ATIVO"})
-            
             tabela_precos = {}
             try:
                 planos_db = db.configuracaoplano.find_many(where={"vigenciaInicio": {"lte": hoje}}, order={"vigenciaInicio": "desc"})
                 for p_obj in planos_db:
-                    if p_obj.nome not in tabela_precos:
-                        tabela_precos[p_obj.nome] = p_obj.valor
+                    if p_obj.nome not in tabela_precos: tabela_precos[p_obj.nome] = p_obj.valor
             except Exception:
                 pass 
-                
-            preco_eco = tabela_precos.get("ECO", 29.90)
-            preco_flex = tabela_precos.get("FLEX", 89.90)
-            preco_premium = tabela_precos.get("PREMIUM", 199.90)
-            
+            preco_eco = tabela_precos.get("ECO", 99.90)
+            preco_flex = tabela_precos.get("FLEX", 199.90)
+            preco_premium = tabela_precos.get("PREMIUM", 399.90)
             distribuicao = {"FREEMIUM": 0, "ECO": 0, "FLEX": 0, "PREMIUM": 0}
             clientes_ativos = db.cliente.find_many(where={"statusConta": "ATIVO"})
             for c in clientes_ativos:
                 plano = getattr(c, "plano", "FREEMIUM")
-                if plano in distribuicao:
-                    distribuicao[plano] += 1
-                    
+                if plano in distribuicao: distribuicao[plano] += 1
             mrr = (distribuicao["ECO"] * preco_eco) + (distribuicao["FLEX"] * preco_flex) + (distribuicao["PREMIUM"] * preco_premium)
-            
-            return {"sucesso": True, "dados": {
-                "mrr": mrr,
-                "ativos": ativos,
-                "churn": cancelados,
-                "inadimplentes": inadimplentes,
-                "distribuicao": distribuicao
-            }}
+            return {"sucesso": True, "dados": {"mrr": mrr, "ativos": ativos, "churn": cancelados, "inadimplentes": inadimplentes, "distribuicao": distribuicao}}
 
         if acao == "salvar_plano_vigencia":
-            if not p.pode("config:editar"):
-                raise ApiError(403, "Seu perfil não tem permissão para esta ação.")
-                
+            if not p.pode("config:editar"): raise ApiError(403, "Seu perfil não tem permissão para esta ação.")
             nome = v.escolha(corpo.get("nome"), ["ECO", "FLEX", "PREMIUM"], "Plano")
             try:
                 novo_valor = float(str(corpo.get("valor", "0")).replace(",", "."))
             except ValueError:
                 raise ApiError(422, "Valor inválido.", "validacao")
-            
             hoje = security.agora_utc()
             limite_padrao = 1 if nome == "ECO" else (5 if nome == "FLEX" else 9999)
-            
             valor_atual = None
             try:
                 ativos = db.configuracaoplano.find_many(where={"nome": nome, "vigenciaInicio": {"lte": hoje}}, order={"vigenciaInicio": "desc"}, take=1)
                 valor_atual = ativos[0].valor if ativos else None
             except Exception:
-                try:
-                    ativos = db.configuracaoplano.find_many(where={"nome": nome})
-                    valor_atual = ativos[0].valor if ativos else None
-                except Exception:
-                    pass
-            
+                pass
             if valor_atual != novo_valor:
                 data_str = corpo.get("vigenciaInicio")
-                if not data_str:
-                    raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
+                if not data_str: raise ApiError(422, "O valor foi alterado. Informe a Data de Vigência obrigatória.", "validacao")
                 nova_vigencia = v.data_iso(data_str, "Data de Vigência")
-                
                 try:
                     db.configuracaoplano.create(data={"nome": nome, "valor": novo_valor, "limite": limite_padrao, "vigenciaInicio": nova_vigencia})
                 except Exception:
-                    try:
-                        db.configuracaoplano.create(data={"nome": nome, "valor": novo_valor, "limite": limite_padrao})
-                    except Exception:
-                        db.configuracaoplano.update_many(where={"nome": nome}, data={"valor": novo_valor, "limite": limite_padrao})
-                        
+                    db.configuracaoplano.update_many(where={"nome": nome}, data={"valor": novo_valor, "limite": limite_padrao})
                 audit.registrar(db, p, "NOVO_PRECO_PLANO", "SISTEMA", nome, {"novo": novo_valor, "vigencia": data_str}, ctx.ip)
                 return {"sucesso": True, "mensagem": f"Novo preço programado com sucesso para {nome}!"}
-                
             return {"sucesso": True, "mensagem": "O valor é igual ao atual. Nenhuma alteração realizada.", "codigo": "fechar"}
 
         if acao == "salvar_config":
-            if not p.pode("config:editar"):
-                raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
+            if not p.pode("config:editar"): raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
             valores = corpo.get("valores")
-            if not isinstance(valores, dict) or not valores:
-                raise ApiError(422, "Nada para salvar.", "validacao")
+            if not isinstance(valores, dict) or not valores: raise ApiError(422, "Nada para salvar.", "validacao")
             for chave in valores:                       
-                if chave not in settings.DEFINICOES:
-                    raise ApiError(422, "Configuração desconhecida.", "validacao")
+                if chave not in settings.DEFINICOES: raise ApiError(422, "Configuração desconhecida.", "validacao")
             mudancas = {}
             for chave, novo in valores.items():
                 antes, depois = settings.salvar(db, p.email, chave, novo)
-                if antes != depois:
-                    mudancas[chave] = [antes, depois]
-            if mudancas:
-                audit.registrar(db, p, "CONFIG_ALTERADA", "CONFIG", ",".join(mudancas), mudancas, ctx.ip)
+                if antes != depois: mudancas[chave] = [antes, depois]
+            if mudancas: audit.registrar(db, p, "CONFIG_ALTERADA", "CONFIG", ",".join(mudancas), mudancas, ctx.ip)
             return {"sucesso": True, "mensagem": "Configurações salvas." if mudancas else "Nenhuma alteração.", "itens": settings.listar(db)}
 
         if acao == "criar_interno":
-            if not p.pode("usuarios:gerir"):
-                raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
+            if not p.pode("usuarios:gerir"): raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
             nome = v.texto(corpo.get("nome"), "Nome", 2, 120)
             email = v.email(corpo.get("email"))
             perfil = v.escolha(corpo.get("perfil"), config.PERFIS_INTERNOS, "Perfil")
-            if db.usuario.find_unique(where={"email": email}):
-                raise ApiError(409, "E-mail já em uso.", "duplicado")
+            if db.usuario.find_unique(where={"email": email}): raise ApiError(409, "E-mail já em uso.", "duplicado")
             temp = security.gerar_senha_temporaria()
             novo = db.usuario.create(data={
                 "nome": nome, "email": email, "perfil": perfil, "status": "ATIVO",
@@ -251,17 +209,14 @@ class handler(ApiHandler):
                          ("INTERNO", "CLIENTE"), "Tipo")
         perm = "usuarios:gerir" if tipo == "INTERNO" else (
             "tokens:ajustar" if acao == "atualizar_tokens" else ("assinatura:editar" if acao == "editar_assinatura" else "clientes:editar"))
-        if not p.pode(perm):
-            raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
+        if not p.pode(perm): raise ApiError(403, "Seu perfil não tem permissão para esta ação.", "proibido")
         alvo = _alvo(db, tipo, corpo.get("id"))
         tabela = _tabela(db, tipo)
         eh_si = tipo == "INTERNO" and alvo.id == p.id
 
         def proteger_admin(descricao):
-            if tipo != "INTERNO":
-                return
-            if eh_si:
-                raise ApiError(409, f"Você não pode {descricao} a própria conta.")
+            if tipo != "INTERNO": return
+            if eh_si: raise ApiError(409, f"Você não pode {descricao} a própria conta.")
             if alvo.perfil == "ADMIN" and security.status_interno(alvo) == "ATIVO" and _admins_ativos(db) <= 1:
                 raise ApiError(409, "É preciso manter ao menos um administrador ativo.")
 
@@ -279,10 +234,8 @@ class handler(ApiHandler):
         if acao == "reativar":
             data = {"tokenVersion": {"increment": 1}}
             data["status" if tipo == "INTERNO" else "statusConta"] = "ATIVO"
-            if tipo == "CLIENTE":
-                data["dataCancelamento"] = None
-            if tipo == "INTERNO" and alvo.perfil in ("BLOQUEADO", "CANCELADO"):
-                raise ApiError(409, "Perfil legado inválido: defina o perfil antes de reativar.")
+            if tipo == "CLIENTE": data["dataCancelamento"] = None
+            if tipo == "INTERNO" and alvo.perfil in ("BLOQUEADO", "CANCELADO"): raise ApiError(409, "Perfil legado inválido: defina o perfil antes de reativar.")
             tabela.update(where={"id": alvo.id}, data=data)
             audit.registrar(db, p, "REATIVAR", tipo, alvo.id, {}, ctx.ip)
             return {"sucesso": True, "mensagem": "Acesso reativado."}
@@ -293,35 +246,37 @@ class handler(ApiHandler):
                 "senhaHash": security.hash_senha(temp), "mustChangePassword": True,
                 "tentativasFalhas": 0, "bloqueadoAte": None, "tokenVersion": {"increment": 1}})
             audit.registrar(db, p, "SENHA_RESETADA", tipo, alvo.id, {}, ctx.ip)
-            return {"sucesso": True, "mensagem": "Senha provisória gerada. Ela será exigida a troca no próximo acesso.",
-                    "senhaTemporaria": temp}
+            return {"sucesso": True, "mensagem": "Senha provisória gerada.", "senhaTemporaria": temp}
 
         if acao == "editar":
             novo = str(corpo.get("novo_dado") or "").strip().upper()
             if tipo == "INTERNO":
                 novo = v.escolha(novo, config.PERFIS_INTERNOS, "Perfil")
-                if novo != "ADMIN":
-                    proteger_admin("rebaixar")
+                if novo != "ADMIN": proteger_admin("rebaixar")
                 tabela.update(where={"id": alvo.id}, data={"perfil": novo, "tokenVersion": {"increment": 1}})
             else:
                 novo = v.escolha(novo, config.STATUS_CLIENTE, "Status")
                 tabela.update(where={"id": alvo.id}, data={"statusConta": novo, "tokenVersion": {"increment": 1}})
-            audit.registrar(db, p, "EDITAR_ACESSO", tipo, alvo.id, {"novo": novo, "antes": getattr(alvo, "perfil", None) if tipo == "INTERNO" else alvo.statusConta}, ctx.ip)
+            audit.registrar(db, p, "EDITAR_ACESSO", tipo, alvo.id, {"novo": novo}, ctx.ip)
             return {"sucesso": True, "mensagem": f"Registro atualizado para: {novo}"}
 
         if acao == "editar_dados":
-            if tipo != "CLIENTE":
-                raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
+            
+            telefone = re.sub(r"\D", "", corpo.get("telefone", ""))
             data = {
                 "nomeEmpresa": v.texto(corpo.get("nome"), "Nome", 2, 120),
-                "cpfCnpj": v.cpf_cnpj(corpo.get("cpfCnpj")) 
+                "cpfCnpj": v.cpf_cnpj(corpo.get("cpfCnpj")),
+                "telefone": telefone
             }
+            if len(telefone) < 10 or len(telefone) > 15:
+                raise ApiError(422, "Informe um telefone com DDD válido.", "validacao")
+
             cancelar = corpo.get("cancelar") is True
             if cancelar:
                 data["statusConta"] = "CANCELADO"
                 data["dataCancelamento"] = v.data_iso(corpo.get("dataCancelamento"), "Data de cancelamento")
-                if data["dataCancelamento"] is None:
-                    raise ApiError(422, "Informe a data efetiva do cancelamento.", "validacao")
+                if data["dataCancelamento"] is None: raise ApiError(422, "Informe a data efetiva do cancelamento.", "validacao")
                 data["tokenVersion"] = {"increment": 1}
             elif alvo.statusConta == "CANCELADO":
                 data["statusConta"] = "ATIVO"
@@ -331,34 +286,25 @@ class handler(ApiHandler):
             return {"sucesso": True, "mensagem": "Dados cadastrais atualizados com sucesso."}
 
         if acao == "atualizar_tokens":
-            if tipo != "CLIENTE":
-                raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
             q = v.inteiro(corpo.get("quantidade"), "Quantidade", -100000, 100000)
-            if q == 0:
-                raise ApiError(422, "Informe uma quantidade diferente de zero.", "validacao")
-            motivo = v.texto(corpo.get("motivo"), "Motivo", 0, 200, obrigatorio=False)
+            if q == 0: raise ApiError(422, "Informe uma quantidade diferente de zero.", "validacao")
             if q > 0:
                 tabela.update(where={"id": alvo.id}, data={"tokensIA": {"increment": q}})
             else:  
-                n = tabela.update_many(where={"id": alvo.id, "tokensIA": {"gte": -q}},
-                                       data={"tokensIA": {"decrement": -q}})
-                if n == 0:
-                    raise ApiError(409, "Saldo insuficiente para este débito.", "saldo")
+                n = tabela.update_many(where={"id": alvo.id, "tokensIA": {"gte": -q}}, data={"tokensIA": {"decrement": -q}})
+                if n == 0: raise ApiError(409, "Saldo insuficiente para este débito.", "saldo")
             saldo = tabela.find_unique(where={"id": alvo.id}).tokensIA
-            audit.registrar(db, p, "TOKENS_AJUSTADOS", "CLIENTE", alvo.id, {"delta": q, "motivo": motivo, "saldo": saldo}, ctx.ip)
+            audit.registrar(db, p, "TOKENS_AJUSTADOS", "CLIENTE", alvo.id, {"delta": q, "saldo": saldo}, ctx.ip)
             return {"sucesso": True, "mensagem": "Saldo atualizado.", "tokensRestantes": saldo}
 
         if acao == "editar_assinatura":
-            if tipo != "CLIENTE":
-                raise ApiError(400, "Disponível apenas para clientes.")
+            if tipo != "CLIENTE": raise ApiError(400, "Disponível apenas para clientes.")
             plano = v.escolha(corpo.get("plano"), ["FREEMIUM", "ECO", "FLEX", "PREMIUM"], "Plano")
             status_pag = v.escolha(corpo.get("statusPagamento"), config.STATUS_PAGAMENTO, "Status do pagamento")
             data = {"plano": plano, "statusPagamento": status_pag}
-            
             tabela.update(where={"id": alvo.id}, data=data)
-            audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", alvo.id,
-                            {"antes": [getattr(alvo, "plano", None), getattr(alvo, "statusPagamento", None)],
-                             "depois": [plano, status_pag]}, ctx.ip)
+            audit.registrar(db, p, "ASSINATURA_ALTERADA", "CLIENTE", alvo.id, {"depois": [plano, status_pag]}, ctx.ip)
             return {"sucesso": True, "mensagem": "Assinatura e plano atualizados."}
 
         raise ApiError(400, "Comando desconhecido.")

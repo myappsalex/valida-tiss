@@ -16,11 +16,10 @@ def _base():
         "Authorization": f"Bearer {chave}"
     }
 
-def criar_cobranca_pix(nome, email, cpf_cnpj, valor, descricao, referencia):
+def criar_cobranca_pix(nome, email, cpf_cnpj, telefone, valor, descricao, referencia):
     """Cria a cobrança PIX via checkout transparente v2 em uma única chamada."""
     base, headers = _base()
     
-    # AbacatePay exige valores em centavos inteiros (ex: R$ 10,50 -> 1050)
     valor_centavos = int(round(float(valor) * 100))
     
     payload = {
@@ -32,7 +31,7 @@ def criar_cobranca_pix(nome, email, cpf_cnpj, valor, descricao, referencia):
                 "name": nome or "Cliente ValidaTISS",
                 "email": email or "contato@validatiss.com",
                 "taxId": cpf_cnpj or "",
-                "cellphone": "11999999999"  # <-- Adicionado para satisfazer a API
+                "cellphone": telefone or ""
             },
             "metadata": {
                 "referencia": referencia
@@ -60,7 +59,3 @@ def criar_cobranca_pix(nome, email, cpf_cnpj, valor, descricao, referencia):
         "payload_pix": dados.get("brCode"),
         "imagem_qrcode": dados.get("brCodeBase64")
     }
-
-def cancelar_cobranca(payment_id):
-    """Na AbacatePay o PIX expira sozinho. Mantido para compatibilidade de interface."""
-    pass

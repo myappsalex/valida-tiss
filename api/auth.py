@@ -1,11 +1,6 @@
-"""/api/auth – login, registro, sessão e troca de senha.
-
-Corrige: `registro_admin` público (qualquer um criava ADMIN), erros que revelavam
-se o e-mail existia, login de conta bloqueada/cancelada permitido, sem limite de
-tentativas, política de senha só no navegador, sessão forjável.
-Criação de usuário interno agora é feita em /api/gestao_usuarios (ADMIN).
-"""
+"""/api/auth – login, registro, sessão e troca de senha."""
 import os
+import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -17,7 +12,6 @@ from vt_core.web import ApiError, ApiHandler
 
 
 def publico(p):
-    """Payload de sessão exposto ao navegador (sem segredos)."""
     r = p.rec
     base = {"id": p.id, "nome": p.nome, "email": p.email, "tipo": p.tipo,
             "mustChangePassword": p.must_change}
@@ -29,19 +23,17 @@ def publico(p):
                     tokensRestantes=r.tokensIA,
                     exportacoesRestantes=getattr(r, "exportacoesGratis", 0), 
                     cpfCnpj=getattr(r, "cpfCnpj", ""), 
+                    telefone=getattr(r, "telefone", ""),
                     permissoes=[])
     return base
-
 
 def _buscar(db, tipo, email):
     if tipo == "INTERNO":
         return db.usuario.find_unique(where={"email": email})
     return db.cliente.find_unique(where={"emailAcesso": email})
 
-
 def _tabela(db, tipo):
     return db.usuario if tipo == "INTERNO" else db.cliente
-
 
 def _login(ctx, corpo, tipo):
     email = security.normalizar_email(corpo.get("email"))
@@ -55,7 +47,7 @@ def _login(ctx, corpo, tipo):
 
     bloqueado_ate = security._aware(getattr(rec, "bloqueadoAte", None)) if rec else None
     if bloqueado_ate and bloqueado_ate > agora:
-        security.verificar_senha(senha, None)  # mantém o custo de tempo
+        security.verificar_senha(senha, None)
         raise ApiError(429, "Muitas tentativas. Aguarde alguns minutos e tente de novo.", "bloqueio_temporario")
 
     ok = security.verificar_senha(senha, rec.senhaHash if rec else None)
@@ -78,12 +70,15 @@ def _login(ctx, corpo, tipo):
     from vt_core.web import Principal
     return {"sucesso": True, "usuario": publico(Principal(tipo, rec))}
 
-
 def _registro(ctx, corpo):
     nome = v.texto(corpo.get("nome"), "Nome", 2, 120)
     email = v.email(corpo.get("email"))
     senha = corpo.get("senha")
-    cpf_cnpj = v.cpf_cnpj(corpo.get("cpfCnpj")) # NOVO: Valida o CPF/CNPJ
+    cpf_cnpj = v.cpf_cnpj(corpo.get("cpfCnpj"))
+    telefone = re.sub(r"\D", "", corpo.get("telefone", ""))
+    
+    if len(telefone) < 10 or len(telefone) > 15:
+        raise ApiError(422, "Informe um telefone com DDD válido.", "validacao")
     
     msg = security.validar_politica_senha(senha, email, nome)
     if msg:
@@ -97,11 +92,10 @@ def _registro(ctx, corpo):
         
     db.cliente.create(data={
         "nomeEmpresa": nome, "emailAcesso": email, "senhaHash": security.hash_senha(senha),
-        "cpfCnpj": cpf_cnpj, "ipAceite": ctx.ip, # NOVO: Grava CPF e IP
+        "cpfCnpj": cpf_cnpj, "telefone": telefone, "ipAceite": ctx.ip, 
         "tokensIA": 0, "statusConta": "PENDENTE", "plano": "FREEMIUM",
         "statusPagamento": "ATIVO", "aceiteTermosEm": security.agora_utc()})
-    return {"sucesso": True, "mensagem": "Conta criada! Ela ficará pendente até a liberação pela nossa equipe."}
-
+    return {"sucesso": True, "mensagem": "Conta criada com sucesso."}
 
 def _trocar_senha(ctx, corpo):
     p = ctx.exigir(permitir_troca_pendente=True)
@@ -117,10 +111,9 @@ def _trocar_senha(ctx, corpo):
     rec = _tabela(db, p.tipo).update(where={"id": p.id}, data={
         "senhaHash": security.hash_senha(nova), "mustChangePassword": False,
         "tokenVersion": {"increment": 1}})
-    ctx.definir_sessao(p.tipo, rec)  # novo cookie; sessões antigas ficam inválidas
+    ctx.definir_sessao(p.tipo, rec)
     from vt_core.web import Principal
     return {"sucesso": True, "mensagem": "Senha alterada.", "usuario": publico(Principal(p.tipo, rec))}
-
 
 class handler(ApiHandler):
     def get(self, ctx):
@@ -133,26 +126,19 @@ class handler(ApiHandler):
         if acao == "listar_planos":
             db = get_db()
             planos = db.configuracaoplano.find_many()
-            # Se a tabela estiver vazia, retorna valores padrão de mercado
             if not planos:
                 return {"sucesso": True, "dados": {"ECO": 99.90, "FLEX": 199.90, "PREMIUM": 399.90}}
-            
             dados = {p.nome: p.valor for p in planos}
             return {"sucesso": True, "dados": dados}
-        if acao == "login":
-            return _login(ctx, corpo, "CLIENTE")
-        if acao == "login_admin":
-            return _login(ctx, corpo, "INTERNO")
-        if acao == "registro":
-            return _registro(ctx, corpo) # Passa o contexto para pegar o IP
-        if acao == "me":
-            return {"sucesso": True, "usuario": publico(ctx.exigir(permitir_troca_pendente=True))}
+        if acao == "login": return _login(ctx, corpo, "CLIENTE")
+        if acao == "login_admin": return _login(ctx, corpo, "INTERNO")
+        if acao == "registro": return _registro(ctx, corpo)
+        if acao == "me": return {"sucesso": True, "usuario": publico(ctx.exigir(permitir_troca_pendente=True))}
         if acao == "logout":
             p = ctx.principal()
-            if p is not None:  # revoga no servidor: um cookie copiado deixa de valer (encerra também outros dispositivos)
+            if p is not None:
                 _tabela(get_db(), p.tipo).update(where={"id": p.id}, data={"tokenVersion": {"increment": 1}})
             ctx.encerrar_sessao()
             return {"sucesso": True}
-        if acao == "trocar_senha":
-            return _trocar_senha(ctx, corpo)
+        if acao == "trocar_senha": return _trocar_senha(ctx, corpo)
         raise ApiError(400, "Ação não reconhecida.")

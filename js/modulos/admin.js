@@ -77,17 +77,19 @@ async function carregarDashboardAdmin() {
 
 function abrirDadosCliente(d) {
     const c = _clientes.find(x => x.id === d.id); if (!c) return;
-    document.getElementById('dados-cli-id').value = c.id; document.getElementById('dados-cli-nome').value = c.nome;
+    document.getElementById('dados-cli-id').value = c.id; 
+    document.getElementById('dados-cli-nome').value = c.nome;
     document.getElementById('dados-cli-email').value = c.email;
+    document.getElementById('dados-cli-cpf').value = c.cpfCnpj || '';
+    document.getElementById('dados-cli-telefone').value = c.telefone || ''; // CARREGA TELEFONE
     const cancelado = c.statusConta === 'CANCELADO';
     document.getElementById('chk-cancelar-conta').checked = cancelado;
-	document.getElementById('dados-cli-nome').value = c.nome;
-    document.getElementById('dados-cli-cpf').value = c.cpfCnpj || ''; // NOVO
     document.getElementById('dados-cli-data-cancelamento').value = cancelado && c.dataCancelamento ? String(c.dataCancelamento).slice(0, 10) : '';
     toggleDataCancelamento(); abrirModal('modalDadosCliente');
 }
 
 function toggleDataCancelamento() { document.getElementById('div-data-cancelamento').style.display = document.getElementById('chk-cancelar-conta').checked ? 'block' : 'none'; }
+
 async function salvarDadosCliente() {
     const cancelar = document.getElementById('chk-cancelar-conta').checked, data = val('dados-cli-data-cancelamento');
     if (cancelar && !data) return avisar('Informe a data efetiva do cancelamento.', 'erro');
@@ -96,7 +98,8 @@ async function salvarDadosCliente() {
         const r = await api('/api/gestao_usuarios', { 
             acao: 'editar_dados', tipo: 'CLIENTE', id: val('dados-cli-id'), 
             nome: val('dados-cli-nome').trim(), 
-            cpfCnpj: val('dados-cli-cpf').replace(/\D/g, ''), // NOVO
+            cpfCnpj: val('dados-cli-cpf').replace(/\D/g, ''),
+            telefone: val('dados-cli-telefone').replace(/\D/g, ''), // ENVIA TELEFONE
             cancelar, dataCancelamento: data || null 
         });
         if (r.ok) { avisar(r.dados.mensagem, 'ok'); fecharModal('modalDadosCliente'); pesquisarContratos(); } else avisar(erroDe(r), 'erro');
