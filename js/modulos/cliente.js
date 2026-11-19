@@ -159,6 +159,7 @@ function abrirMeusDadosCliente() {
     document.getElementById('meus-dados-nome').value = u.nome || '';
     document.getElementById('meus-dados-email').value = u.email || '';
     document.getElementById('meus-dados-cpf').value = u.cpfCnpj || 'Não informado';
+    document.getElementById('meus-dados-telefone').value = u.telefone || 'Não informado';
     abrirModal('modalMeusDados');
 }
 
@@ -178,6 +179,21 @@ async function gerarPixMensalidade() {
     if(!u) return;
     fecharModal('modalMensalidades');
     await gerarPix({ tipo: 'ASSINATURA', plano: u.plano || 'PREMIUM' }, null);
+}
+
+async function gerarPix(corpo, btn) {
+    const exec = async () => {
+        let r = await api('/api/gerar_pix', corpo);
+        // Fallback de segurança para clientes muito antigos
+        if (!r.ok && r.dados && r.dados.codigo === 'cpf_cnpj_necessario') {
+            const doc = prompt('Informe o CPF ou CNPJ do pagador (exigido pelo PIX):');
+            const tel = prompt('Informe o Telefone com DDD (exigido pelo PIX):');
+            if (!doc || !tel) return;
+            r = await api('/api/gerar_pix', { ...corpo, cpfCnpj: doc, telefone: tel });
+        }
+        if (r.ok) mostrarPix(r.dados); else avisar(erroDe(r), 'erro');
+    };
+    return btn ? comCarga(btn, 'Gerando PIX…', exec) : exec();
 }
 
 // Expõe globalmente

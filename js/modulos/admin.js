@@ -61,14 +61,16 @@ async function pesquisarContratos() {
 async function carregarDashboardAdmin() {
     const r = await api('/api/gestao_usuarios', { acao: 'dashboard_admin' });
     if (r.ok && r.dados) {
-        const fmtMoeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+        // A API retorna a resposta dentro do objeto "dados"
+        const payload = r.dados.dados || r.dados;
+        const fmtMoeda = (v) => 'R$ ' + Number(v || 0).toFixed(2).replace('.', ',');
         
-        document.getElementById('dash-mrr').textContent = fmtMoeda(r.dados.mrr);
-        document.getElementById('dash-ativos').textContent = r.dados.ativos;
-        document.getElementById('dash-inadimplentes').textContent = r.dados.inadimplentes;
-        document.getElementById('dash-churn').textContent = r.dados.churn;
+        document.getElementById('dash-mrr').textContent = fmtMoeda(payload.mrr);
+        document.getElementById('dash-ativos').textContent = payload.ativos || 0;
+        document.getElementById('dash-inadimplentes').textContent = payload.inadimplentes || 0;
+        document.getElementById('dash-churn').textContent = payload.churn || 0;
         
-        const dist = r.dados.distribuicao;
+        const dist = payload.distribuicao || { FREEMIUM: 0, ECO: 0, FLEX: 0, PREMIUM: 0 };
         document.getElementById('dash-distribuicao').textContent = 
             `FR: ${dist.FREEMIUM} | ECO: ${dist.ECO} | FLX: ${dist.FLEX} | PRM: ${dist.PREMIUM}`;
     }
