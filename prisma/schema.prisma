@@ -1,7 +1,6 @@
 generator client {
   provider = "prisma-client-py"
   interface = "sync"
-  output   = "../_vendor/prisma"  // <-- ADICIONE ESTA LINHA
 }
 
 datasource db {
