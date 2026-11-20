@@ -20,6 +20,7 @@ def criar_cobranca_pix(nome, email, cpf_cnpj, telefone, valor, descricao, refere
     """Cria a cobrança PIX via checkout transparente v2 em uma única chamada."""
     base, headers = _base()
     
+    # AbacatePay exige valores em centavos inteiros (ex: R$ 10,50 -> 1050)
     valor_centavos = int(round(float(valor) * 100))
     
     payload = {
@@ -54,8 +55,26 @@ def criar_cobranca_pix(nome, email, cpf_cnpj, telefone, valor, descricao, refere
         raise ApiError(502, "Erro ao gerar PIX na plataforma.", "gateway")
         
     dados = d.get("data", {})
+    
+    # AbacatePay v2 devolve o PIX dentro de paymentMethods -> pix
+    metodos = dados.get("paymentMethods", {})
+    pix_info = metodos.get("pix", {})
+    
+    # Busca nas chaves atualizadas da v2 ou faz fallback para as antigas
+    payload_pix = pix_info.get("qrCode") or dados.get("brCode") or ""
+    img_b64 = pix_info.get("qrCodeBase64") or dados.get("brCodeBase64") or ""
+    
+    # O nosso frontend já adiciona "data:image/png;base64,", 
+    # então precisamos remover se a AbacatePay enviar junto.
+    if img_b64.startswith("data:image"):
+        img_b64 = img_b64.split(",", 1)[-1]
+        
     return {
         "id": dados.get("id"),
-        "payload_pix": dados.get("brCode"),
-        "imagem_qrcode": dados.get("brCodeBase64")
+        "payload_pix": payload_pix,
+        "imagem_qrcode": img_b64
     }
+    
+def cancelar_cobranca(payment_id):
+    """Na AbacatePay o PIX expira sozinho. Mantido para compatibilidade de interface."""
+    pass
