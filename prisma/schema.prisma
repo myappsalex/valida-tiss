@@ -1,16 +1,13 @@
-// schema.prisma MESCLADO: o seu schema original + colunas/tabelas exigidas pelo código novo.
-// Tudo marcado com "// NOVO" é acréscimo; nada do que existia foi removido ou renomeado.
 generator client {
   provider = "prisma-client-py"
-  interface = "sync" // Para facilitar o uso com o BaseHTTPRequestHandler da Vercel
+  interface = "sync"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")   // use a URL do POOLER (pgbouncer=true&connection_limit=1)
+  url      = env("VALIDA_TISS_DATABASE_POSTGRES_URL")
 }
 
-// Tabela 1: Clientes Externos (SaaS)
 model Cliente {
   id            String         @id @default(uuid())
   nomeEmpresa   String
@@ -20,46 +17,39 @@ model Cliente {
   statusConta   String         @default("PENDENTE")
   criadoEm      DateTime       @default(now())
 
-  // NOVO – assinatura (antes não existia em nenhum modelo; o admin lia/gravava campos inexistentes)
-  plano                 String                 @default("FREEMIUM") // FREEMIUM, ECO, FLEX, PREMIUM
+  plano                 String                 @default("FREEMIUM")
   qtdPrestadoresUsados  Int                    @default(0)
   prestadoresVinculados PrestadorVinculado[]
   mensalidades          Mensalidade[]
-  statusPagamento   String    @default("ATIVO")      // ATIVO | INATIVO
+  statusPagamento   String    @default("ATIVO")
   planoValidoAte    DateTime?
-  // NOVO – segurança de sessão e conta
-  tokenVersion      Int       @default(0)            // incrementa => revoga sessões
+  tokenVersion      Int       @default(0)
   tentativasFalhas  Int       @default(0)
   bloqueadoAte      DateTime?
   ultimoLoginEm     DateTime?
   mustChangePassword Boolean  @default(false)
-  aceiteTermosEm    DateTime?   // LGPD
+  aceiteTermosEm    DateTime?
   ipAceite          String?
   dataCancelamento  DateTime?
-  exportacoesGratis Int       @default(3)            // NOVO – degustação FREEMIUM controlada no servidor (antes: sessionStorage, burlável)
-  // NOVO – cobrança Asaas
+  exportacoesGratis Int       @default(3)
   cpfCnpj           String?
+  telefone          String?   // NOVO: Telefone obrigatório para a AbacatePay
   asaasCustomerId   String?
 
-  // Relacionamentos (O que o cliente "possui")
   logsIA        LogIA[]
-  campanhaads     CampanhaAds[]
-  compras         CompraTokens[]
+  campanhaads   CampanhaAds[]
+  compras       CompraTokens[]
   regras        RegraCliente[]
 }
 
-
-// Tabela 2: Utilizadores Internos (Admin/Backoffice)
 model Usuario {
   id        String   @id @default(uuid())
   nome      String
   email     String   @unique
   senhaHash String
-  perfil    String                                   // ADMIN | OPERACAO | PUBLICIDADE | GESTAO
+  perfil    String
   criadoEm  DateTime @default(now())
-
-  // NOVO
-  status             String    @default("ATIVO")     // ATIVO | BLOQUEADO | CANCELADO (antes o bloqueio sobrescrevia `perfil`)
+  status             String    @default("ATIVO")
   mustChangePassword Boolean   @default(false)
   tokenVersion       Int       @default(0)
   tentativasFalhas   Int       @default(0)
@@ -67,7 +57,6 @@ model Usuario {
   ultimoLoginEm      DateTime?
 }
 
-// Tabela 3: Registo de auditorias (Controlo de custos)
 model LogIA {
   id            String   @id @default(uuid())
   clienteId     String
@@ -75,12 +64,10 @@ model LogIA {
   motorUsado    String
   tokensGastos  Int      @default(1)
   dataUso       DateTime @default(now())
-
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
-  @@index([clienteId, dataUso])                     // NOVO
+  @@index([clienteId, dataUso])
 }
 
-// Tabela 5: Motor de Regras Customizáveis por Cliente
 model RegraCliente {
   id            String   @id @default(uuid())
   clienteId     String
@@ -93,12 +80,9 @@ model RegraCliente {
   mensagemErro  String
   status        String   @default("ATIVO")
   criadoEm      DateTime @default(now())
-
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
-  @@index([clienteId, criadoEm])                    // NOVO
+  @@index([clienteId, criadoEm])
 }
-
-// --- TABELAS DE DOMÍNIO TUSS E GLOSAS (Versão 2.0.0) ---
 
 model DominioTUSS {
   id                 String    @id @default(uuid())
@@ -109,19 +93,16 @@ model DominioTUSS {
   vigenciaInicio     DateTime?
   vigenciaFim        DateTime?
   ativo              Boolean   @default(true)
-
-  // --- NOVOS CAMPOS PARA TABELAS 19 E 20 ---
   fabricante         String?
   apresentacaoModelo String?
   classeRisco        String?
-
   @@index([codigoTabela, codigoTermo])
 }
 
 model TabelaGlosasANS {
-  codigoGlosa     String   @id // Ex: 1001, 1102, 1203, 1311
-  descricao       String   // Ex: Código incompatível com a tabela
-  tipo            String   // Administrativa, Técnica, etc.
+  codigoGlosa     String   @id
+  descricao       String
+  tipo            String
 }
 
 model HistoricoAutorizacoes {
@@ -129,13 +110,13 @@ model HistoricoAutorizacoes {
   senha           String   @unique
   carteiraBen     String
   dataValidade    DateTime
-  status          String   // APROVADA, NEGADA, PARCIAL
+  status          String
   prestadorId     String
 }
 
 model CampanhaAds {
   id              String    @id @default(cuid())
-  usuarioId       String                                   // = Cliente.id (nome mantido por compatibilidade)
+  usuarioId       String
   empresa_nome    String
   email_contato   String
   link_destino    String
@@ -143,24 +124,20 @@ model CampanhaAds {
   bannerUrl       String?
   valorOrcamento  Float?
   observacaoAdmin String?
-  status          String    @default("PENDENTE")           // PENDENTE|ORCADO|AGUARDANDO_PAGAMENTO|ATIVO|CANCELADO|REJEITADO|EXPIRADO
+  status          String    @default("PENDENTE")
   criadoEm        DateTime  @default(now())
   dataInicio      DateTime?
   dataFim         DateTime?
   localExibicao   String?   @default("CABECALHO")
-
-  // NOVO
   bannerMime      String?
-  bannerDados     String?                                  // PNG/JPEG em base64 (validado, máx. 300 KB)
+  bannerDados     String?
   asaasPaymentId  String?   @unique
   pagoEm          DateTime?
-
   cliente         Cliente   @relation(fields: [usuarioId], references: [id])
-  @@index([usuarioId, status])                             // NOVO
-  @@index([status, dataInicio, dataFim])                   // NOVO
+  @@index([usuarioId, status])
+  @@index([status, dataInicio, dataFim])
 }
 
-// NOVO – idempotência do webhook do Asaas (PK = id da cobrança)
 model PagamentoProcessado {
   id         String   @id
   referencia String
@@ -168,7 +145,6 @@ model PagamentoProcessado {
   criadoEm   DateTime @default(now())
 }
 
-// NOVO – trilha de auditoria das ações administrativas (sem senhas)
 model LogAdmin {
   id        String   @id @default(uuid())
   atorTipo  String
@@ -184,17 +160,15 @@ model LogAdmin {
   @@index([alvoTipo, alvoId])
 }
 
-// NOVO – compra de pacotes de tokens de IA via PIX (o valor é calculado no servidor)
 model CompraTokens {
   id              String    @id @default(cuid())
   clienteId       String
   quantidade      Int
   valor           Float
-  status          String    @default("AGUARDANDO")      // AGUARDANDO | PAGO | CANCELADO
+  status          String    @default("AGUARDANDO")
   asaasPaymentId  String?   @unique
   criadoEm        DateTime  @default(now())
   pagoEm          DateTime?
-
   cliente         Cliente   @relation(fields: [clienteId], references: [id])
   @@index([clienteId, status])
 }
@@ -207,42 +181,35 @@ model Configuracao {
   atualizadoEm   DateTime @default(now()) @updatedAt
 }
 
-// NOVO – Registra os prestadores (CNPJ ou Código) já vinculados ao cliente para travar a exportação
 model PrestadorVinculado {
   id           String   @id @default(uuid())
   clienteId    String
-  codigo       String   // Pode armazenar CNPJ ou o código do prestador
+  codigo       String
   criadoEm     DateTime @default(now())
-  planoRef     String   // Registra qual era o plano no momento do vínculo
-
+  planoRef     String
   cliente      Cliente  @relation(fields: [clienteId], references: [id])
-  
   @@unique([clienteId, codigo])
   @@index([clienteId])
 }
 
-// NOVO – Espelho financeiro das mensalidades geradas
 model Mensalidade {
   id            String    @id @default(uuid())
   clienteId     String
-  mesRef        String    // Ex: "11/2026"
+  mesRef        String
   vencimento    DateTime
   dataPagamento DateTime?
   valorBase     Float
-  status        String    @default("EM ABERTO") // PAGO | EM ABERTO | EM ATRASO
+  status        String    @default("EM ABERTO")
   criadoEm      DateTime  @default(now())
-
   cliente       Cliente   @relation(fields: [clienteId], references: [id])
   @@index([clienteId, status])
 }
 
-// Tabela de Domínio com Histórico de Vigência
 model ConfiguracaoPlano {
   id             String   @id @default(uuid())
-  nome           String   // ECO | FLEX | PREMIUM
+  nome           String
   valor          Float
-  limite         Int      // 1 | 5 | 9999
+  limite         Int
   vigenciaInicio DateTime @default(now())
-
   @@index([nome, vigenciaInicio])
 }
